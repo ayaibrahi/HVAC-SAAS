@@ -40,7 +40,10 @@ export function ShareLinkControls({
     Boolean(createState.sharePath) &&
     latestCreateAt > latestRevokeAt;
   const hasActiveLink = hasFreshLink || (Boolean(activeLink) && !wasRevoked);
-  const expiresAt = hasFreshLink ? createState.expiresAt : activeLink?.expiresAt;
+  const isMutating = isCreating || isRevoking;
+  const expiresAt = hasFreshLink
+    ? createState.expiresAt
+    : activeLink?.expiresAt;
   const shareUrl = useMemo(() => {
     if (!hasFreshLink || !createState.sharePath) {
       return null;
@@ -92,9 +95,13 @@ export function ShareLinkControls({
           <input type="hidden" name="snapshotId" value={snapshotId} />
           <button
             className="rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={isCreating}
+            disabled={isMutating}
           >
-            {hasActiveLink ? "Create New Link" : "Create Share Link"}
+            {isCreating
+              ? "Creating..."
+              : hasActiveLink
+                ? "Create New Link"
+                : "Create Share Link"}
           </button>
         </form>
 
@@ -102,9 +109,9 @@ export function ShareLinkControls({
           <input type="hidden" name="snapshotId" value={snapshotId} />
           <button
             className="rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={!hasActiveLink || isRevoking}
+            disabled={!hasActiveLink || isMutating}
           >
-            Revoke Share Link
+            {isRevoking ? "Revoking..." : "Revoke Share Link"}
           </button>
         </form>
       </div>
@@ -154,7 +161,9 @@ export function ShareLinkControls({
         </p>
       ) : null}
 
-      {copyMessage ? <p className="mt-3 text-xs text-muted">{copyMessage}</p> : null}
+      {copyMessage ? (
+        <p className="mt-3 text-xs text-muted">{copyMessage}</p>
+      ) : null}
     </div>
   );
 }

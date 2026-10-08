@@ -4,10 +4,19 @@ import {
   AI_PROVIDER_REQUEST_TOTAL_BYTES,
   assertAiSerializedInputWithinBudget,
 } from "@/lib/ai/input-budget";
+import { AiProviderError, classifyOpenAiError } from "@/lib/ai/provider-errors";
 import { AppError } from "@/lib/errors";
+import { logger } from "@/lib/logger";
 import { getOpenAiConfig } from "@/lib/supabase/server-config";
 
 const openAiResponsesUrl = "https://api.openai.com/v1/responses";
+
+type SafeProviderError = {
+  code?: string;
+  type?: string;
+  param?: string;
+  message?: string;
+};
 
 export type OpenAiStructuredJsonRequest = {
   systemPrompt: string;
@@ -88,10 +97,64 @@ export async function callOpenAiStructuredJson(
   });
 
   if (!response.ok) {
-    throw new AppError("AI provider request failed.", 502);
+    throw await createOpenAiProviderError(response);
   }
 
   return extractResponseText((await response.json()) as unknown);
+}
+
+async function createOpenAiProviderError(response: Response) {
+  const providerError = await readSafeProviderError(response);
+  const classification = classifyOpenAiError({
+    status: response.status,
+    errorCode: providerError.code,
+    errorType: providerError.type,
+    errorParam: providerError.param,
+    errorMessage: providerError.message,
+  });
+
+  logger.error("OpenAI provider request failed", {
+    providerStatus: response.status,
+    providerErrorCode: providerError.code,
+    providerErrorType: providerError.type,
+    providerErrorParam: providerError.param,
+    category: classification.category,
+  });
+
+  return new AiProviderError({
+    message: classification.message,
+    statusCode: classification.statusCode,
+    category: classification.category,
+    providerStatus: response.status,
+    providerErrorCode: providerError.code,
+    providerErrorType: providerError.type,
+    providerErrorParam: providerError.param,
+  });
+}
+
+async function readSafeProviderError(
+  response: Response,
+): Promise<SafeProviderError> {
+  try {
+    const value = (await response.clone().json()) as unknown;
+
+    if (!isRecord(value) || !isRecord(value.error)) {
+      return {};
+    }
+
+    return {
+      code: readProviderString(value.error.code),
+      type: readProviderString(value.error.type),
+      param: readProviderString(value.error.param),
+      message: readProviderString(value.error.message),
+    };
+  } catch {
+    return {};
+  }
+}
+
+function readProviderString(value: unknown) {
+  return typeof value === "string" ? value.slice(0, 120) : undefined;
 }
 
 function extractResponseText(value: unknown) {

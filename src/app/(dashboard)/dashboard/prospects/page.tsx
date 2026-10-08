@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeedbackMessage } from "@/components/feedback-message";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { Audit } from "@/domain/audits/types";
 import type {
   Opportunity,
@@ -29,7 +30,9 @@ type ProspectsPageProps = {
   }>;
 };
 
-export default async function ProspectsPage({ searchParams }: ProspectsPageProps) {
+export default async function ProspectsPage({
+  searchParams,
+}: ProspectsPageProps) {
   const params = await searchParams;
   const user = await getCurrentUser();
   const agency = user ? await getAgencyForUser(user.id) : null;
@@ -83,98 +86,142 @@ export default async function ProspectsPage({ searchParams }: ProspectsPageProps
 
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
         <h2 className="mb-5 text-lg font-semibold text-ink">Add prospect</h2>
-        <ProspectForm action={createProspectAction} submitLabel="Add prospect" />
+        <ProspectForm
+          action={createProspectAction}
+          submitLabel="Add prospect"
+          pendingLabel="Adding..."
+        />
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-ink">Prospect list</h2>
         {prospects.length === 0 ? (
           <div className="rounded-md border border-border bg-white p-6 text-sm text-muted">
-            No prospects yet.
+            No prospects yet. Add a business above to run your first website
+            analysis.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-md border border-border bg-white shadow-sm">
-            <table className="w-full border-collapse text-left text-sm">
-              <thead className="bg-surface text-muted">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Business</th>
-                  <th className="px-4 py-3 font-semibold">Website</th>
-                  <th className="px-4 py-3 font-semibold">Contact</th>
-                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prospects.map((prospect) => {
-                  const deleteAction = deleteProspectAction.bind(null, prospect.id);
-                  const analyzeAction = startProspectAuditAction.bind(null, prospect.id);
-                  const latestAudit = latestAuditByProspect.get(prospect.id);
-                  const auditOpportunities = latestAudit
-                    ? opportunitiesByAudit.get(latestAudit.id) ?? []
-                    : [];
-                  const generateAction = latestAudit
-                    ? generateAuditOpportunitiesAction.bind(null, latestAudit.id)
-                    : null;
+          <div className="space-y-4">
+            {prospects.map((prospect) => {
+              const deleteAction = deleteProspectAction.bind(null, prospect.id);
+              const analyzeAction = startProspectAuditAction.bind(
+                null,
+                prospect.id,
+              );
+              const latestAudit = latestAuditByProspect.get(prospect.id);
+              const auditIsActive = isAuditActive(latestAudit);
+              const auditOpportunities = latestAudit
+                ? (opportunitiesByAudit.get(latestAudit.id) ?? [])
+                : [];
+              const generateAction = latestAudit
+                ? generateAuditOpportunitiesAction.bind(null, latestAudit.id)
+                : null;
 
-                  return (
-                    <tr key={prospect.id} className="border-t border-border">
-                      <td className="px-4 py-3">
-                        <p className="font-medium text-ink">{prospect.businessName}</p>
-                        {prospect.notes ? (
-                          <p className="mt-1 max-w-xl text-muted">{prospect.notes}</p>
-                        ) : null}
-                        <div className="mt-4 space-y-3">
-                          <AuditSummary
-                            audit={latestAudit}
-                            generateAction={generateAction}
-                          />
-                          <OpportunityList
-                            opportunities={auditOpportunities}
-                            servicesById={servicesById}
-                            aiInsightsByOpportunityId={aiInsightsByOpportunityId}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-muted">
-                        <a
-                          href={prospect.websiteUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-medium text-accent"
-                        >
-                          {prospect.websiteUrl}
-                        </a>
-                      </td>
-                      <td className="px-4 py-3 text-muted">
-                        {prospect.contactName ?? prospect.contactEmail ?? "Not set"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-end gap-2">
-                          <form action={analyzeAction}>
-                            <button className="rounded-md bg-accent px-3 py-2 font-semibold text-white">
-                              Analyze
-                            </button>
-                          </form>
-                          <Link
-                            href={`/dashboard/prospects/${prospect.id}/edit`}
-                            className="rounded-md border border-border px-3 py-2 font-semibold text-ink"
-                          >
-                            Edit
-                          </Link>
-                          <form action={deleteAction}>
-                            <button className="rounded-md border border-red-200 px-3 py-2 font-semibold text-red-700">
-                              Delete
-                            </button>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              return (
+                <article
+                  key={prospect.id}
+                  className="rounded-md border border-border bg-white p-5 shadow-sm"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold text-ink">
+                        {prospect.businessName}
+                      </h3>
+                      <a
+                        href={prospect.websiteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 block break-words text-sm font-medium text-accent"
+                      >
+                        {prospect.websiteUrl}
+                      </a>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <form action={analyzeAction}>
+                        <PendingSubmitButton
+                          label={
+                            auditIsActive ? "Analysis in progress" : "Analyze"
+                          }
+                          pendingLabel="Analyzing..."
+                          disabled={auditIsActive}
+                          className="rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                      </form>
+                      <Link
+                        href={`/dashboard/prospects/${prospect.id}/edit`}
+                        className="rounded-md border border-border px-3 py-2 text-sm font-semibold text-ink"
+                      >
+                        Edit
+                      </Link>
+                      <form action={deleteAction}>
+                        <PendingSubmitButton
+                          label="Delete"
+                          pendingLabel="Deleting..."
+                          className="rounded-md border border-red-200 px-3 py-2 text-sm font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        />
+                      </form>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                    <MetadataItem
+                      label="Contact"
+                      value={
+                        prospect.contactName ??
+                        prospect.contactEmail ??
+                        "Not set"
+                      }
+                    />
+                    <MetadataItem
+                      label="Latest audit"
+                      value={
+                        latestAudit
+                          ? `${formatAuditStatus(latestAudit.status)}${
+                              latestAudit.completedAt
+                                ? ` on ${formatDate(latestAudit.completedAt)}`
+                                : ""
+                            }`
+                          : "Not analyzed"
+                      }
+                    />
+                    <MetadataItem
+                      label="Opportunities"
+                      value={`${auditOpportunities.length} ranked`}
+                    />
+                  </div>
+
+                  {prospect.notes ? (
+                    <p className="mt-4 rounded-md bg-surface px-3 py-2 text-sm text-muted">
+                      {prospect.notes}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-5 grid gap-4 lg:grid-cols-[0.75fr_1.25fr]">
+                    <AuditSummary
+                      audit={latestAudit}
+                      generateAction={generateAction}
+                    />
+                    <OpportunityList
+                      opportunities={auditOpportunities}
+                      servicesById={servicesById}
+                      aiInsightsByOpportunityId={aiInsightsByOpportunityId}
+                    />
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function MetadataItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border bg-surface px-3 py-2">
+      <p className="text-xs font-semibold uppercase text-muted">{label}</p>
+      <p className="mt-1 break-words text-sm text-ink">{value}</p>
     </div>
   );
 }
@@ -195,10 +242,12 @@ function AuditSummary({
   }
 
   return (
-    <div className="rounded-md border border-border bg-surface p-3">
+    <div className="rounded-md border border-border bg-surface p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase text-muted">Latest audit</p>
+          <p className="text-xs font-semibold uppercase text-muted">
+            Latest audit
+          </p>
           <p className="mt-1 text-sm text-ink">
             {formatAuditStatus(audit.status)}
             {audit.completedAt ? ` on ${formatDate(audit.completedAt)}` : ""}
@@ -206,12 +255,20 @@ function AuditSummary({
         </div>
         {audit.status === "completed" && generateAction ? (
           <form action={generateAction}>
-            <button className="rounded-md bg-ink px-3 py-2 text-xs font-semibold text-white">
-              Generate opportunities
-            </button>
+            <PendingSubmitButton
+              label="Generate opportunities"
+              pendingLabel="Generating..."
+              className="rounded-md bg-ink px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            />
           </form>
         ) : null}
       </div>
+      {isAuditActive(audit) ? (
+        <p className="mt-2 text-xs text-muted">
+          Analysis is running. New analysis requests are blocked until this
+          audit finishes.
+        </p>
+      ) : null}
       {audit.status === "failed" && audit.errorMessage ? (
         <p className="mt-2 text-xs text-red-700">{audit.errorMessage}</p>
       ) : null}
@@ -229,14 +286,23 @@ function OpportunityList({
   aiInsightsByOpportunityId: Map<string, OpportunityAiInsight>;
 }) {
   if (opportunities.length === 0) {
-    return null;
+    return (
+      <div className="rounded-md border border-border bg-white p-4 text-sm text-muted">
+        No ranked opportunities yet.
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase text-muted">
-        Ranked opportunities
-      </p>
+    <div className="space-y-3">
+      <div>
+        <p className="text-xs font-semibold uppercase text-muted">
+          Ranked opportunities
+        </p>
+        <p className="mt-1 text-sm text-muted">
+          Deterministic findings are separated from AI sales insight text.
+        </p>
+      </div>
       {opportunities.map((opportunity, index) => {
         const service = opportunity.agencyServiceId
           ? servicesById.get(opportunity.agencyServiceId)
@@ -250,7 +316,7 @@ function OpportunityList({
         return (
           <div
             key={opportunity.id}
-            className="rounded-md border border-border bg-white p-3"
+            className="rounded-md border border-border bg-white p-4"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -262,28 +328,43 @@ function OpportunityList({
                 </p>
               </div>
               <div className="flex gap-2 text-xs">
-                <span className="rounded-md border border-border px-2 py-1 text-muted">
+                <span className="rounded-md border border-border bg-surface px-2 py-1 font-semibold text-muted">
                   {opportunity.priority}
                 </span>
-                <span className="rounded-md border border-border px-2 py-1 text-muted">
+                <span className="rounded-md border border-border bg-surface px-2 py-1 font-semibold text-muted">
                   {opportunity.confidence}
                 </span>
               </div>
             </div>
-            <p className="mt-2 text-xs text-muted">
-              Service:{" "}
-              <span className="font-medium text-ink">
-                {service ? service.name : "No matching active service"}
-              </span>
-            </p>
-            <ul className="mt-2 space-y-1 text-xs text-muted">
-              {opportunity.evidence.map((item, evidenceIndex) => (
-                <li key={`${opportunity.id}-${item.signal}-${evidenceIndex}`}>
-                  {item.details} Signal: {item.signal}; observed{" "}
-                  {formatEvidenceValue(item.observed_value)}; scope {item.scope}.
-                </li>
-              ))}
-            </ul>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div className="rounded-md border border-border bg-surface p-3">
+                <p className="text-xs font-semibold uppercase text-muted">
+                  Mapped service
+                </p>
+                <p className="mt-1 text-sm font-medium text-ink">
+                  {service ? service.name : "No matching active service"}
+                </p>
+              </div>
+              <div className="rounded-md border border-border bg-surface p-3">
+                <p className="text-xs font-semibold uppercase text-muted">
+                  Deterministic evidence
+                </p>
+                <ul className="mt-2 space-y-2 text-xs text-muted">
+                  {opportunity.evidence.map((item, evidenceIndex) => (
+                    <li
+                      key={`${opportunity.id}-${item.signal}-${evidenceIndex}`}
+                    >
+                      <span className="font-medium text-ink">
+                        {item.signal}
+                      </span>
+                      : {item.details} Observed{" "}
+                      {formatEvidenceValue(item.observed_value)} on {item.scope}
+                      .
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
             <AiInsightPanel
               insight={aiInsight}
               generateAction={generateAiInsightAction}
@@ -304,10 +385,10 @@ function AiInsightPanel({
 }) {
   const hasInsightContent = Boolean(
     insight?.salesSummary ||
-      insight?.whyItMatters ||
-      insight?.clientFacingExplanation ||
-      insight?.agencyTalkingPoints.length ||
-      insight?.recommendedNextStep,
+    insight?.whyItMatters ||
+    insight?.clientFacingExplanation ||
+    insight?.agencyTalkingPoints.length ||
+    insight?.recommendedNextStep,
   );
 
   if (insight?.status === "generating") {
@@ -330,13 +411,19 @@ function AiInsightPanel({
           AI sales insight
         </p>
         <form action={generateAction}>
-          <button className="rounded-md bg-ink px-3 py-2 text-xs font-semibold text-white">
-            {insight?.status === "completed"
-              ? "Regenerate AI insight"
-              : insight?.status === "failed"
-                ? "Retry AI insight"
-                : "Generate AI insight"}
-          </button>
+          <PendingSubmitButton
+            label={
+              insight?.status === "completed"
+                ? "Regenerate AI insight"
+                : insight?.status === "failed"
+                  ? "Retry AI insight"
+                  : "Generate AI insight"
+            }
+            pendingLabel={
+              insight?.status === "failed" ? "Retrying..." : "Generating..."
+            }
+            className="rounded-md bg-ink px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          />
         </form>
       </div>
 
@@ -427,6 +514,10 @@ function groupOpportunitiesByAudit(opportunities: Opportunity[]) {
 
 function formatAuditStatus(status: Audit["status"]) {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function isAuditActive(audit: Audit | undefined) {
+  return audit?.status === "pending" || audit?.status === "running";
 }
 
 function formatDate(value: string) {

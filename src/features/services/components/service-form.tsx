@@ -1,16 +1,19 @@
 import type { AgencyService } from "@/domain/services/types";
 import { supportedCurrencies } from "@/config/currencies";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type ServiceFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   service?: AgencyService | null;
   submitLabel?: string;
+  pendingLabel?: string;
 };
 
 export function ServiceForm({
   action,
   service,
   submitLabel = "Save service",
+  pendingLabel = "Saving...",
 }: ServiceFormProps) {
   return (
     <form action={action} className="space-y-5">
@@ -79,12 +82,11 @@ export function ServiceForm({
         Active
       </label>
 
-      <button
-        type="submit"
-        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90"
-      >
-        {submitLabel}
-      </button>
+      <PendingSubmitButton
+        label={submitLabel}
+        pendingLabel={pendingLabel}
+        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+      />
     </form>
   );
 }

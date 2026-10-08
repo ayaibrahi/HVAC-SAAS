@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeedbackMessage } from "@/components/feedback-message";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getAgencyForUser } from "@/features/agencies/data";
 import {
   deleteServiceAction,
@@ -17,7 +18,9 @@ type ServicesPageProps = {
   }>;
 };
 
-export default async function ServicesPage({ searchParams }: ServicesPageProps) {
+export default async function ServicesPage({
+  searchParams,
+}: ServicesPageProps) {
   const params = await searchParams;
   const user = await getCurrentUser();
   const agency = user ? await getAgencyForUser(user.id) : null;
@@ -56,7 +59,11 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
 
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
         <h2 className="mb-5 text-lg font-semibold text-ink">Add service</h2>
-        <ServiceForm action={createServiceAction} submitLabel="Add service" />
+        <ServiceForm
+          action={createServiceAction}
+          submitLabel="Add service"
+          pendingLabel="Adding..."
+        />
       </section>
 
       <section className="space-y-3">
@@ -73,7 +80,9 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                   <th className="px-4 py-3 font-semibold">Service</th>
                   <th className="px-4 py-3 font-semibold">Price</th>
                   <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                  <th className="px-4 py-3 text-right font-semibold">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -83,14 +92,19 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                     service.id,
                     !service.isActive,
                   );
-                  const deleteAction = deleteServiceAction.bind(null, service.id);
+                  const deleteAction = deleteServiceAction.bind(
+                    null,
+                    service.id,
+                  );
 
                   return (
                     <tr key={service.id} className="border-t border-border">
                       <td className="px-4 py-3">
                         <p className="font-medium text-ink">{service.name}</p>
                         {service.description ? (
-                          <p className="mt-1 max-w-xl text-muted">{service.description}</p>
+                          <p className="mt-1 max-w-xl text-muted">
+                            {service.description}
+                          </p>
                         ) : null}
                       </td>
                       <td className="px-4 py-3 text-muted">
@@ -108,14 +122,18 @@ export default async function ServicesPage({ searchParams }: ServicesPageProps) 
                             Edit
                           </Link>
                           <form action={toggleAction}>
-                            <button className="rounded-md border border-border px-3 py-2 font-semibold text-ink">
-                              {service.isActive ? "Disable" : "Enable"}
-                            </button>
+                            <PendingSubmitButton
+                              label={service.isActive ? "Disable" : "Enable"}
+                              pendingLabel="Updating..."
+                              className="rounded-md border border-border px-3 py-2 font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+                            />
                           </form>
                           <form action={deleteAction}>
-                            <button className="rounded-md border border-red-200 px-3 py-2 font-semibold text-red-700">
-                              Delete
-                            </button>
+                            <PendingSubmitButton
+                              label="Delete"
+                              pendingLabel="Deleting..."
+                              className="rounded-md border border-red-200 px-3 py-2 font-semibold text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                            />
                           </form>
                         </div>
                       </td>

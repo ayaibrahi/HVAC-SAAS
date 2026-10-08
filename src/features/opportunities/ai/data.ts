@@ -20,6 +20,7 @@ import { requireCurrentAgency } from "@/features/agencies/data";
 import { getProspect } from "@/features/prospects/data";
 import { getAgencyService } from "@/features/services/data";
 import { enforceAgencyUsageLimit } from "@/features/usage/limits";
+import { AiProviderError } from "@/lib/ai/provider-errors";
 import { AppError, getPublicErrorMessage } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -56,7 +57,9 @@ export async function generateOpportunityAiInsightForOpportunity(
   opportunityId: string,
   provider?: OpportunityAiProvider,
 ) {
-  const input = generateOpportunityAiInsightInputSchema.parse({ opportunityId });
+  const input = generateOpportunityAiInsightInputSchema.parse({
+    opportunityId,
+  });
   const { supabase, agency, user } = await requireCurrentAgency();
   const opportunity = await getOpportunityForAgency(
     input.opportunityId,
@@ -96,7 +99,8 @@ export async function generateOpportunityAiInsightForOpportunity(
     action: "opportunity_ai",
   });
 
-  const effectiveProvider = provider ?? createOpenAiOpportunityInsightProvider();
+  const effectiveProvider =
+    provider ?? createOpenAiOpportunityInsightProvider();
   const generationClaim = await claimOpportunityAiInsightGeneration({
     agencyId: agency.id,
     opportunityId: authorizedOpportunity.id,
@@ -153,6 +157,10 @@ export async function generateOpportunityAiInsightForOpportunity(
       promptVersion: effectiveProvider.metadata.promptVersion,
       schemaVersion: effectiveProvider.metadata.schemaVersion,
       latencyMs: Date.now() - startedAt,
+      errorCategory:
+        error instanceof AiProviderError ? error.category : undefined,
+      providerStatus:
+        error instanceof AiProviderError ? error.providerStatus : undefined,
     });
 
     throw error;
@@ -256,7 +264,9 @@ export async function claimOpportunityAiInsightGeneration(input: {
 export function mapOpportunityAiInsight(
   row: OpportunityAiInsightRow,
 ): OpportunityAiInsight {
-  const talkingPoints = talkingPointsSchema.safeParse(row.agency_talking_points);
+  const talkingPoints = talkingPointsSchema.safeParse(
+    row.agency_talking_points,
+  );
 
   return {
     id: row.id,

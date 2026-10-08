@@ -1,6 +1,10 @@
 import type { ProposalAiProvider } from "@/features/proposals/ai/types";
 import { assertProposalAiDraftIsSafe } from "@/features/proposals/ai/safety";
 import { assertAiSerializedInputWithinBudget } from "@/lib/ai/input-budget";
+import {
+  AiProviderError,
+  isRetryableAiProviderError,
+} from "@/lib/ai/provider-errors";
 import { AppError } from "@/lib/errors";
 import { parseProposalAiDraftOutput } from "@/lib/validation/proposal-ai";
 
@@ -35,6 +39,12 @@ export async function generateValidatedProposalAiDraft(
       return draft;
     } catch (error) {
       lastError = error;
+      if (
+        error instanceof AiProviderError &&
+        !isRetryableAiProviderError(error)
+      ) {
+        throw error;
+      }
     }
   }
 

@@ -5,6 +5,7 @@ import {
   makeOpportunityAiInsight,
 } from "@/features/opportunities/ai/test-fixtures";
 import type { OpportunityAiProvider } from "@/features/opportunities/ai/types";
+import { AiProviderError } from "@/lib/ai/provider-errors";
 
 const metadata = {
   provider: "test",
@@ -32,9 +33,13 @@ describe("generateValidatedOpportunityAiInsight", () => {
     };
 
     await expect(
-      generateValidatedOpportunityAiInsight(makeOpportunityAiInput(), provider, {
-        maxAttempts: 1,
-      }),
+      generateValidatedOpportunityAiInsight(
+        makeOpportunityAiInput(),
+        provider,
+        {
+          maxAttempts: 1,
+        },
+      ),
     ).rejects.toThrow("AI insight could not be generated safely.");
   });
 
@@ -42,9 +47,13 @@ describe("generateValidatedOpportunityAiInsight", () => {
     const provider = makeProvider(["{broken"]);
 
     await expect(
-      generateValidatedOpportunityAiInsight(makeOpportunityAiInput(), provider, {
-        maxAttempts: 1,
-      }),
+      generateValidatedOpportunityAiInsight(
+        makeOpportunityAiInput(),
+        provider,
+        {
+          maxAttempts: 1,
+        },
+      ),
     ).rejects.toThrow("AI insight could not be generated safely.");
   });
 
@@ -83,6 +92,27 @@ describe("generateValidatedOpportunityAiInsight", () => {
     await expect(
       generateValidatedOpportunityAiInsight(makeOpportunityAiInput(), provider),
     ).resolves.toEqual(insight);
+  });
+
+  it("does not retry non-retryable provider failures", async () => {
+    let providerCalls = 0;
+    const provider: OpportunityAiProvider = {
+      metadata,
+      generateOpportunityInsight: async () => {
+        providerCalls += 1;
+        throw new AiProviderError({
+          message: "AI usage or quota is unavailable right now.",
+          statusCode: 429,
+          category: "quota",
+          providerStatus: 429,
+        });
+      },
+    };
+
+    await expect(
+      generateValidatedOpportunityAiInsight(makeOpportunityAiInput(), provider),
+    ).rejects.toThrow("AI usage or quota is unavailable right now.");
+    expect(providerCalls).toBe(1);
   });
 
   it("does not mutate deterministic input fields", async () => {

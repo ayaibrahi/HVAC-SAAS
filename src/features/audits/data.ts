@@ -3,6 +3,7 @@ import "server-only";
 import type { Audit } from "@/domain/audits/types";
 import type { Json, Database } from "@/lib/supabase/database.types";
 import type { VerticalPlaybookKey } from "@/config/vertical-playbooks";
+import { isUniqueViolation } from "@/features/audits/concurrency";
 import { AppError } from "@/lib/errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -48,6 +49,28 @@ export async function listAuditsForAgency(agencyId: string) {
   return data.map(mapAudit);
 }
 
+export async function getActiveAuditForProspect(input: {
+  agencyId: string;
+  prospectId: string;
+}) {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("audits")
+    .select("*")
+    .eq("agency_id", input.agencyId)
+    .eq("prospect_id", input.prospectId)
+    .in("status", ["pending", "running"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new AppError("We could not check the current audit state.", 500);
+  }
+
+  return data ? mapAudit(data) : null;
+}
+
 export async function createPendingAudit(input: {
   agencyId: string;
   prospectId: string;
@@ -72,6 +95,13 @@ export async function createPendingAudit(input: {
     })
     .select("*")
     .single();
+
+  if (isUniqueViolation(error)) {
+    throw new AppError(
+      "Analysis is already in progress for this prospect.",
+      409,
+    );
+  }
 
   if (error) {
     throw new AppError("We could not create the audit record.", 500);

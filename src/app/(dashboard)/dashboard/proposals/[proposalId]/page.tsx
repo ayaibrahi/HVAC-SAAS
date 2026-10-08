@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { FeedbackMessage } from "@/components/feedback-message";
+import { PendingDownloadLink } from "@/components/pending-download-link";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { Opportunity } from "@/domain/opportunities/types";
 import type {
   ProposalDeliverySnapshot,
@@ -33,13 +35,18 @@ export default async function ProposalBuilderPage({
   const { proposalId } = await params;
   const feedback = await searchParams;
   const data = await getProposalBuilderData(proposalId);
-  const deliverySnapshots = await listDeliverySnapshotsForProposal(data.proposal.id);
+  const deliverySnapshots = await listDeliverySnapshotsForProposal(
+    data.proposal.id,
+  );
   const shareLinks = await listShareLinksForSnapshots(
     deliverySnapshots.map((snapshot) => snapshot.id),
   );
   const activeServices = data.services.filter((service) => service.isActive);
   const updateAction = updateProposalAction.bind(null, data.proposal.id);
-  const generateAction = generateProposalAiDraftAction.bind(null, data.proposal.id);
+  const generateAction = generateProposalAiDraftAction.bind(
+    null,
+    data.proposal.id,
+  );
   const createSnapshotAction = createDeliverySnapshotAction.bind(
     null,
     data.proposal.id,
@@ -61,9 +68,11 @@ export default async function ProposalBuilderPage({
           </p>
         </div>
         <form action={generateAction}>
-          <button className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink">
-            Generate summary and scope
-          </button>
+          <PendingSubmitButton
+            label="Generate summary and scope"
+            pendingLabel="Generating..."
+            className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+          />
         </form>
       </div>
 
@@ -83,7 +92,10 @@ export default async function ProposalBuilderPage({
         </div>
       ) : null}
 
-      <form action={updateAction} className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+      <form
+        action={updateAction}
+        className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]"
+      >
         <div className="space-y-6">
           <section className="rounded-md border border-border bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">Proposal details</h2>
@@ -171,14 +183,13 @@ export default async function ProposalBuilderPage({
                   }
                   selected={data.lineItemsByOpportunityId.has(opportunity.id)}
                   unitPrice={
-                    data.lineItemsByOpportunityId.get(opportunity.id)?.unitPrice ??
-                    getDefaultServicePrice(
-                      opportunity,
-                      activeServices,
-                    )
+                    data.lineItemsByOpportunityId.get(opportunity.id)
+                      ?.unitPrice ??
+                    getDefaultServicePrice(opportunity, activeServices)
                   }
                   quantity={
-                    data.lineItemsByOpportunityId.get(opportunity.id)?.quantity ?? 1
+                    data.lineItemsByOpportunityId.get(opportunity.id)
+                      ?.quantity ?? 1
                   }
                   description={
                     data.lineItemsByOpportunityId.get(opportunity.id)
@@ -197,7 +208,9 @@ export default async function ProposalBuilderPage({
             <h2 className="text-lg font-semibold text-ink">Discount</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label>
-                <span className="text-sm font-medium text-ink">Discount type</span>
+                <span className="text-sm font-medium text-ink">
+                  Discount type
+                </span>
                 <select
                   name="discountType"
                   defaultValue={data.proposal.discountType}
@@ -209,7 +222,9 @@ export default async function ProposalBuilderPage({
                 </select>
               </label>
               <label>
-                <span className="text-sm font-medium text-ink">Discount value</span>
+                <span className="text-sm font-medium text-ink">
+                  Discount value
+                </span>
                 <input
                   name="discountValue"
                   defaultValue={data.proposal.discountValue.toFixed(2)}
@@ -219,9 +234,11 @@ export default async function ProposalBuilderPage({
             </div>
           </section>
 
-          <button className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white">
-            Save proposal
-          </button>
+          <PendingSubmitButton
+            label="Save proposal"
+            pendingLabel="Saving..."
+            className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+          />
         </div>
 
         <ProposalPreview data={data} />
@@ -241,7 +258,9 @@ function DeliverySnapshotPanel({
   proposalStatus: string;
   createSnapshotAction: () => Promise<void>;
 }) {
-  const activeSnapshot = snapshots.find((snapshot) => snapshot.status === "active");
+  const activeSnapshot = snapshots.find(
+    (snapshot) => snapshot.status === "active",
+  );
 
   return (
     <section className="rounded-md border border-border bg-white p-6 shadow-sm">
@@ -253,12 +272,12 @@ function DeliverySnapshotPanel({
           </p>
         </div>
         <form action={createSnapshotAction}>
-          <button
+          <PendingSubmitButton
+            label="Create delivery snapshot"
+            pendingLabel="Creating snapshot..."
             className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
             disabled={proposalStatus !== "ready"}
-          >
-            Create delivery snapshot
-          </button>
+          />
         </form>
       </div>
 
@@ -277,11 +296,16 @@ function DeliverySnapshotPanel({
           <SnapshotSummary snapshot={activeSnapshot} />
           <ShareLinkControls
             snapshotId={activeSnapshot.id}
-            activeLink={findUsableActiveShareLink(shareLinks, activeSnapshot.id)}
+            activeLink={findUsableActiveShareLink(
+              shareLinks,
+              activeSnapshot.id,
+            )}
           />
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted">No delivery snapshot exists yet.</p>
+        <p className="mt-4 text-sm text-muted">
+          No delivery snapshot exists yet.
+        </p>
       )}
 
       {snapshots.length > 1 ? (
@@ -301,7 +325,10 @@ function DeliverySnapshotPanel({
                   </div>
                   <ShareLinkControls
                     snapshotId={snapshot.id}
-                    activeLink={findUsableActiveShareLink(shareLinks, snapshot.id)}
+                    activeLink={findUsableActiveShareLink(
+                      shareLinks,
+                      snapshot.id,
+                    )}
                   />
                 </div>
               ))}
@@ -314,12 +341,12 @@ function DeliverySnapshotPanel({
 
 function DownloadPdfLink({ snapshot }: { snapshot: ProposalDeliverySnapshot }) {
   return (
-    <a
+    <PendingDownloadLink
       href={`/api/proposal-delivery-snapshots/${snapshot.id}/pdf`}
+      label="Download PDF"
+      pendingLabel="Preparing PDF..."
       className="rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-ink"
-    >
-      Download PDF
-    </a>
+    />
   );
 }
 
@@ -458,7 +485,11 @@ function OpportunitySelection({
   );
 }
 
-function ProposalPreview({ data }: { data: Awaited<ReturnType<typeof getProposalBuilderData>> }) {
+function ProposalPreview({
+  data,
+}: {
+  data: Awaited<ReturnType<typeof getProposalBuilderData>>;
+}) {
   const lineItems = [...data.lineItemsByOpportunityId.values()].sort(
     (left, right) => left.position - right.position,
   );
@@ -485,7 +516,10 @@ function ProposalPreview({ data }: { data: Awaited<ReturnType<typeof getProposal
         ) : (
           <div className="mt-2 space-y-3">
             {lineItems.map((item) => (
-              <div key={item.id} className="rounded-md border border-border p-3">
+              <div
+                key={item.id}
+                className="rounded-md border border-border p-3"
+              >
                 <p className="text-sm font-semibold text-ink">
                   {item.serviceName}
                 </p>

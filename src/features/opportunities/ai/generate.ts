@@ -1,6 +1,10 @@
 import type { OpportunityAiProvider } from "@/features/opportunities/ai/types";
 import { assertOpportunityAiInsightIsSafe } from "@/features/opportunities/ai/safety";
 import { assertAiSerializedInputWithinBudget } from "@/lib/ai/input-budget";
+import {
+  AiProviderError,
+  isRetryableAiProviderError,
+} from "@/lib/ai/provider-errors";
 import { AppError } from "@/lib/errors";
 import { parseOpportunityAiInsightOutput } from "@/lib/validation/opportunity-ai-insights";
 
@@ -35,6 +39,12 @@ export async function generateValidatedOpportunityAiInsight(
       return insight;
     } catch (error) {
       lastError = error;
+      if (
+        error instanceof AiProviderError &&
+        !isRetryableAiProviderError(error)
+      ) {
+        throw error;
+      }
     }
   }
 

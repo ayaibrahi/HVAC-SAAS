@@ -5,6 +5,7 @@ import {
   makeProposalAiInput,
 } from "@/features/proposals/ai/test-fixtures";
 import type { ProposalAiProvider } from "@/features/proposals/ai/types";
+import { AiProviderError } from "@/lib/ai/provider-errors";
 
 const metadata = {
   provider: "test",
@@ -25,9 +26,13 @@ describe("generateValidatedProposalAiDraft", () => {
 
   it("rejects malformed output and unsafe claims", async () => {
     await expect(
-      generateValidatedProposalAiDraft(makeProposalAiInput(), makeProvider(["{broken"]), {
-        maxAttempts: 1,
-      }),
+      generateValidatedProposalAiDraft(
+        makeProposalAiInput(),
+        makeProvider(["{broken"]),
+        {
+          maxAttempts: 1,
+        },
+      ),
     ).rejects.toThrow();
 
     await expect(
@@ -83,10 +88,31 @@ describe("generateValidatedProposalAiDraft", () => {
       },
     };
 
-    await expect(generateValidatedProposalAiDraft(input, provider)).rejects.toThrow(
-      "AI input proposal AI payload is too large",
-    );
+    await expect(
+      generateValidatedProposalAiDraft(input, provider),
+    ).rejects.toThrow("AI input proposal AI payload is too large");
     expect(providerCalls).toBe(0);
+  });
+
+  it("does not retry non-retryable provider failures", async () => {
+    let providerCalls = 0;
+    const provider: ProposalAiProvider = {
+      metadata,
+      generateProposalDraft: async () => {
+        providerCalls += 1;
+        throw new AiProviderError({
+          message: "AI provider permission is unavailable for this request.",
+          statusCode: 502,
+          category: "permission",
+          providerStatus: 403,
+        });
+      },
+    };
+
+    await expect(
+      generateValidatedProposalAiDraft(makeProposalAiInput(), provider),
+    ).rejects.toThrow("AI provider permission is unavailable");
+    expect(providerCalls).toBe(1);
   });
 });
 

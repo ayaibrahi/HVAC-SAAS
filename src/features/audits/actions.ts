@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { assertProspectBelongsToAgency } from "@/features/audits/authorization";
+import { getActiveAuditForProspect } from "@/features/audits/data";
 import { runAuditForProspect } from "@/features/audits/run-audit";
 import { requireCurrentAgency } from "@/features/agencies/data";
 import { getProspect } from "@/features/prospects/data";
@@ -13,30 +14,63 @@ import { getPublicErrorMessage } from "@/lib/errors";
 const prospectsPath = "/dashboard/prospects";
 
 export async function startProspectAuditAction(prospectId: string) {
+  let feedback:
+    | { success: string; shouldRevalidate: boolean }
+    | { error: string; shouldRevalidate: boolean };
+
   try {
     const { agency, user } = await requireCurrentAgency();
     const prospect = await getProspect(prospectId, agency.id);
 
     assertProspectBelongsToAgency(prospect, agency.id);
 
-    await enforceAgencyUsageLimit({
-      agencyId: agency.id,
-      userId: user.id,
-      action: "website_analyzer",
-    });
+    const activeAudit = prospect
+      ? await getActiveAuditForProspect({
+          agencyId: agency.id,
+          prospectId: prospect.id,
+        })
+      : null;
 
-    await runAuditForProspect({
-      agencyId: agency.id,
-      prospect,
-    });
+    if (activeAudit) {
+      feedback = {
+        success: "Analysis is already in progress for this prospect.",
+        shouldRevalidate: false,
+      };
+    } else {
+      await enforceAgencyUsageLimit({
+        agencyId: agency.id,
+        userId: user.id,
+        action: "website_analyzer",
+      });
+
+      await runAuditForProspect({
+        agencyId: agency.id,
+        prospect,
+      });
+
+      feedback = {
+        success: "Audit completed and stored.",
+        shouldRevalidate: true,
+      };
+    }
   } catch (error) {
-    redirect(
-      buildFeedbackUrl(prospectsPath, {
-        error: getPublicErrorMessage(error, "We could not analyze that prospect."),
-      }),
-    );
+    feedback = {
+      error: getPublicErrorMessage(
+        error,
+        "We could not analyze that prospect.",
+      ),
+      shouldRevalidate: false,
+    };
   }
 
-  revalidatePath(prospectsPath);
-  redirect(buildFeedbackUrl(prospectsPath, { success: "Audit completed and stored." }));
+  if (feedback.shouldRevalidate) {
+    revalidatePath(prospectsPath);
+  }
+
+  const feedbackParams =
+    "success" in feedback
+      ? { success: feedback.success }
+      : { error: feedback.error };
+
+  redirect(buildFeedbackUrl(prospectsPath, feedbackParams));
 }

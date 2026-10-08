@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeedbackMessage } from "@/components/feedback-message";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { Audit } from "@/domain/audits/types";
 import type { Prospect } from "@/domain/prospects/types";
 import { getAgencyForUser } from "@/features/agencies/data";
@@ -47,8 +48,12 @@ export default async function ProposalsPage({
     listAuditsForAgency(agency.id),
     listProspects(agency.id),
   ]);
-  const prospectsById = new Map(prospects.map((prospect) => [prospect.id, prospect]));
-  const completedAudits = audits.filter((audit) => audit.status === "completed");
+  const prospectsById = new Map(
+    prospects.map((prospect) => [prospect.id, prospect]),
+  );
+  const completedAudits = audits.filter(
+    (audit) => audit.status === "completed",
+  );
 
   return (
     <div className="space-y-8">
@@ -69,9 +74,14 @@ export default async function ProposalsPage({
             Run and complete an audit before creating a proposal.
           </p>
         ) : (
-          <form action={createProposalAction} className="mt-4 grid gap-4 md:grid-cols-3">
+          <form
+            action={createProposalAction}
+            className="mt-4 grid gap-4 md:grid-cols-3"
+          >
             <label className="md:col-span-2">
-              <span className="text-sm font-medium text-ink">Completed audit</span>
+              <span className="text-sm font-medium text-ink">
+                Completed audit
+              </span>
               <select
                 name="auditId"
                 className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
@@ -79,7 +89,10 @@ export default async function ProposalsPage({
               >
                 {completedAudits.map((audit) => (
                   <option key={audit.id} value={audit.id}>
-                    {formatAuditLabel(audit, prospectsById.get(audit.prospectId))}
+                    {formatAuditLabel(
+                      audit,
+                      prospectsById.get(audit.prospectId),
+                    )}
                   </option>
                 ))}
               </select>
@@ -93,9 +106,11 @@ export default async function ProposalsPage({
               />
             </label>
             <div className="md:col-span-3">
-              <button className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white">
-                Create proposal draft
-              </button>
+              <PendingSubmitButton
+                label="Create proposal draft"
+                pendingLabel="Creating..."
+                className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              />
             </div>
           </form>
         )}

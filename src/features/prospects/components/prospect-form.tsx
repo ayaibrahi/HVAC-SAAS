@@ -1,15 +1,18 @@
 import type { Prospect } from "@/domain/prospects/types";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
 
 type ProspectFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   prospect?: Prospect | null;
   submitLabel?: string;
+  pendingLabel?: string;
 };
 
 export function ProspectForm({
   action,
   prospect,
   submitLabel = "Save prospect",
+  pendingLabel = "Saving...",
 }: ProspectFormProps) {
   return (
     <form action={action} className="space-y-5">
@@ -67,12 +70,11 @@ export function ProspectForm({
         />
       </label>
 
-      <button
-        type="submit"
-        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90"
-      >
-        {submitLabel}
-      </button>
+      <PendingSubmitButton
+        label={submitLabel}
+        pendingLabel={pendingLabel}
+        className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-60"
+      />
     </form>
   );
 }

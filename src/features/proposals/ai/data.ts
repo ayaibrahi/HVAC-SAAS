@@ -10,6 +10,7 @@ import {
   getProposalBuilderData,
 } from "@/features/proposals/data";
 import { enforceAgencyUsageLimit } from "@/features/usage/limits";
+import { AiProviderError } from "@/lib/ai/provider-errors";
 import { getPublicErrorMessage } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
@@ -70,6 +71,10 @@ export async function generateProposalAiDraftForProposal(
       promptVersion: effectiveProvider.metadata.promptVersion,
       schemaVersion: effectiveProvider.metadata.schemaVersion,
       latencyMs: Date.now() - startedAt,
+      errorCategory:
+        error instanceof AiProviderError ? error.category : undefined,
+      providerStatus:
+        error instanceof AiProviderError ? error.providerStatus : undefined,
       publicError: getPublicErrorMessage(
         error,
         "Proposal draft could not be generated safely.",
