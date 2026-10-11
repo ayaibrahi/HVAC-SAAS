@@ -9,22 +9,19 @@ import type {
   ProposalAiInput,
   ProposalAiProvider,
 } from "@/features/proposals/ai/types";
-import {
-  callOpenAiStructuredJson,
-  getConfiguredOpenAiModel,
-} from "@/lib/ai/openai-responses";
+import { createStructuredJsonProvider } from "@/lib/ai/provider";
 import {
   proposalAiDraftJsonSchema,
   proposalAiDraftSchemaVersion,
 } from "@/lib/validation/proposal-ai";
 
-export function createOpenAiProposalDraftProvider(): ProposalAiProvider {
-  const model = getConfiguredOpenAiModel();
+export function createProposalAiProvider(): ProposalAiProvider {
+  const transport = createStructuredJsonProvider();
 
   return {
     metadata: {
-      provider: "openai",
-      model,
+      provider: transport.provider,
+      model: transport.model,
       promptVersion: PROPOSAL_DRAFT_PROMPT_VERSION,
       schemaVersion: proposalAiDraftSchemaVersion,
     },
@@ -34,7 +31,7 @@ export function createOpenAiProposalDraftProvider(): ProposalAiProvider {
         signal?: AbortSignal;
       },
     ) {
-      return callOpenAiStructuredJson({
+      return transport.generate({
         signal: options?.signal,
         systemPrompt: PROPOSAL_DRAFT_SYSTEM_PROMPT,
         userPrompt: buildProposalDraftUserPrompt(input),

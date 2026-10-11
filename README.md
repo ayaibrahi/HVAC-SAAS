@@ -46,6 +46,10 @@ This repository contains the foundation for a SaaS product that helps agencies t
 
 ## Verification
 
+AI generation requires explicit server-side provider selection. See
+[AI provider configuration](docs/groq-provider.md) for Groq/OpenAI setup,
+security boundaries, Free Tier limitations, and the smoke-test procedure.
+
 ```bash
 npm run lint
 npm run typecheck

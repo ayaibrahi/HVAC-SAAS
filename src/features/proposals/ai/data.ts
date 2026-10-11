@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createProposalAiInput } from "@/features/proposals/ai/input";
-import { createOpenAiProposalDraftProvider } from "@/features/proposals/ai/openai-provider";
+import { createProposalAiProvider } from "@/features/proposals/ai/provider";
 import { generateValidatedProposalAiDraft } from "@/features/proposals/ai/generate";
 import type { ProposalAiProvider } from "@/features/proposals/ai/types";
 import { requireCurrentAgency } from "@/features/agencies/data";
@@ -28,7 +28,7 @@ export async function generateProposalAiDraftForProposal(
     action: "proposal_ai",
   });
 
-  const effectiveProvider = provider ?? createOpenAiProposalDraftProvider();
+  const effectiveProvider = provider ?? createProposalAiProvider();
   const startedAt = Date.now();
 
   try {

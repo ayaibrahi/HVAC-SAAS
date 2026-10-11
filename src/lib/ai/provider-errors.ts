@@ -5,6 +5,7 @@ export type AiProviderErrorCategory =
   | "model"
   | "permission"
   | "quota"
+  | "rate_limit"
   | "timeout"
   | "temporary"
   | "request"
@@ -16,6 +17,7 @@ export class AiProviderError extends AppError {
   readonly providerErrorCode?: string;
   readonly providerErrorType?: string;
   readonly providerErrorParam?: string;
+  readonly retryAfterSeconds?: number;
 
   constructor(input: {
     message: string;
@@ -25,6 +27,7 @@ export class AiProviderError extends AppError {
     providerErrorCode?: string;
     providerErrorType?: string;
     providerErrorParam?: string;
+    retryAfterSeconds?: number;
   }) {
     super(input.message, input.statusCode);
     this.name = "AiProviderError";
@@ -33,6 +36,7 @@ export class AiProviderError extends AppError {
     this.providerErrorCode = input.providerErrorCode;
     this.providerErrorType = input.providerErrorType;
     this.providerErrorParam = input.providerErrorParam;
+    this.retryAfterSeconds = input.retryAfterSeconds;
   }
 }
 

@@ -9,22 +9,19 @@ import type {
   OpportunityAiInput,
   OpportunityAiProvider,
 } from "@/features/opportunities/ai/types";
-import {
-  callOpenAiStructuredJson,
-  getConfiguredOpenAiModel,
-} from "@/lib/ai/openai-responses";
+import { createStructuredJsonProvider } from "@/lib/ai/provider";
 import {
   opportunityAiInsightJsonSchema,
   opportunityAiInsightSchemaVersion,
 } from "@/lib/validation/opportunity-ai-insights";
 
-export function createOpenAiOpportunityInsightProvider(): OpportunityAiProvider {
-  const model = getConfiguredOpenAiModel();
+export function createOpportunityAiProvider(): OpportunityAiProvider {
+  const transport = createStructuredJsonProvider();
 
   return {
     metadata: {
-      provider: "openai",
-      model,
+      provider: transport.provider,
+      model: transport.model,
       promptVersion: OPPORTUNITY_INSIGHT_PROMPT_VERSION,
       schemaVersion: opportunityAiInsightSchemaVersion,
     },
@@ -34,7 +31,7 @@ export function createOpenAiOpportunityInsightProvider(): OpportunityAiProvider 
         signal?: AbortSignal;
       },
     ) {
-      return callOpenAiStructuredJson({
+      return transport.generate({
         signal: options?.signal,
         systemPrompt: OPPORTUNITY_INSIGHT_SYSTEM_PROMPT,
         userPrompt: buildOpportunityInsightUserPrompt(input),

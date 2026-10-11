@@ -7,7 +7,7 @@ import { mapAudit } from "@/features/audits/data";
 import { assertOpportunityAiAccess } from "@/features/opportunities/ai/authorization";
 import { generateValidatedOpportunityAiInsight } from "@/features/opportunities/ai/generate";
 import { createOpportunityAiInput } from "@/features/opportunities/ai/input";
-import { createOpenAiOpportunityInsightProvider } from "@/features/opportunities/ai/openai-provider";
+import { createOpportunityAiProvider } from "@/features/opportunities/ai/provider";
 import {
   createCompletedInsightUpdate,
   createFailedInsightUpdate,
@@ -99,8 +99,7 @@ export async function generateOpportunityAiInsightForOpportunity(
     action: "opportunity_ai",
   });
 
-  const effectiveProvider =
-    provider ?? createOpenAiOpportunityInsightProvider();
+  const effectiveProvider = provider ?? createOpportunityAiProvider();
   const generationClaim = await claimOpportunityAiInsightGeneration({
     agencyId: agency.id,
     opportunityId: authorizedOpportunity.id,

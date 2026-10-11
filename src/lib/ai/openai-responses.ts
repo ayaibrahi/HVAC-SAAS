@@ -8,6 +8,7 @@ import { AiProviderError, classifyOpenAiError } from "@/lib/ai/provider-errors";
 import { AppError } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 import { getOpenAiConfig } from "@/lib/supabase/server-config";
+import type { StructuredJsonRequest } from "@/lib/ai/types";
 
 const openAiResponsesUrl = "https://api.openai.com/v1/responses";
 
@@ -18,14 +19,7 @@ type SafeProviderError = {
   message?: string;
 };
 
-export type OpenAiStructuredJsonRequest = {
-  systemPrompt: string;
-  userPrompt: string;
-  schemaName: string;
-  jsonSchema: Record<string, unknown>;
-  maxOutputTokens: number;
-  signal?: AbortSignal;
-};
+export type OpenAiStructuredJsonRequest = StructuredJsonRequest;
 
 export function getConfiguredOpenAiModel() {
   const config = getOpenAiConfig();
