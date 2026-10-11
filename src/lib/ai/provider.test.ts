@@ -183,6 +183,168 @@ describe("Groq failures", () => {
     },
   );
 
+  it("logs only allowlisted diagnostics for a rejected strict request", async () => {
+    const param =
+      "response_format.json_schema.schema.properties.scope.maxLength";
+    vi.mocked(fetch).mockResolvedValue(
+      Response.json(
+        {
+          error: {
+            code: "invalid_request_error",
+            param,
+            message: "maxLength must be smaller. private diagnostic sentinel",
+            failed_generation: "private generated content",
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    const result = await createStructuredJsonProvider()
+      .generate(request)
+      .catch((error: unknown) => error);
+    expect(result).toMatchObject({
+      providerStatus: 400,
+      category: "request",
+      message:
+        "Groq rejected the structured request. Check provider configuration.",
+    });
+    expect(console.error).toHaveBeenCalledExactlyOnceWith("[server] error", {
+      message: "Groq provider request failed",
+      providerStatus: 400,
+      category: "request",
+      providerErrorCode: "invalid_request_error",
+      providerErrorParam: param,
+      rejectionReason: "schema_string_bounds",
+    });
+    expect(JSON.stringify(result)).not.toContain(param);
+    expect(JSON.stringify(result)).not.toContain("private");
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops malicious diagnostic values and never logs request headers or payloads", async () => {
+    const privateValue =
+      "Authorization: Bearer test-groq-key; private customer name";
+    vi.mocked(fetch).mockResolvedValue(
+      Response.json(
+        {
+          error: {
+            code: `invalid_request_error\n${privateValue}`,
+            param: `maxLength\n${privateValue}`,
+            message: privateValue,
+            failed_generation: privateValue,
+          },
+        },
+        { status: 400 },
+      ),
+    );
+    await expect(
+      createStructuredJsonProvider().generate(request),
+    ).rejects.toMatchObject({
+      category: "request",
+      providerStatus: 400,
+    });
+    expect(console.error).toHaveBeenCalledExactlyOnceWith("[server] error", {
+      message: "Groq provider request failed",
+      providerStatus: 400,
+      category: "request",
+      providerErrorCode: "unknown",
+      providerErrorParam: "unknown",
+      rejectionReason: "unknown",
+    });
+  });
+
+  it.each([
+    "not JSON private error body",
+    '{"error":{"code":"invalid_request_error",',
+    JSON.stringify({
+      error: { code: "invalid_request_error", message: "x".repeat(65_000) },
+    }),
+    "",
+  ])(
+    "preserves HTTP 400 with unknown diagnostics for malformed/oversized bodies %#",
+    async (body) => {
+      vi.mocked(fetch).mockResolvedValue(new Response(body, { status: 400 }));
+      await expect(
+        createStructuredJsonProvider().generate(request),
+      ).rejects.toMatchObject({
+        category: "request",
+        providerStatus: 400,
+      });
+      expect(console.error).toHaveBeenCalledExactlyOnceWith("[server] error", {
+        message: "Groq provider request failed",
+        providerStatus: 400,
+        category: "request",
+        providerErrorCode: "unknown",
+        providerErrorParam: "unknown",
+        rejectionReason: "unknown",
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    {
+      name: "Opportunity AI",
+      generate: () =>
+        generateValidatedOpportunityAiInsight(
+          makeOpportunityAiInput(),
+          createOpportunityAiProvider(),
+        ),
+    },
+    {
+      name: "Proposal AI",
+      generate: () =>
+        generateValidatedProposalAiDraft(
+          makeProposalAiInput(),
+          createProposalAiProvider(),
+        ),
+    },
+  ])(
+    "keeps $name HTTP 400 non-retryable without fallback",
+    async ({ generate }) => {
+      vi.mocked(fetch).mockResolvedValue(
+        Response.json({ error: {} }, { status: 400 }),
+      );
+      await expect(generate()).rejects.toMatchObject({
+        category: "request",
+        providerStatus: 400,
+      });
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(fetch).mock.calls[0][0]).toBe(groqUrl);
+    },
+  );
+
+  it("keeps the timeout active while reading a stalled upstream error body", async () => {
+    let signal: AbortSignal | null | undefined;
+    vi.mocked(fetch).mockImplementation(async (_url, options) => {
+      signal = options?.signal;
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            signal?.addEventListener(
+              "abort",
+              () => controller.error(new Error("private stalled body")),
+              { once: true },
+            );
+          },
+        }),
+        { status: 400 },
+      );
+    });
+    await expect(
+      generateValidatedProposalAiDraft(
+        makeProposalAiInput(),
+        createProposalAiProvider(),
+        { attemptTimeoutMs: 10, maxAttempts: 1 },
+      ),
+    ).rejects.toThrow("timed out");
+    expect(signal?.aborted).toBe(true);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain(
+      "private",
+    );
+  });
+
   it.each(["2", "1.5"])(
     "surfaces Retry-After %s and never immediately retries or falls back",
     async (seconds) => {

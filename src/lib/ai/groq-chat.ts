@@ -1,6 +1,7 @@
 import "server-only";
 
 import { z } from "zod";
+import { extractGroqErrorDiagnostics } from "@/lib/ai/groq-diagnostics";
 import {
   AI_PROVIDER_REQUEST_TOTAL_BYTES,
   assertAiSerializedInputWithinBudget,
@@ -92,10 +93,13 @@ export async function callGroqStructuredJson(
     });
     // Error bodies are untrusted too. Never log or return their contents.
     if (!response.ok) {
-      const error = await createGroqError(response);
+      const { error, diagnostics } = await createGroqError(response);
       logger.error("Groq provider request failed", {
         providerStatus: response.status,
         category: error.category,
+        providerErrorCode: diagnostics.providerErrorCode,
+        providerErrorParam: diagnostics.providerErrorParam,
+        rejectionReason: diagnostics.rejectionReason,
       });
       throw error;
     }
@@ -150,31 +154,33 @@ export async function callGroqStructuredJson(
 }
 
 async function createGroqError(response: Response) {
-  let code = "";
+  let diagnostics = extractGroqErrorDiagnostics(undefined);
   try {
     const value = await readBoundedJson(response);
-    if (isRecord(value) && isRecord(value.error)) {
-      code = typeof value.error.code === "string" ? value.error.code : "";
-    }
+    diagnostics = extractGroqErrorDiagnostics(value);
   } catch {
     // HTTP status remains useful even if the error body is malformed.
   }
 
   const status = response.status;
+  const code = diagnostics.providerErrorCode;
   const retryAfterSeconds = parseRetryAfter(
     response.headers.get("retry-after"),
   );
   if (status === 429) {
-    return new AiProviderError({
-      message:
-        retryAfterSeconds === undefined
-          ? "Groq rate limit reached. Please wait before retrying."
-          : `Groq rate limit reached. Wait at least ${retryAfterSeconds} seconds before retrying.`,
-      statusCode: 429,
-      category: "rate_limit",
-      providerStatus: status,
-      retryAfterSeconds,
-    });
+    return {
+      error: new AiProviderError({
+        message:
+          retryAfterSeconds === undefined
+            ? "Groq rate limit reached. Please wait before retrying."
+            : `Groq rate limit reached. Wait at least ${retryAfterSeconds} seconds before retrying.`,
+        statusCode: 429,
+        category: "rate_limit",
+        providerStatus: status,
+        retryAfterSeconds,
+      }),
+      diagnostics,
+    };
   }
   const category =
     status === 401
@@ -198,12 +204,15 @@ async function createGroqError(response: Response) {
     request:
       "Groq rejected the structured request. Check provider configuration.",
   };
-  return new AiProviderError({
-    message: messages[category],
-    statusCode: 502,
-    category,
-    providerStatus: status,
-  });
+  return {
+    error: new AiProviderError({
+      message: messages[category],
+      statusCode: 502,
+      category,
+      providerStatus: status,
+    }),
+    diagnostics,
+  };
 }
 
 function parseRetryAfter(value: string | null) {
