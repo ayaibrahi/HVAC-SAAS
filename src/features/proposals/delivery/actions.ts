@@ -4,7 +4,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createDeliverySnapshotForProposal } from "@/features/proposals/delivery/data";
-import { buildFeedbackUrl, getValidationErrorMessage } from "@/lib/action-feedback";
+import {
+  buildFeedbackUrl,
+  getValidationErrorMessage,
+} from "@/lib/action-feedback";
 import { getPublicErrorMessage } from "@/lib/errors";
 
 const proposalsPath = "/dashboard/proposals";
@@ -26,11 +29,6 @@ export async function createDeliverySnapshotAction(proposalId: string) {
     await createDeliverySnapshotForProposal(result.data);
 
     revalidatePath(path);
-    redirect(
-      buildFeedbackUrl(path, {
-        success: "Delivery snapshot created.",
-      }),
-    );
   } catch (error) {
     redirect(
       buildFeedbackUrl(path, {
@@ -41,4 +39,10 @@ export async function createDeliverySnapshotAction(proposalId: string) {
       }),
     );
   }
+
+  redirect(
+    buildFeedbackUrl(path, {
+      success: "Delivery snapshot created.",
+    }),
+  );
 }

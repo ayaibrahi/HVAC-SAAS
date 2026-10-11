@@ -7,7 +7,10 @@ import {
   updateProposalDraft,
 } from "@/features/proposals/data";
 import { generateProposalAiDraftForProposal } from "@/features/proposals/ai/data";
-import { buildFeedbackUrl, getValidationErrorMessage } from "@/lib/action-feedback";
+import {
+  buildFeedbackUrl,
+  getValidationErrorMessage,
+} from "@/lib/action-feedback";
 import { AppError, getPublicErrorMessage } from "@/lib/errors";
 import {
   createProposalInputSchema,
@@ -30,22 +33,29 @@ export async function createProposalAction(formData: FormData) {
     );
   }
 
+  let proposalId: string;
+
   try {
     const proposal = await createProposalDraft(result.data);
+    proposalId = proposal.id;
 
     revalidatePath(proposalsPath);
-    redirect(
-      buildFeedbackUrl(`${proposalsPath}/${proposal.id}`, {
-        success: "Proposal draft created.",
-      }),
-    );
   } catch (error) {
     redirect(
       buildFeedbackUrl(proposalsPath, {
-        error: getPublicErrorMessage(error, "We could not create that proposal."),
+        error: getPublicErrorMessage(
+          error,
+          "We could not create that proposal.",
+        ),
       }),
     );
   }
+
+  redirect(
+    buildFeedbackUrl(`${proposalsPath}/${proposalId}`, {
+      success: "Proposal draft created.",
+    }),
+  );
 }
 
 export async function updateProposalAction(
@@ -91,11 +101,6 @@ export async function updateProposalAction(
 
     revalidatePath(path);
     revalidatePath(proposalsPath);
-    redirect(
-      buildFeedbackUrl(path, {
-        success: "Proposal saved.",
-      }),
-    );
   } catch (error) {
     redirect(
       buildFeedbackUrl(path, {
@@ -103,6 +108,12 @@ export async function updateProposalAction(
       }),
     );
   }
+
+  redirect(
+    buildFeedbackUrl(path, {
+      success: "Proposal saved.",
+    }),
+  );
 }
 
 export async function generateProposalAiDraftAction(proposalId: string) {
@@ -112,11 +123,6 @@ export async function generateProposalAiDraftAction(proposalId: string) {
     await generateProposalAiDraftForProposal(proposalId);
 
     revalidatePath(path);
-    redirect(
-      buildFeedbackUrl(path, {
-        success: "Proposal summary and scope generated.",
-      }),
-    );
   } catch (error) {
     redirect(
       buildFeedbackUrl(path, {
@@ -127,6 +133,12 @@ export async function generateProposalAiDraftAction(proposalId: string) {
       }),
     );
   }
+
+  redirect(
+    buildFeedbackUrl(path, {
+      success: "Proposal summary and scope generated.",
+    }),
+  );
 }
 
 function parseLineItems(formData: FormData) {
