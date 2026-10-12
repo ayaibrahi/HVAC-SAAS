@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeedbackMessage } from "@/components/feedback-message";
+import { PageHeader } from "@/components/workspace-ui";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getAgencyForUser } from "@/features/agencies/data";
 import {
@@ -48,12 +49,10 @@ export default async function ServicesPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink">Services</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Maintain the agency services that future opportunities can map to.
-        </p>
-      </div>
+      <PageHeader
+        title="Services"
+        description="Your agency's service catalog."
+      />
 
       <FeedbackMessage error={params.error} success={params.success} />
 

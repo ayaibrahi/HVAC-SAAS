@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { WorkspaceNavigation } from "@/components/dashboard/workspace-navigation";
 import { productConfig } from "@/config/product";
 import { signOutAction } from "@/features/auth/actions";
 
@@ -9,75 +9,43 @@ type DashboardShellProps = {
   userEmail?: string | null;
 };
 
-const navigation = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/dashboard/prospects", label: "Prospects" },
-  { href: "/dashboard/services", label: "Services" },
-  { href: "/dashboard/proposals", label: "Proposals" },
-  { href: "/dashboard/settings", label: "Settings" },
-];
-
-export function DashboardShell({ children, agencyName, userEmail }: DashboardShellProps) {
+export function DashboardShell({
+  children,
+  agencyName,
+  userEmail,
+}: DashboardShellProps) {
   return (
-    <div className="min-h-screen bg-surface text-ink">
-      <aside className="fixed inset-y-0 hidden w-64 border-r border-border bg-white px-5 py-6 md:block">
-        <Link href="/dashboard" className="block">
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-            {productConfig.name}
-          </p>
-          <p className="mt-1 text-lg font-semibold text-ink">
-            {agencyName ?? "Agency workspace"}
-          </p>
-        </Link>
-
-        <nav className="mt-8 space-y-1">
-          {navigation.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="block rounded-md px-3 py-2 text-sm font-medium text-muted transition hover:bg-surface hover:text-ink"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="absolute bottom-6 left-5 right-5 space-y-3">
-          {userEmail ? <p className="truncate text-xs text-muted">{userEmail}</p> : null}
-          <form action={signOutAction}>
-            <button className="w-full rounded-md border border-border px-3 py-2 text-sm font-semibold text-ink transition hover:bg-surface">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </aside>
-
-      <div className="md:pl-64">
-        <header className="border-b border-border bg-white px-5 py-4 md:hidden">
-          <div className="flex items-center justify-between gap-4">
-            <Link href="/dashboard" className="min-w-0">
-              <p className="truncate text-sm font-semibold text-ink">{productConfig.name}</p>
-            </Link>
+    <div className="workspace min-h-screen bg-surface text-ink">
+      <a
+        href="#workspace-main"
+        className="sr-only z-50 rounded-md bg-accent px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+      >
+        Skip to main content
+      </a>
+      <WorkspaceNavigation
+        productName={productConfig.name}
+        agencyName={agencyName}
+        account={
+          <div className="space-y-3 border-t border-border p-5">
+            {userEmail ? (
+              <p className="text-sm text-muted">{userEmail}</p>
+            ) : null}
             <form action={signOutAction}>
-              <button className="rounded-md border border-border px-3 py-2 text-sm font-semibold">
+              <button type="submit" className="button-secondary w-full">
                 Sign out
               </button>
             </form>
           </div>
-          <nav className="mt-4 flex gap-2 overflow-x-auto">
-            {navigation.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-md border border-border px-3 py-2 text-sm font-medium text-muted"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
-
-        <main className="mx-auto max-w-6xl px-5 py-8">{children}</main>
+        }
+      />
+      <div className="min-w-0 lg:pl-60">
+        <main
+          id="workspace-main"
+          tabIndex={-1}
+          className="mx-auto w-full min-w-0 max-w-7xl px-4 py-7 sm:px-8 sm:py-9 lg:px-10"
+        >
+          {children}
+        </main>
       </div>
     </div>
   );

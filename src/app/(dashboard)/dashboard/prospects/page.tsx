@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeedbackMessage } from "@/components/feedback-message";
+import { PageHeader } from "@/components/workspace-ui";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { Audit } from "@/domain/audits/types";
 import type {
@@ -75,12 +76,10 @@ export default async function ProspectsPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink">Prospects</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Store target businesses and run deterministic website analysis.
-        </p>
-      </div>
+      <PageHeader
+        title="Prospects"
+        description="Your prospect pipeline and website findings."
+      />
 
       <FeedbackMessage error={params.error} success={params.success} />
 

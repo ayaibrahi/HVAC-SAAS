@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FeedbackMessage } from "@/components/feedback-message";
+import { PageHeader } from "@/components/workspace-ui";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { Audit } from "@/domain/audits/types";
 import type { Prospect } from "@/domain/prospects/types";
@@ -57,13 +58,10 @@ export default async function ProposalsPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink">Proposals</h1>
-        <p className="mt-2 max-w-2xl text-sm text-muted">
-          Create internal proposal drafts from completed audits, selected
-          opportunities, agency services, and manual pricing.
-        </p>
-      </div>
+      <PageHeader
+        title="Proposals"
+        description="Your drafts and ready-to-share proposals."
+      />
 
       <FeedbackMessage error={params.error} success={params.success} />
 
