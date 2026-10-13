@@ -6,6 +6,7 @@ import { getAgencyForUser } from "@/features/agencies/data";
 import { DashboardOverview } from "@/features/dashboard/components/dashboard-overview";
 import { getDashboardOverview } from "@/features/dashboard/data";
 import { getCurrentUser } from "@/lib/auth/session";
+import { EnglishWorkflow, InterfaceText } from "@/components/ui-preferences";
 
 type DashboardPageProps = {
   searchParams: Promise<{
@@ -23,16 +24,18 @@ export default async function DashboardPage({
 
   if (!agency) {
     return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Create your agency profile"
-          description="Set up your agency workspace."
-        />
-        <FeedbackMessage error={params.error} success={params.success} />
-        <section className="max-w-3xl border-t border-border bg-white p-5 sm:p-6">
-          <AgencyForm submitLabel="Create agency" />
-        </section>
-      </div>
+      <EnglishWorkflow>
+        <div className="space-y-6">
+          <PageHeader
+            title="Create your agency profile"
+            description="Set up your agency workspace."
+          />
+          <FeedbackMessage error={params.error} success={params.success} />
+          <section className="max-w-3xl border-t border-border bg-white p-5 sm:p-6">
+            <AgencyForm submitLabel="Create agency" />
+          </section>
+        </div>
+      </EnglishWorkflow>
     );
   }
 
@@ -43,10 +46,10 @@ export default async function DashboardPage({
     // Do not render failed reads as zero totals or expose database details.
     return (
       <div className="space-y-6">
-        <PageHeader title="Sales workspace" />
+        <PageHeader title={<InterfaceText name="salesWorkspace" />} />
         <FeedbackMessage error="We could not load your workspace overview. Please try again." />
         <Link href="/dashboard" className="button-secondary">
-          Reload overview
+          <InterfaceText name="reload" />
         </Link>
       </div>
     );

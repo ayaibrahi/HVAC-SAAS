@@ -3,6 +3,8 @@ import { LogOut, UserRound } from "lucide-react";
 import { WorkspaceNavigation } from "@/components/dashboard/workspace-navigation";
 import { productConfig } from "@/config/product";
 import { signOutAction } from "@/features/auth/actions";
+import { InterfaceText } from "@/components/ui-preferences";
+import { WorkspaceContent } from "@/components/dashboard/workspace-content";
 
 type DashboardShellProps = {
   children: ReactNode;
@@ -19,9 +21,9 @@ export function DashboardShell({
     <div className="workspace workspace-shell min-h-screen bg-surface text-ink">
       <a
         href="#workspace-main"
-        className="sr-only z-50 rounded-md bg-accent px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-50 rounded-md bg-accent px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:start-4 focus:top-4"
       >
-        Skip to main content
+        <InterfaceText name="skip" />
       </a>
       <WorkspaceNavigation
         productName={productConfig.name}
@@ -36,8 +38,12 @@ export function DashboardShell({
                   className="shrink-0 text-slate-400"
                 />
                 <div className="min-w-0">
-                  <p className="text-xs text-slate-400">Signed in as</p>
-                  <p className="mt-1 text-sm text-slate-100">{userEmail}</p>
+                  <p className="text-xs text-slate-400">
+                    <InterfaceText name="signedIn" />
+                  </p>
+                  <p className="mt-1 text-sm text-slate-100">
+                    <bdi dir="ltr">{userEmail}</bdi>
+                  </p>
                 </div>
               </div>
             ) : null}
@@ -47,19 +53,19 @@ export function DashboardShell({
                 className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-white"
               >
                 <LogOut size={17} aria-hidden="true" />
-                Sign out
+                <InterfaceText name="signOut" />
               </button>
             </form>
           </div>
         }
       />
-      <div className="min-w-0 lg:pl-60">
+      <div className="min-w-0 lg:ps-60">
         <main
           id="workspace-main"
           tabIndex={-1}
           className="mx-auto w-full min-w-0 max-w-7xl px-4 py-7 sm:px-8 sm:py-9 lg:px-10"
         >
-          {children}
+          <WorkspaceContent>{children}</WorkspaceContent>
         </main>
       </div>
     </div>

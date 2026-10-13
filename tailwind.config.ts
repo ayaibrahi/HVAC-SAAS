@@ -5,11 +5,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        border: "#e2e8f0",
-        surface: "#f6f8fb",
-        ink: "#172033",
-        muted: "#59697f",
-        accent: "#0f766e",
+        border: "rgb(var(--color-border) / <alpha-value>)",
+        surface: "rgb(var(--color-canvas) / <alpha-value>)",
+        panel: "rgb(var(--color-panel) / <alpha-value>)",
+        ink: "rgb(var(--color-text) / <alpha-value>)",
+        muted: "rgb(var(--color-muted) / <alpha-value>)",
+        accent: "rgb(var(--color-primary) / <alpha-value>)",
       },
     },
   },

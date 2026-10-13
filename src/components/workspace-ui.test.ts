@@ -89,7 +89,7 @@ describe("dashboard rendering", () => {
     );
     expect(html).toContain("Your next opportunity starts here");
     expect(html).toContain("No proposals yet");
-    expect(html).toContain("No website analyses yet");
+    expect(html).toContain("No website scans yet");
     expect(html).not.toMatch(
       /Foundation status|revenue|conversion rate|time saved/i,
     );

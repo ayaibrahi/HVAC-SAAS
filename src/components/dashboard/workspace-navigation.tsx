@@ -1,6 +1,7 @@
 "use client";
 
-import Image from "next/image";
+import { Brand } from "@/components/brand";
+import { PreferenceControls, useInterface } from "@/components/ui-preferences";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -49,11 +50,19 @@ export function WorkspaceNavigation({
   account,
 }: WorkspaceNavigationProps) {
   const pathname = usePathname();
+  const { t } = useInterface();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const currentSection = workspaceNavigation.find((item) =>
     isNavigationActive(pathname, item.href),
   );
+  const labels = {
+    Dashboard: t.dashboard,
+    Prospects: t.prospects,
+    Services: t.services,
+    Proposals: t.proposals,
+    Settings: t.settings,
+  };
 
   function closeDrawer() {
     if (closeNavigationDrawer(dialogRef.current)) setIsOpen(false);
@@ -101,15 +110,8 @@ export function WorkspaceNavigation({
           onClick={closeDrawer}
           className="flex min-w-0 items-center gap-3"
         >
-          <Image
-            src="/workspace-mark.svg"
-            alt=""
-            width={32}
-            height={32}
-            className="shrink-0 rounded-md bg-white p-1"
-          />
-          <span className="min-w-0 text-base font-semibold leading-snug text-white">
-            {productName}
+          <span className="min-w-0 text-white">
+            <Brand name={productName} />
           </span>
         </Link>
         <div className="mt-8 flex items-start gap-3 border-y border-white/10 py-4">
@@ -119,9 +121,9 @@ export function WorkspaceNavigation({
             className="mt-1 shrink-0 text-teal-300"
           />
           <div className="min-w-0">
-            <p className="text-xs text-slate-400">Agency workspace</p>
+            <p className="text-xs text-slate-400">{t.agencyWorkspace}</p>
             <p className="mt-1 text-sm font-medium text-slate-100">
-              {agencyName || "Your agency"}
+              <bdi>{agencyName || t.yourAgency}</bdi>
             </p>
           </div>
         </div>
@@ -150,12 +152,12 @@ export function WorkspaceNavigation({
                 strokeWidth={1.7}
                 className="shrink-0"
               />
-              <span>{item.label}</span>
+              <span>{labels[item.label]}</span>
               {isNavigationActive(pathname, item.href) ? (
                 <ChevronRight
                   aria-hidden="true"
                   size={16}
-                  className="ml-auto shrink-0"
+                  className="ms-auto shrink-0 rtl:rotate-180"
                 />
               ) : null}
             </Link>
@@ -168,41 +170,41 @@ export function WorkspaceNavigation({
   return (
     <>
       <aside
-        aria-label="Workspace sidebar"
-        className="workspace-sidebar fixed inset-y-0 left-0 hidden w-60 flex-col overflow-y-auto lg:flex"
+        aria-label={t.sidebar}
+        className="workspace-sidebar fixed inset-y-0 start-0 hidden w-60 flex-col overflow-y-auto lg:flex"
       >
         {identity()}
-        {navigation("Main navigation")}
+        {navigation(t.mainNavigation)}
         {account}
       </aside>
-      <header className="flex min-h-16 items-center gap-4 border-b border-border bg-white px-4 sm:px-8 lg:ml-60">
+      <header className="flex min-h-16 flex-wrap items-center gap-2 border-b border-border bg-panel px-4 py-2 sm:gap-4 sm:px-8 lg:ms-60">
         <button
           type="button"
-          aria-label="Open navigation"
+          aria-label={t.openNavigation}
           aria-controls="workspace-navigation-drawer"
           aria-expanded={isOpen}
           onClick={() => {
             if (openNavigationDrawer(dialogRef.current)) setIsOpen(true);
           }}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-2xl lg:hidden"
-          title="Open navigation"
+          title={t.openNavigation}
         >
           <Menu aria-hidden="true" size={20} />
         </button>
-        <p className="min-w-0 text-sm text-muted">
+        <p className="hidden min-w-0 text-sm text-muted sm:block">
           <span className="hidden sm:inline">
-            Workspace{" "}
+            {t.workspace}{" "}
             <span aria-hidden="true" className="mx-2">
               /
             </span>{" "}
           </span>
           <span className="font-medium text-ink">
-            {currentSection?.label ?? "Workspace"}
+            {currentSection ? labels[currentSection.label] : t.workspace}
           </span>
         </p>
-        <span className="ml-auto hidden min-w-0 max-w-sm py-3 text-right text-sm text-muted sm:block">
-          {agencyName || "Agency workspace"}
-        </span>
+        <div className="ms-auto">
+          <PreferenceControls />
+        </div>
       </header>
       <dialog
         id="workspace-navigation-drawer"
@@ -219,20 +221,20 @@ export function WorkspaceNavigation({
               id="workspace-navigation-title"
               className="text-sm font-semibold"
             >
-              Workspace navigation
+              {t.navigation}
             </h2>
             <button
               type="button"
               onClick={closeDrawer}
-              aria-label="Close navigation"
-              title="Close navigation"
+              aria-label={t.closeNavigation}
+              title={t.closeNavigation}
               className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-white/20"
             >
               <X aria-hidden="true" size={20} />
             </button>
           </div>
           {identity()}
-          {navigation("Mobile navigation")}
+          {navigation(t.mobileNavigation)}
           {account}
         </div>
       </dialog>

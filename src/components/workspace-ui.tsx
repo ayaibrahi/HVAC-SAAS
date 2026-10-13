@@ -1,14 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
+import { useInterface } from "@/components/ui-preferences";
 
 export function PageHeader({
   title,
   description,
   actions,
 }: {
-  title: string;
-  description?: string;
+  title: ReactNode;
+  description?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -64,6 +67,7 @@ export function MetricDisplay({
   icon?: ReactNode;
   tone?: "teal" | "blue" | "amber" | "violet";
 }) {
+  const { locale } = useInterface();
   return (
     <Link
       href={href}
@@ -74,37 +78,36 @@ export function MetricDisplay({
         <ArrowUpRight
           size={16}
           aria-hidden="true"
-          className="text-muted group-hover:text-accent"
+          className="text-muted group-hover:text-accent rtl:-scale-x-100"
         />
       </div>
       <p className="text-sm font-medium text-muted">{label}</p>
       <p className="mt-2 text-4xl font-semibold tabular-nums text-ink">
-        {value.toLocaleString("en-US")}
+        {value.toLocaleString(locale === "ar" ? "ar-u-nu-arab" : "en-US")}
       </p>
       <p className="mt-2 text-sm text-muted">{description}</p>
     </Link>
   );
 }
 
-const statusLabels = {
-  pending: { label: "Queued", className: "bg-amber-50 text-amber-900" },
-  running: { label: "Analyzing", className: "bg-sky-50 text-sky-900" },
-  completed: {
-    label: "Completed",
-    className: "bg-emerald-50 text-emerald-900",
-  },
-  failed: { label: "Failed", className: "bg-red-50 text-red-800" },
-  draft: { label: "Draft", className: "bg-slate-100 text-slate-700" },
-  ready: { label: "Ready", className: "bg-emerald-50 text-emerald-900" },
+const statusKeys = {
+  pending: { label: "queued", className: "status-pending" },
+  running: { label: "analyzing", className: "status-running" },
+  completed: { label: "completed", className: "status-completed" },
+  failed: { label: "failed", className: "status-failed" },
+  draft: { label: "draft", className: "status-draft" },
+  ready: { label: "ready", className: "status-ready" },
 } as const;
 
-export function StatusLabel({ status }: { status: keyof typeof statusLabels }) {
-  const item = statusLabels[status];
+export function StatusLabel({ status }: { status: keyof typeof statusKeys }) {
+  const { t, locale } = useInterface();
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded px-2 py-1 text-xs font-semibold ${item.className}`}
+      lang={locale}
+      dir={locale === "ar" ? "rtl" : "ltr"}
+      className={`${statusKeys[status].className} inline-flex shrink-0 items-center rounded px-2 py-1 text-xs font-semibold`}
     >
-      {item.label}
+      {t[statusKeys[status].label]}
     </span>
   );
 }

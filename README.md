@@ -1,6 +1,8 @@
-# Agency Sales Copilot Foundation
+# Scanvoro
 
-This repository contains the foundation for a SaaS product that helps agencies turn prospect websites into evidence-based sales opportunities and proposals. The current product name is configurable and should not be treated as the final brand.
+From website scan to sales proposal. Scanvoro helps agencies turn prospect websites into evidence-backed opportunities and proposals. The customer-facing name remains configurable through `NEXT_PUBLIC_PRODUCT_NAME`.
+
+See [brand, theme, locale coverage and dependency review](docs/scanvoro-foundation.md) before preparing a Preview release.
 
 ## Stack
 
