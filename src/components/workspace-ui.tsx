@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { ArrowUpRight } from "lucide-react";
 
 export function PageHeader({
   title,
@@ -11,9 +12,9 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col justify-between gap-5 border-b border-border pb-6 sm:flex-row sm:items-start">
+    <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-center">
       <div className="min-w-0">
-        <h1 className="text-2xl font-semibold leading-tight text-ink">
+        <h1 className="text-3xl font-semibold leading-tight text-ink">
           {title}
         </h1>
         {description ? (
@@ -53,19 +54,31 @@ export function MetricDisplay({
   value,
   href,
   description,
+  icon,
+  tone = "teal",
 }: {
   label: string;
   value: number;
   href: string;
   description: string;
+  icon?: ReactNode;
+  tone?: "teal" | "blue" | "amber" | "violet";
 }) {
   return (
     <Link
       href={href}
-      className="block min-w-0 bg-white p-5 hover:bg-surface sm:p-6"
+      className={`metric-display metric-${tone} group block min-w-0 rounded-lg border border-border bg-white p-5 sm:p-6`}
     >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <span className="metric-icon">{icon}</span>
+        <ArrowUpRight
+          size={16}
+          aria-hidden="true"
+          className="text-muted group-hover:text-accent"
+        />
+      </div>
       <p className="text-sm font-medium text-muted">{label}</p>
-      <p className="mt-3 text-3xl font-semibold tabular-nums text-ink">
+      <p className="mt-2 text-4xl font-semibold tabular-nums text-ink">
         {value.toLocaleString("en-US")}
       </p>
       <p className="mt-2 text-sm text-muted">{description}</p>

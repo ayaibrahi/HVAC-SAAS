@@ -49,6 +49,40 @@ describe("accessible shared feedback", () => {
 });
 
 describe("dashboard rendering", () => {
+  it("renders a safe actionable draft recommendation without accepting markup", () => {
+    const html = renderToStaticMarkup(
+      createElement(DashboardOverview, {
+        data: {
+          ...empty,
+          counts: { ...empty.counts, prospects: 1, proposals: 1 },
+          recentProposals: [
+            {
+              id: "draft-1",
+              title: "<img src=x onerror=alert(1)>",
+              status: "draft",
+              updated_at: "2026-10-12T12:00:00Z",
+            },
+          ],
+        },
+      }),
+    );
+    expect(html).toContain('aria-labelledby="next-action-title"');
+    expect(html).toContain("Continue proposal");
+    expect(html).toContain('href="/dashboard/proposals/draft-1"');
+    expect(html).toContain("&lt;img");
+    expect(html).not.toContain("<img src=x");
+  });
+  it("keeps navigation icons decorative while preserving link labels", () => {
+    const html = renderToStaticMarkup(
+      createElement(WorkspaceNavigation, {
+        productName: "Workspace",
+        account: null,
+      }),
+    );
+    expect(html).toMatch(/<svg[^>]*aria-hidden="true"/);
+    expect(html).toContain(">Prospects</span>");
+    expect(html).toContain(">Services</span>");
+  });
   it("renders meaningful empty states and genuine zero counts", () => {
     const html = renderToStaticMarkup(
       createElement(DashboardOverview, { data: empty }),

@@ -32,7 +32,8 @@ a {
     outline-offset: 3px;
   }
   .workspace {
-    font-family: Arial, Helvetica, sans-serif;
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    letter-spacing: 0;
     line-height: 1.5;
     overflow-wrap: anywhere;
   }
@@ -62,10 +63,18 @@ a {
     @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-border bg-white px-4 py-2 text-center text-sm font-semibold text-ink hover:bg-surface;
   }
   .workspace-nav-link {
-    @apply flex min-h-11 items-center gap-3 rounded-md border-l-2 border-transparent px-4 py-2.5 text-sm font-medium text-muted hover:bg-surface hover:text-ink;
+    @apply flex min-h-11 items-center gap-3 rounded-md border-l-2 border-transparent px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-white/5 hover:text-white;
   }
   .workspace-nav-link[aria-current="page"] {
-    @apply border-accent bg-teal-50 font-semibold text-teal-800;
+    @apply border-teal-300 bg-teal-400/10 font-semibold text-teal-200;
+  }
+  .workspace-sidebar {
+    background: #111c2b;
+    color: #f1f5f9;
+  }
+  .workspace-sidebar :focus-visible,
+  .workspace-drawer :focus-visible {
+    outline-color: #5eead4;
   }
   .workspace-drawer {
     position: fixed;
@@ -78,9 +87,9 @@ a {
     margin: 0;
     padding: 0;
     border: 0;
-    border-right: 1px solid #d7dee7;
-    color: #18212f;
-    background: #fff;
+    border-right: 1px solid #1b2a3c;
+    color: #f1f5f9;
+    background: #111c2b;
   }
   .workspace-drawer::backdrop {
     background: rgb(24 33 47 / 45%);
@@ -90,5 +99,34 @@ a {
   }
   .activity-link {
     @apply font-semibold text-ink underline-offset-4 hover:text-accent hover:underline;
+  }
+  .metric-display {
+    box-shadow: 0 2px 3px rgb(17 28 43 / 3%);
+  }
+  .metric-display:hover {
+    border-color: #94a3b8;
+  }
+  .metric-icon {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md;
+    background: #e6f5f1;
+    color: #0f766e;
+  }
+  .metric-blue .metric-icon {
+    background: #eaf0fc;
+    color: #365c9c;
+  }
+  .metric-amber .metric-icon {
+    background: #fff3db;
+    color: #946008;
+  }
+  .metric-violet .metric-icon {
+    background: #f1edfa;
+    color: #7451a0;
+  }
+  .activity-monogram {
+    @apply flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-border bg-white text-sm font-semibold text-muted;
+  }
+  .dashboard-activity .activity-row {
+    @apply min-h-20 gap-3 py-4;
   }
 }

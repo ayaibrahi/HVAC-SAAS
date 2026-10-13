@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { LogOut, UserRound } from "lucide-react";
 import { WorkspaceNavigation } from "@/components/dashboard/workspace-navigation";
 import { productConfig } from "@/config/product";
 import { signOutAction } from "@/features/auth/actions";
@@ -26,12 +27,26 @@ export function DashboardShell({
         productName={productConfig.name}
         agencyName={agencyName}
         account={
-          <div className="space-y-3 border-t border-border p-5">
+          <div className="space-y-4 border-t border-white/10 p-5">
             {userEmail ? (
-              <p className="text-sm text-muted">{userEmail}</p>
+              <div className="flex items-center gap-3">
+                <UserRound
+                  size={18}
+                  aria-hidden="true"
+                  className="shrink-0 text-slate-400"
+                />
+                <div className="min-w-0">
+                  <p className="text-xs text-slate-400">Signed in as</p>
+                  <p className="mt-1 text-sm text-slate-100">{userEmail}</p>
+                </div>
+              </div>
             ) : null}
             <form action={signOutAction}>
-              <button type="submit" className="button-secondary w-full">
+              <button
+                type="submit"
+                className="flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-white/10 hover:text-white"
+              >
+                <LogOut size={17} aria-hidden="true" />
                 Sign out
               </button>
             </form>

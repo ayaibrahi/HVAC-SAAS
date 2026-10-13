@@ -1,5 +1,16 @@
 import Link from "next/link";
 import {
+  ArrowRight,
+  ChevronRight,
+  FileText,
+  Globe2,
+  ListChecks,
+  Plus,
+  Target,
+  Users,
+} from "lucide-react";
+import { getNextDashboardAction } from "@/features/dashboard/next-action";
+import {
   EmptyState,
   MetricDisplay,
   PageHeader,
@@ -26,53 +37,84 @@ function websiteLabel(value: string) {
 }
 
 export function DashboardOverview({ data }: { data: DashboardOverviewData }) {
+  const nextAction = getNextDashboardAction(data);
   return (
-    <div className="space-y-8">
+    <div className="space-y-9">
       <PageHeader
         title="Sales workspace"
         description="Your prospects, website findings, and proposals in one place."
         actions={
           <>
-            <Link href="/dashboard/services" className="button-secondary">
-              Service catalog
-            </Link>
             <Link href="/dashboard/prospects" className="button-primary">
-              Add prospect <span aria-hidden="true">&rarr;</span>
+              <Plus size={18} aria-hidden="true" /> Add prospect
             </Link>
           </>
         }
       />
       <section
         aria-label="Workspace totals"
-        className="grid grid-cols-2 gap-px border-y border-border bg-border lg:grid-cols-4"
+        className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"
       >
         <MetricDisplay
           label="Total prospects"
+          icon={<Users size={19} aria-hidden="true" />}
+          tone="blue"
           value={data.counts.prospects}
           description="Businesses in your workspace"
           href="/dashboard/prospects"
         />
         <MetricDisplay
           label="Completed audits"
+          icon={<Globe2 size={19} aria-hidden="true" />}
           value={data.counts.completedAudits}
           description="Completed page analyses"
           href="/dashboard/prospects"
         />
         <MetricDisplay
           label="Available opportunities"
+          icon={<Target size={19} aria-hidden="true" />}
+          tone="amber"
           value={data.counts.opportunities}
           description="Open or selected findings"
           href="/dashboard/prospects"
         />
         <MetricDisplay
           label="Proposals"
+          icon={<FileText size={19} aria-hidden="true" />}
+          tone="violet"
           value={data.counts.proposals}
           description="Draft and ready proposals"
           href="/dashboard/proposals"
         />
       </section>
-
-      <div className="grid min-w-0 gap-8 xl:grid-cols-2 xl:gap-10">
+      <section
+        aria-labelledby="next-action-title"
+        className="flex flex-col justify-between gap-5 border-y border-teal-900/10 bg-teal-50/60 px-5 py-6 sm:flex-row sm:items-center sm:px-6"
+      >
+        <div className="min-w-0 border-l-2 border-accent pl-4">
+          <p className="mb-2 text-xs font-semibold uppercase text-accent">
+            Next best action{" "}
+            <span aria-hidden="true" className="mx-1">
+              /
+            </span>{" "}
+            {nextAction.context}
+          </p>
+          <h2 id="next-action-title" className="text-lg font-semibold text-ink">
+            {nextAction.title}
+          </h2>
+          <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted">
+            {nextAction.description}
+          </p>
+        </div>
+        <Link
+          href={nextAction.href}
+          className="button-secondary shrink-0 border-teal-800/20"
+        >
+          {nextAction.label}
+          <ArrowRight size={17} aria-hidden="true" />
+        </Link>
+      </section>
+      <div className="dashboard-activity grid min-w-0 gap-9 xl:grid-cols-2 xl:gap-10">
         <section aria-labelledby="recent-prospects-title" className="min-w-0">
           <SectionHeading
             id="recent-prospects-title"
@@ -100,6 +142,9 @@ export function DashboardOverview({ data }: { data: DashboardOverviewData }) {
             <ul>
               {data.recentProspects.map((prospect) => (
                 <li key={prospect.id} className="activity-row">
+                  <span aria-hidden="true" className="activity-monogram">
+                    {prospect.business_name.trim().slice(0, 2).toUpperCase()}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/dashboard/prospects/${prospect.id}/edit`}
@@ -113,10 +158,15 @@ export function DashboardOverview({ data }: { data: DashboardOverviewData }) {
                   </div>
                   <time
                     dateTime={prospect.created_at}
-                    className="text-xs text-muted"
+                    className="ml-auto text-xs text-muted"
                   >
                     {formatDate(prospect.created_at)}
                   </time>
+                  <ChevronRight
+                    size={15}
+                    aria-hidden="true"
+                    className="shrink-0 text-muted"
+                  />
                 </li>
               ))}
             </ul>
@@ -149,6 +199,9 @@ export function DashboardOverview({ data }: { data: DashboardOverviewData }) {
             <ul>
               {data.recentProposals.map((proposal) => (
                 <li key={proposal.id} className="activity-row">
+                  <span className="activity-monogram">
+                    <FileText size={18} aria-hidden="true" />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <Link
                       href={`/dashboard/proposals/${proposal.id}`}
@@ -170,7 +223,10 @@ export function DashboardOverview({ data }: { data: DashboardOverviewData }) {
           )}
         </section>
       </div>
-      <section aria-labelledby="recent-analyses-title" className="min-w-0">
+      <section
+        aria-labelledby="recent-analyses-title"
+        className="dashboard-activity min-w-0 border-t border-border pt-7"
+      >
         <SectionHeading
           id="recent-analyses-title"
           title="Recent analyses"
@@ -189,9 +245,12 @@ export function DashboardOverview({ data }: { data: DashboardOverviewData }) {
             description="Analyze a prospect's page to find evidence-based sales opportunities."
           />
         ) : (
-          <ul>
+          <ul className="grid gap-x-8 xl:grid-cols-2">
             {data.recentAudits.map((audit) => (
               <li key={audit.id} className="activity-row">
+                <span className="activity-monogram">
+                  <ListChecks size={18} aria-hidden="true" />
+                </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-ink">
                     {websiteLabel(audit.website_url)}
