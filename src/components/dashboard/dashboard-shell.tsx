@@ -16,7 +16,7 @@ export function DashboardShell({
   userEmail,
 }: DashboardShellProps) {
   return (
-    <div className="workspace min-h-screen bg-surface text-ink">
+    <div className="workspace workspace-shell min-h-screen bg-surface text-ink">
       <a
         href="#workspace-main"
         className="sr-only z-50 rounded-md bg-accent px-4 py-3 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4"

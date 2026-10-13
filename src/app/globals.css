@@ -72,6 +72,22 @@ a {
     background: #111c2b;
     color: #f1f5f9;
   }
+  .workspace-shell {
+    position: relative;
+    isolation: isolate;
+  }
+  @media (min-width: 1024px) {
+    /* Paint the document-height rail separately from viewport-fixed navigation. */
+    .workspace-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 15rem;
+      z-index: -1;
+      background: #111c2b;
+      pointer-events: none;
+    }
+  }
   .workspace-sidebar :focus-visible,
   .workspace-drawer :focus-visible {
     outline-color: #5eead4;
