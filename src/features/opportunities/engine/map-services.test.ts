@@ -4,6 +4,29 @@ import { mapOpportunityToAgencyService } from "@/features/opportunities/engine/m
 import { makeService } from "@/features/opportunities/test-fixtures";
 
 describe("mapOpportunityToAgencyService", () => {
+  it("does not assign a booking-only service to financing visibility", () => {
+    const financing: OpportunityDraft = {
+      ...makeBookingOpportunity(),
+      ruleKey: "financing_visibility",
+      recommendedServiceCategory: "Financing Conversion Section",
+    };
+    const booking = makeService({
+      id: "booking",
+      name: "Booking Integration",
+      description: "Online appointment scheduling",
+    });
+    expect(mapOpportunityToAgencyService(financing, [booking])).toBeNull();
+    expect(
+      mapOpportunityToAgencyService(financing, [
+        booking,
+        makeService({
+          id: "financing",
+          name: "Financing Conversion Section",
+          description: null,
+        }),
+      ]),
+    ).toBe("financing");
+  });
   it("maps an opportunity to a matching active agency service", () => {
     const service = makeService({
       id: "service-booking",

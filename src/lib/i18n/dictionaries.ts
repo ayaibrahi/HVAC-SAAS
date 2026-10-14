@@ -1,6 +1,8 @@
 import type { Locale } from "@/lib/ui/preferences";
+import { prospectEnglish, prospectArabic } from "@/lib/i18n/prospects";
 
 export const english = {
+  ...prospectEnglish,
   dashboard: "Dashboard",
   prospects: "Prospects",
   services: "Services",
@@ -25,7 +27,7 @@ export const english = {
   english: "English",
   arabic: "العربية (تجريبي)",
   partialLocale:
-    "Arabic currently covers navigation, dashboard, and shared messages. This workflow remains in English; saved content is unchanged.",
+    "Arabic covers navigation, dashboard, the prospects list and its inline details. This workflow remains in English; saved content is unchanged.",
   salesWorkspace: "Sales workspace",
   dashboardDescription:
     "Your prospects, website findings, and proposals in one place.",
@@ -108,6 +110,7 @@ export type TranslationKey = keyof typeof english;
 type Dictionary = Record<TranslationKey, string>;
 
 export const arabic: Dictionary = {
+  ...prospectArabic,
   dashboard: "لوحة التحكم",
   prospects: "العملاء المحتملون",
   services: "الخدمات",
@@ -132,7 +135,7 @@ export const arabic: Dictionary = {
   english: "English",
   arabic: "العربية (تجريبي)",
   partialLocale:
-    "العربية متاحة حاليًا للتنقل ولوحة التحكم والرسائل المشتركة. تبقى هذه الخطوات بالإنجليزية، ولا يتغير المحتوى المحفوظ.",
+    "العربية متاحة للتنقل ولوحة التحكم وقائمة العملاء وتفاصيلهم داخلها. تبقى هذه الخطوات بالإنجليزية، ولا يتغير المحتوى المحفوظ.",
   salesWorkspace: "مساحة المبيعات",
   dashboardDescription:
     "عملاؤك المحتملون ونتائج فحص المواقع وعروض الخدمات في مكان واحد.",

@@ -238,7 +238,7 @@ function parseOpportunityEvidence(value: unknown): OpportunityEvidence[] {
   return result.success ? result.data : [];
 }
 
-function sortOpportunities(opportunities: Opportunity[]) {
+export function sortOpportunities(opportunities: Opportunity[]) {
   return [...opportunities].sort((left, right) => {
     if (right.score !== left.score) {
       return right.score - left.score;

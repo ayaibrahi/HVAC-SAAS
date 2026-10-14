@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { EnglishWorkflow } from "@/components/ui-preferences";
 
 export function WorkspaceContent({ children }: { children: ReactNode }) {
-  return usePathname() === "/dashboard" ? (
+  const path = usePathname();
+  return path === "/dashboard" || path === "/dashboard/prospects" ? (
     children
   ) : (
     <EnglishWorkflow>{children}</EnglishWorkflow>

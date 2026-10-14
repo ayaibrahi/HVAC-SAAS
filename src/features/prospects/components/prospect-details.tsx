@@ -1,0 +1,171 @@
+"use client";
+
+import Link from "next/link";
+import { ScanLine, SearchCheck } from "lucide-react";
+import { useInterface } from "@/components/ui-preferences";
+import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { scanIsActive, type ProspectWorkspaceData } from "../workspace-model";
+import {
+  WorkspaceAction,
+  DeleteProspect,
+  RefreshWorkspace,
+} from "./workspace-controls";
+import { CompactFinding } from "./compact-finding";
+
+export function ProspectDetails({
+  data,
+  createProposal,
+}: {
+  data: ProspectWorkspaceData;
+  createProposal: (form: FormData) => Promise<void>;
+}) {
+  const { t } = useInterface();
+  const { prospect, scan, opportunities, services, insights, proposals } = data;
+  const completed = scan?.status === "completed";
+  const active = scanIsActive(scan);
+  const scanControl = (
+    <WorkspaceAction
+      key={scan?.id}
+      path={`/api/prospects/${prospect.id}/audits`}
+      label={completed ? t.pRescan : t.pScan}
+      pendingLabel={t.pScanning}
+      icon={<ScanLine size={16} aria-hidden="true" />}
+    />
+  );
+  const findingsControl = scan && (
+    <WorkspaceAction
+      key={opportunities.map((item) => item.id).join()}
+      path={`/api/audits/${scan.id}/opportunities`}
+      label={opportunities.length ? t.pRefreshFindings : t.pViewOpportunities}
+      pendingLabel={t.pReviewing}
+      icon={<SearchCheck size={16} aria-hidden="true" />}
+    />
+  );
+  const proposalControl = completed && (
+    <form action={createProposal}>
+      <input type="hidden" name="auditId" value={scan.id} />
+      <input type="hidden" name="title" value="" />
+      <PendingSubmitButton
+        label={t.pPrepare}
+        pendingLabel={t.pPreparing}
+        className="button-secondary"
+      />
+    </form>
+  );
+  return (
+    <div className="space-y-5 border-t border-border pt-5">
+      {active ? (
+        <div className="space-y-3">
+          <p className="max-w-xl text-sm text-muted">{t.pActiveDescription}</p>
+          <RefreshWorkspace />
+        </div>
+      ) : !completed ? (
+        <div className="space-y-3">
+          <p className="max-w-xl text-sm text-muted">
+            {scan?.status === "failed"
+              ? t.pFailedDescription
+              : t.pScanDescription}
+          </p>
+          {scanControl}
+        </div>
+      ) : (
+        <section aria-label={t.pOpportunities}>
+          {opportunities.length ? (
+            <>
+              <p className="mb-2 text-xs text-muted">{t.pPageEvidence}</p>
+              {opportunities.map((item) => (
+                <CompactFinding
+                  key={item.id}
+                  item={item}
+                  service={
+                    services.find(
+                      (service) => service.id === item.agencyServiceId,
+                    )?.name
+                  }
+                  insight={insights.find(
+                    (insight) => insight.opportunityId === item.id,
+                  )}
+                />
+              ))}
+              <div className="mt-5">
+                {proposals.length ? (
+                  <Link
+                    href={`/dashboard/proposals/${proposals[0].id}`}
+                    className="button-secondary"
+                  >
+                    {t.pContinue}
+                  </Link>
+                ) : (
+                  proposalControl
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted">{t.pNoOpportunities}</p>
+              {findingsControl}
+            </div>
+          )}
+        </section>
+      )}
+      <details>
+        <summary className="w-fit cursor-pointer py-2 text-xs font-medium text-muted">
+          {t.pMore}
+        </summary>
+        <div className="mt-4 space-y-5">
+          <div className="flex flex-wrap items-start gap-3">
+            <Link
+              href={`/dashboard/prospects/${prospect.id}/edit`}
+              className="button-secondary"
+            >
+              {t.pEdit}
+            </Link>
+            {completed && scanControl}
+            {completed && opportunities.length > 0 && findingsControl}
+            {completed &&
+              (!opportunities.length || proposals.length > 0) &&
+              proposalControl}
+          </div>
+          {proposals.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-xs font-medium">{t.pProposals}</h3>
+              <ul className="space-y-2">
+                {proposals.map((proposal) => (
+                  <li key={proposal.id}>
+                    <Link
+                      href={`/dashboard/proposals/${proposal.id}`}
+                      className="inline-flex min-h-11 items-center text-sm text-accent"
+                    >
+                      <bdi>{proposal.title}</bdi>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {(prospect.contactName ||
+            prospect.contactEmail ||
+            prospect.notes) && (
+            <dl className="space-y-3 text-sm">
+              {[
+                [t.pContactName, prospect.contactName],
+                [t.pContactEmail, prospect.contactEmail],
+                [t.pNotes, prospect.notes],
+              ]
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
+                  <div key={label}>
+                    <dt className="text-xs text-muted">{label}</dt>
+                    <dd dir="auto" className="mt-1 whitespace-pre-wrap">
+                      {value}
+                    </dd>
+                  </div>
+                ))}
+            </dl>
+          )}
+          <DeleteProspect id={prospect.id} name={prospect.businessName} />
+        </div>
+      </details>
+    </div>
+  );
+}
