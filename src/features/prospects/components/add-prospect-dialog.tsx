@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { ScanLine, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { saveAndScanBusiness, type SaveAndScanState } from "../save-and-scan";
 import { useInterface } from "@/components/ui-preferences";
 import { getDrawerFocusTarget } from "@/components/dashboard/navigation";
 import {
@@ -13,19 +15,32 @@ import {
 
 export function AddProspectDialog({
   action,
+  secondary = false,
 }: {
+  secondary?: boolean;
   action: (
     state: ProspectFormState,
     form: FormData,
   ) => Promise<ProspectFormState>;
 }) {
   const { t } = useInterface();
+  const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null),
     trigger = useRef<HTMLButtonElement>(null),
     first = useRef<HTMLInputElement>(null),
     feedback = useRef<HTMLDivElement>(null);
   const lock = useRef(false);
-  const [state, submit, pending] = useActionState(action, {});
+  const [state, submit, pending] = useActionState<SaveAndScanState, FormData>(
+    async (previous, form) => {
+      const result = await saveAndScanBusiness(action, previous, form);
+      if (result.savedId && result.scanResult === "done") {
+        router.replace(prospectHref(result.savedId) + "#website-results");
+        router.refresh();
+      }
+      return result;
+    },
+    {},
+  );
   const [values, setValues] = useState({
     businessName: "",
     websiteUrl: "",
@@ -37,7 +52,8 @@ export function AddProspectDialog({
     if (!pending) lock.current = false;
   }, [pending, state]);
   useEffect(() => {
-    if (state.error || state.duplicate) feedback.current?.focus();
+    if (state.error || state.duplicate || state.savedId || state.saveUncertain)
+      feedback.current?.focus();
   }, [state]);
   const errors = {
     businessName: t.pNameError,
@@ -89,18 +105,39 @@ export function AddProspectDialog({
   }
   return (
     <>
-      <button
-        ref={trigger}
-        className="button-primary"
-        type="button"
-        onClick={() => {
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
           dialog.current?.showModal();
           first.current?.focus();
         }}
+        className="flex max-w-2xl flex-wrap items-end gap-3"
       >
-        <Plus size={17} aria-hidden="true" />
-        {t.pAdd}
-      </button>
+        <label className="min-w-0 flex-1 basis-64">
+          <span className="mb-2 block text-sm font-medium">{t.pWebsite}</span>
+          <input
+            aria-label={t.pWebsiteEntry}
+            value={values.websiteUrl}
+            onChange={(event) =>
+              setValues({ ...values, websiteUrl: event.target.value })
+            }
+            placeholder="example.com"
+            inputMode="url"
+            dir="ltr"
+            maxLength={2048}
+            disabled={pending || Boolean(state.savedId) || state.saveUncertain}
+            className="w-full rounded-md border border-border bg-panel px-3 py-3 text-sm"
+          />
+        </label>
+        <button
+          ref={trigger}
+          className={secondary ? "button-secondary" : "button-primary"}
+          type="submit"
+        >
+          <ScanLine size={17} aria-hidden="true" />
+          {t.pAdd}
+        </button>
+      </form>
       <dialog
         ref={dialog}
         tabIndex={-1}
@@ -135,7 +172,7 @@ export function AddProspectDialog({
       >
         <div className="mb-6 flex items-center justify-between gap-4">
           <h2 id="add-prospect-title" className="text-xl font-semibold">
-            {t.pAdd}
+            {t.pAddAndScan}
           </h2>
           <button
             type="button"
@@ -157,7 +194,13 @@ export function AddProspectDialog({
           }}
           className="space-y-5"
         >
-          {(state.error || state.duplicate) && (
+          <p className="text-sm leading-relaxed text-muted">
+            {t.pSaveScanExplanation}
+          </p>
+          {(state.error ||
+            state.duplicate ||
+            state.savedId ||
+            state.saveUncertain) && (
             <div
               ref={feedback}
               tabIndex={-1}
@@ -165,15 +208,39 @@ export function AddProspectDialog({
               className="border-s-2 border-accent ps-3 text-sm"
             >
               <p className="font-medium">
-                {state.duplicate
-                  ? t.pDuplicateTitle
-                  : {
-                      invalid: t.pInvalid,
-                      save: t.pSaveError,
-                      session: t.pSessionError,
-                      agency: t.pAgencyError,
-                    }[state.error!]}
+                {state.savedId
+                  ? state.scanResult === "done"
+                    ? t.pScanFinished
+                    : t.pSavedScanFailed
+                  : state.saveUncertain
+                    ? t.pSaveUncertain
+                    : state.duplicate
+                      ? t.pDuplicateTitle
+                      : {
+                          invalid: t.pInvalid,
+                          save: t.pSaveError,
+                          session: t.pSessionError,
+                          agency: t.pAgencyError,
+                        }[state.error!]}
               </p>
+              {state.savedId && (
+                <Link
+                  href={prospectHref(state.savedId) + "#website-results"}
+                  onClick={close}
+                  className="button-secondary mt-3"
+                >
+                  {t.pOpenSaved}
+                </Link>
+              )}
+              {state.saveUncertain && (
+                <Link
+                  href="/dashboard/prospects"
+                  onClick={close}
+                  className="mt-3 inline-block text-accent"
+                >
+                  {t.pSavedBusinesses}
+                </Link>
+              )}
               {state.duplicate && (
                 <>
                   <Link
@@ -215,10 +282,13 @@ export function AddProspectDialog({
               )}
             </div>
           )}
-          <fieldset disabled={pending} className="min-w-0 space-y-5">
-            {field("businessName", t.pName, 160)}
+          <fieldset
+            disabled={pending || Boolean(state.savedId) || state.saveUncertain}
+            hidden={Boolean(state.savedId) || state.saveUncertain}
+            className="min-w-0 space-y-5"
+          >
             <div>
-              {field("websiteUrl", t.pWebsite)}
+              {field("websiteUrl", t.pWebsite, 2048)}
               <p
                 id="website-help"
                 className="mt-2 text-xs leading-relaxed text-muted"
@@ -226,6 +296,7 @@ export function AddProspectDialog({
                 {t.pWebsiteHelp}
               </p>
             </div>
+            {field("businessName", t.pName, 160)}
             <details
               open={
                 state.fields?.some((name) =>
@@ -271,16 +342,22 @@ export function AddProspectDialog({
             </details>
           </fieldset>
           <div className="flex flex-wrap gap-3 border-t border-border pt-5">
-            <button disabled={pending} className="button-primary" type="submit">
-              {pending ? t.pCreating : t.pAdd}
-            </button>
+            {!state.savedId && !state.saveUncertain && (
+              <button
+                disabled={pending}
+                className="button-primary"
+                type="submit"
+              >
+                {pending ? t.pCreating : t.pAddAndScan}
+              </button>
+            )}
             <button
               disabled={pending}
               type="button"
               onClick={close}
               className="button-secondary"
             >
-              {t.pCancel}
+              {state.savedId || state.saveUncertain ? t.pClose : t.pCancel}
             </button>
           </div>
           <p role="status" className="sr-only">

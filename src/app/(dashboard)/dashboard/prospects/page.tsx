@@ -4,7 +4,7 @@ import {
   getProspectsPage,
   getProspectWorkspace,
 } from "@/features/prospects/workspace-data";
-import { saveWorkspaceProspect } from "@/features/prospects/workspace-actions";
+import { createBusinessForScan } from "@/features/prospects/workspace-actions";
 import { createProposalAction } from "@/features/proposals/actions";
 import { AppError } from "@/lib/errors";
 import type {
@@ -46,7 +46,7 @@ export default async function ProspectsPage({
         selected={selected}
         missing={requested && !selected && !problem}
         problem={problem}
-        addProspect={saveWorkspaceProspect.bind(null, null)}
+        addProspect={createBusinessForScan}
         createProposal={createProposalAction}
       />
     </div>

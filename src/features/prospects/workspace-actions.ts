@@ -18,6 +18,30 @@ export async function saveWorkspaceProspect(
   _state: ProspectFormState,
   form: FormData,
 ): Promise<ProspectFormState> {
+  const result = await persistProspect(id, form);
+  if (!result.savedId) return result;
+  revalidatePath("/dashboard/prospects");
+  revalidatePath("/dashboard");
+  redirect(prospectHref(result.savedId));
+}
+
+// Returns only the owned saved ID; the existing audit endpoint authorizes the scan separately.
+export async function createBusinessForScan(
+  _state: ProspectFormState,
+  form: FormData,
+): Promise<ProspectFormState> {
+  const result = await persistProspect(null, form);
+  if (result.savedId) {
+    revalidatePath("/dashboard/prospects");
+    revalidatePath("/dashboard");
+  }
+  return result;
+}
+
+async function persistProspect(
+  id: string | null,
+  form: FormData,
+): Promise<ProspectFormState> {
   const fields: ProspectField[] = [
     "businessName",
     "websiteUrl",
@@ -60,7 +84,5 @@ export async function saveWorkspaceProspect(
             : "save",
     };
   }
-  revalidatePath("/dashboard/prospects");
-  revalidatePath("/dashboard");
-  redirect(prospectHref(savedId));
+  return { savedId };
 }

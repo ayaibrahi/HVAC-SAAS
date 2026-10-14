@@ -80,7 +80,8 @@ describe("dashboard rendering", () => {
       }),
     );
     expect(html).toMatch(/<svg[^>]*aria-hidden="true"/);
-    expect(html).toContain(">Prospects</span>");
+    expect(html).toContain(">Websites</span>");
+    expect(html).toContain('href="/dashboard/prospects"');
     expect(html).toContain(">Services</span>");
   });
   it("renders meaningful empty states and genuine zero counts", () => {

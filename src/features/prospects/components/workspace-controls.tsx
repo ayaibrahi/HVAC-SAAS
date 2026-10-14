@@ -17,6 +17,9 @@ export function WorkspaceAction({
   disabled = false,
   primary = false,
   icon,
+  successHref,
+  expectFindings = false,
+  onEmpty,
 }: {
   path: string;
   label: string;
@@ -24,6 +27,9 @@ export function WorkspaceAction({
   disabled?: boolean;
   primary?: boolean;
   icon?: ReactNode;
+  successHref?: string;
+  expectFindings?: boolean;
+  onEmpty?: () => void;
 }) {
   const router = useRouter();
   const { t } = useInterface();
@@ -33,6 +39,7 @@ export function WorkspaceAction({
   const locked = useRef(false);
   const messages = {
     done: t.pDone,
+    empty: t.pNoSupportedFindings,
     session: t.pSessionError,
     limit: t.pLimitError,
     busy: t.pBusyError,
@@ -45,7 +52,14 @@ export function WorkspaceAction({
     setPending(true);
     setResult(null);
     try {
-      setResult(await requestWorkspaceAction(path, "POST"));
+      const response = await requestWorkspaceAction(
+        path,
+        "POST",
+        expectFindings,
+      );
+      setResult(response);
+      if (response === "empty") onEmpty?.();
+      if (response === "done" && successHref) router.push(successHref);
       // Wait for fresh server state before enabling another request.
       startRefresh(() => router.refresh());
     } finally {

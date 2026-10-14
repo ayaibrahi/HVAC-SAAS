@@ -4,7 +4,7 @@ import { prospectEnglish, prospectArabic } from "@/lib/i18n/prospects";
 export const english = {
   ...prospectEnglish,
   dashboard: "Dashboard",
-  prospects: "Prospects",
+  prospects: "Websites",
   services: "Services",
   proposals: "Proposals",
   settings: "Settings",
@@ -112,7 +112,7 @@ type Dictionary = Record<TranslationKey, string>;
 export const arabic: Dictionary = {
   ...prospectArabic,
   dashboard: "لوحة التحكم",
-  prospects: "العملاء المحتملون",
+  prospects: "المواقع",
   services: "الخدمات",
   proposals: "عروض الخدمات",
   settings: "الإعدادات",

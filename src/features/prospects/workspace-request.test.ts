@@ -3,6 +3,28 @@ import { requestWorkspaceAction } from "./workspace-request";
 afterEach(() => vi.unstubAllGlobals());
 describe("workspace requests use existing same-origin contracts", () => {
   it.each([
+    ['{"data":[]}', "empty"],
+    ['{"data":[{"id":"existing"}]}', "done"],
+    ["{}", "unknown"],
+    ['{"data":null}', "unknown"],
+    ["not json", "unknown"],
+  ])(
+    "reports empty findings only from a successful structured response %s",
+    async (body, result) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(new Response(body, { status: 201 })),
+      );
+      expect(
+        await requestWorkspaceAction(
+          "/api/audits/id/opportunities",
+          "POST",
+          true,
+        ),
+      ).toBe(result);
+    },
+  );
+  it.each([
     [201, "done"],
     [401, "session"],
     [403, "error"],

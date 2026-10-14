@@ -69,7 +69,7 @@ vi.mock("@/features/prospects/workspace-data", () => ({
   getProspectWorkspace: vi.fn(async () => null),
 }));
 vi.mock("@/features/prospects/workspace-actions", () => ({
-  saveWorkspaceProspect: async () => ({}),
+  createBusinessForScan: async () => ({}),
 }));
 vi.mock("@/features/proposals/actions", () => ({
   createProposalAction: async () => {},
@@ -111,8 +111,8 @@ describe("actual dashboard page entry points (mocked session/data, not a fixture
     [
       "/dashboard/prospects",
       ProspectsPage,
-      "Prospects",
-      "Your next client starts here",
+      "Find website opportunities",
+      "No saved businesses yet",
     ],
     ["/dashboard/services", ServicesPage, "Services", "Service catalog"],
     ["/dashboard/proposals", ProposalsPage, "Proposals", "Create draft"],
@@ -127,7 +127,7 @@ describe("actual dashboard page entry points (mocked session/data, not a fixture
       expect(html).toContain(marker);
       expect(html).not.toContain("Prospect progress");
       if (path !== "/dashboard/prospects")
-        expect(html).not.toContain('id="prospect-details"');
+        expect(html).not.toContain('id="website-results"');
       const navigation = renderToStaticMarkup(
         createElement(WorkspaceNavigation, {
           productName: "Scanvoro",
@@ -177,6 +177,6 @@ describe("actual dashboard page entry points (mocked session/data, not a fixture
     );
     expect(getProspectWorkspace).toHaveBeenCalledWith("foreign-id");
     expect(html).toContain("isn&#x27;t available to your agency");
-    expect(html).not.toContain('id="prospect-details"');
+    expect(html).not.toContain('id="website-results"');
   });
 });

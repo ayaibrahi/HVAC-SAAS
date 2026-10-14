@@ -27,11 +27,11 @@ export function CompactFinding({
     insight?.recommendedNextStep,
   );
   return (
-    <details className="border-b border-border py-1">
-      <summary className="cursor-pointer py-3 text-sm font-medium text-ink">
+    <article className="border-b border-border py-4" data-finding>
+      <h3 className="mb-2 text-sm font-semibold text-ink">
         <bdi>{item.title}</bdi>
-      </summary>
-      <div className="space-y-4 pb-5 ps-4 text-sm">
+      </h3>
+      <div className="space-y-2 text-sm">
         <p dir="auto" className="max-w-2xl leading-relaxed text-muted">
           {item.shortDescription}
         </p>
@@ -140,6 +140,6 @@ export function CompactFinding({
           </div>
         </details>
       </div>
-    </details>
+    </article>
   );
 }

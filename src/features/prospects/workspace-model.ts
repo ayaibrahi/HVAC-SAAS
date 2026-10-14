@@ -71,6 +71,7 @@ export function scanIsActive(scan: ScanSummary | null) {
 export type ProspectField =
   "businessName" | "websiteUrl" | "contactName" | "contactEmail" | "notes";
 export type ProspectFormState = {
+  savedId?: string;
   fields?: ProspectField[];
   error?: "invalid" | "save" | "session" | "agency";
   duplicate?: { id: string; name: string };

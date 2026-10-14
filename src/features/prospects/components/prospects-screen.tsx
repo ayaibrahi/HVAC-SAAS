@@ -1,19 +1,14 @@
 "use client";
-
 import Link from "next/link";
-import {
-  ChevronDown,
-  ChevronUp,
-  Search,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { ArrowRight, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/workspace-ui";
 import { useInterface } from "@/components/ui-preferences";
 import { AddProspectDialog } from "./add-prospect-dialog";
 import { ProspectDetails } from "./prospect-details";
+import { WorkspaceAction } from "./workspace-controls";
 import {
   prospectsListHref,
+  scanIsActive,
   type ProspectListData,
   type ProspectWorkspaceData,
   type ProspectFormState,
@@ -38,7 +33,6 @@ export function ScanLabel({ scan }: { scan: ScanSummary | null }) {
     </span>
   );
 }
-
 type Props = {
   data: ProspectListData | null;
   selected: ProspectWorkspaceData | null;
@@ -50,7 +44,6 @@ type Props = {
   ) => Promise<ProspectFormState>;
   createProposal: (form: FormData) => Promise<void>;
 };
-
 export function ProspectsScreen({
   data,
   selected,
@@ -66,18 +59,27 @@ export function ProspectsScreen({
     selected && !items.some((item) => item.id === selected.prospect.id)
       ? [{ ...selected.prospect, scan: selected.scan }, ...items]
       : items;
+  function href(id: string) {
+    return (
+      listHref +
+      (listHref.includes("?") ? "&" : "?") +
+      "prospect=" +
+      encodeURIComponent(id) +
+      "#website-results"
+    );
+  }
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={t.pTitle}
-        description={t.pSimpleDescription}
-        actions={
+    <div className="space-y-8">
+      <section className="space-y-5 border-b border-border pb-7">
+        <PageHeader title={t.pTitle} description={t.pSimpleDescription} />
+        {!problem && (
           <AddProspectDialog
             key={selected?.prospect.id ?? "list"}
             action={addProspect}
+            secondary={Boolean(selected)}
           />
-        }
-      />
+        )}
+      </section>
       {problem ? (
         <div role="alert" className="space-y-3 border-s-2 border-accent ps-4">
           <p className="text-sm">
@@ -92,174 +94,199 @@ export function ProspectsScreen({
         </div>
       ) : (
         <>
-          <form
-            action="/dashboard/prospects"
-            method="get"
-            className="flex max-w-lg gap-2"
-          >
-            <label className="min-w-0 flex-1">
-              <span className="sr-only">{t.pSearch}</span>
-              <input
-                key={data?.query}
-                name="q"
-                type="search"
-                maxLength={100}
-                defaultValue={data?.query}
-                placeholder={t.pSearch}
-                className="w-full rounded-md border border-border bg-panel px-3 py-2 text-sm"
-              />
-            </label>
-            <button
-              type="submit"
-              title={t.pSearchButton}
-              aria-label={t.pSearchButton}
-              className="button-secondary !px-3"
-            >
-              <Search size={18} aria-hidden="true" />
-            </button>
-            {data?.query && (
-              <Link
-                href="/dashboard/prospects"
-                className="inline-flex min-h-11 items-center text-xs font-medium text-accent"
-              >
-                {t.pClear}
-              </Link>
-            )}
-          </form>
           {missing && (
-            <p
-              role="alert"
-              className="border-s-2 border-accent ps-3 text-sm text-muted"
-            >
+            <p role="alert" className="text-sm text-muted">
               {t.pNotFoundDescription}
             </p>
           )}
-          {!visible.length ? (
-            <EmptyState
-              title={
-                data?.query || (data?.page ?? 1) > 1
-                  ? t.pNoResults
-                  : t.pEmptyTitle
-              }
-              description={
-                data?.query || (data?.page ?? 1) > 1
-                  ? t.pNoResultsDescription
-                  : t.pEmptyDescription
-              }
-            />
-          ) : (
-            <div className="space-y-3">
-              {visible.map((item) => {
-                const expanded = selected?.prospect.id === item.id;
-                const href = expanded
-                  ? listHref
-                  : listHref +
-                    (listHref.includes("?") ? "&" : "?") +
-                    "prospect=" +
-                    encodeURIComponent(item.id) +
-                    "#prospect-" +
-                    item.id;
-                return (
+          {selected && (
+            <section
+              id="website-results"
+              tabIndex={-1}
+              aria-labelledby="results-name"
+              className="scroll-mt-5 space-y-4 border-b border-border pb-7"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="mb-2 text-xs font-medium text-accent">
+                    {t.pResults}
+                  </p>
+                  <h2
+                    id="results-name"
+                    dir="auto"
+                    className="text-xl font-semibold"
+                  >
+                    {selected.prospect.businessName}
+                  </h2>
+                  <a
+                    href={selected.prospect.websiteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    dir="ltr"
+                    className="mt-2 block break-all text-xs text-accent"
+                  >
+                    {selected.prospect.websiteUrl}
+                  </a>
+                </div>
+                <ScanLabel scan={selected.scan} />
+              </div>
+              <ProspectDetails
+                key={selected.prospect.id + ":" + selected.scan?.id}
+                data={selected}
+                createProposal={createProposal}
+              />
+            </section>
+          )}
+          <section aria-labelledby="saved-businesses" className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <h2 id="saved-businesses" className="text-base font-semibold">
+                {t.pSavedBusinesses}
+              </h2>
+              <form
+                action="/dashboard/prospects"
+                method="get"
+                className="flex w-full max-w-md gap-2"
+              >
+                <label className="min-w-0 flex-1">
+                  <span className="sr-only">{t.pSearch}</span>
+                  <input
+                    key={data?.query}
+                    name="q"
+                    type="search"
+                    maxLength={100}
+                    defaultValue={data?.query}
+                    placeholder={t.pSearch}
+                    className="w-full rounded-md border border-border bg-panel px-3 py-2 text-sm"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  title={t.pSearchButton}
+                  aria-label={t.pSearchButton}
+                  className="button-secondary !px-3"
+                >
+                  <Search size={18} aria-hidden="true" />
+                </button>
+                {data?.query && (
+                  <Link
+                    href="/dashboard/prospects"
+                    className="inline-flex min-h-11 items-center text-xs text-accent"
+                  >
+                    {t.pClear}
+                  </Link>
+                )}
+              </form>
+            </div>
+            {!visible.length ? (
+              <EmptyState
+                title={
+                  data?.query || (data?.page ?? 1) > 1
+                    ? t.pNoResults
+                    : t.pEmptyTitle
+                }
+                description={
+                  data?.query || (data?.page ?? 1) > 1
+                    ? t.pNoResultsDescription
+                    : t.pEmptyDescription
+                }
+              />
+            ) : (
+              <div>
+                {visible.map((item) => (
                   <article
                     key={item.id}
-                    id={"prospect-" + item.id}
-                    className="scroll-mt-5 rounded-md border border-border bg-panel p-4 shadow-sm sm:p-5"
+                    className="flex flex-wrap items-center justify-between gap-3 border-b border-border py-4"
                   >
-                    <div className={expanded ? "mb-5" : ""}>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <h2 dir="auto" className="text-base font-semibold">
-                            {item.businessName}
-                          </h2>
-                          <a
-                            href={item.websiteUrl}
-                            dir="ltr"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 block break-all text-start text-xs text-accent"
-                          >
-                            {item.websiteUrl}
-                          </a>
-                        </div>
-                        <Link
-                          href={href}
-                          scroll={false}
-                          aria-expanded={expanded}
-                          aria-controls={
-                            expanded ? "prospect-details" : undefined
-                          }
-                          className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-ink hover:bg-surface"
-                        >
-                          {expanded ? t.pClose : t.pView}
-                          {expanded ? (
-                            <ChevronUp size={16} aria-hidden="true" />
-                          ) : (
-                            <ChevronDown size={16} aria-hidden="true" />
-                          )}
+                    <div className="min-w-0 flex-1 basis-64">
+                      <h3 className="text-sm font-semibold">
+                        <Link href={href(item.id)}>
+                          <bdi>{item.businessName}</bdi>
                         </Link>
-                      </div>
-                      <div className="mt-3">
-                        <ScanLabel scan={item.scan} />
-                      </div>
+                      </h3>
+                      <a
+                        href={item.websiteUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        dir="ltr"
+                        className="mt-1 block break-all text-xs text-muted"
+                      >
+                        {item.websiteUrl}
+                      </a>
                     </div>
-                    {expanded && (
-                      <div id="prospect-details">
-                        <ProspectDetails
-                          key={selected.prospect.id}
-                          data={selected}
-                          createProposal={createProposal}
+                    <div className="flex flex-wrap items-center gap-3">
+                      <ScanLabel scan={item.scan} />
+                      {item.scan?.status === "completed" ||
+                      scanIsActive(item.scan) ||
+                      selected?.prospect.id === item.id ? (
+                        <Link
+                          href={href(item.id)}
+                          className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-accent"
+                        >
+                          {scanIsActive(item.scan) ? t.pViewStatus : t.pView}
+                          <ArrowRight
+                            size={15}
+                            className="rtl:rotate-180"
+                            aria-hidden="true"
+                          />
+                        </Link>
+                      ) : (
+                        <WorkspaceAction
+                          key={item.scan?.id}
+                          path={`/api/prospects/${item.id}/audits`}
+                          label={t.pScan}
+                          pendingLabel={t.pScanning}
+                          successHref={href(item.id)}
                         />
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </article>
-                );
-              })}
-            </div>
-          )}
-          {data && (data.page > 1 || data.hasNext) && (
-            <nav
-              aria-label={t.pPage}
-              className="flex flex-wrap items-center justify-between gap-3"
-            >
-              <p className="text-xs text-muted">
-                {t.pPage} {data.page.toLocaleString(locale)}
-              </p>
-              <div className="flex gap-2">
-                {data.page > 1 && (
-                  <Link
-                    href={prospectsListHref(data.page - 1, data.query)}
-                    className="button-secondary"
-                  >
-                    <ChevronLeft
-                      size={16}
-                      className="rtl:rotate-180"
-                      aria-hidden="true"
-                    />
-                    {t.pPrevious}
-                  </Link>
-                )}
-                {data.hasNext && (
-                  <Link
-                    href={prospectsListHref(data.page + 1, data.query)}
-                    className="button-secondary"
-                  >
-                    {t.pNext}
-                    <ChevronRight
-                      size={16}
-                      className="rtl:rotate-180"
-                      aria-hidden="true"
-                    />
-                  </Link>
-                )}
+                ))}
               </div>
-            </nav>
-          )}
+            )}
+            {data && (data.page > 1 || data.hasNext) && (
+              <nav
+                aria-label={t.pPage}
+                className="flex items-center justify-between gap-3"
+              >
+                <p className="text-xs text-muted">
+                  {t.pPage} {data.page.toLocaleString(locale)}
+                </p>
+                <div className="flex gap-2">
+                  {data.page > 1 && (
+                    <Link
+                      href={prospectsListHref(data.page - 1, data.query)}
+                      className="button-secondary"
+                    >
+                      <ChevronLeft
+                        size={16}
+                        className="rtl:rotate-180"
+                        aria-hidden="true"
+                      />
+                      {t.pPrevious}
+                    </Link>
+                  )}
+                  {data.hasNext && (
+                    <Link
+                      href={prospectsListHref(data.page + 1, data.query)}
+                      className="button-secondary"
+                    >
+                      {t.pNext}
+                      <ChevronRight
+                        size={16}
+                        className="rtl:rotate-180"
+                        aria-hidden="true"
+                      />
+                    </Link>
+                  )}
+                </div>
+              </nav>
+            )}
+          </section>
         </>
       )}
     </div>
   );
 }
-
 export function ProspectsLoading() {
   const { t } = useInterface();
   return (

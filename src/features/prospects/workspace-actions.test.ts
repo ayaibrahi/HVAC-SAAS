@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { redirect } from "next/navigation";
-import { saveWorkspaceProspect } from "./workspace-actions";
+import {
+  saveWorkspaceProspect,
+  createBusinessForScan,
+} from "./workspace-actions";
 import { createProspect, updateProspect } from "./data";
 import { findMatchingProspect, getEditableProspect } from "./workspace-data";
 import { AppError } from "@/lib/errors";
@@ -43,6 +46,21 @@ beforeEach(() => {
   vi.mocked(getEditableProspect).mockResolvedValue(prospect);
 });
 describe("prospect workspace save", () => {
+  it("returns only a confirmed owned ID for scanning, ignores forged previous state and retains duplicate checks", async () => {
+    const input = form();
+    input.set("agencyId", "other");
+    expect(await createBusinessForScan({ savedId: "forged" }, input)).toEqual({
+      savedId: id,
+    });
+    expect(createProspect).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createProspect).mock.calls[0][0]).not.toHaveProperty("agencyId");
+    expect(redirect).not.toHaveBeenCalled();
+    vi.mocked(findMatchingProspect).mockResolvedValue({ id, name: "Existing" });
+    expect(await createBusinessForScan({}, input)).toEqual({
+      duplicate: { id, name: "Existing" },
+    });
+    expect(createProspect).toHaveBeenCalledTimes(1);
+  });
   it("validates inline without writing or looking up invalid input", async () => {
     expect(await saveWorkspaceProspect(null, {}, new FormData())).toEqual({
       error: "invalid",

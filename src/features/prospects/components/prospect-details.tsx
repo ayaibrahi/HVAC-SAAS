@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { ScanLine, SearchCheck } from "lucide-react";
 import { useInterface } from "@/components/ui-preferences";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
@@ -23,12 +24,26 @@ export function ProspectDetails({
   const { prospect, scan, opportunities, services, insights, proposals } = data;
   const completed = scan?.status === "completed";
   const active = scanIsActive(scan);
+  const [checkedEmpty, setCheckedEmpty] = useState(false);
+  function finding(item: (typeof opportunities)[number]) {
+    return (
+      <CompactFinding
+        key={item.id}
+        item={item}
+        service={
+          services.find((service) => service.id === item.agencyServiceId)?.name
+        }
+        insight={insights.find((insight) => insight.opportunityId === item.id)}
+      />
+    );
+  }
   const scanControl = (
     <WorkspaceAction
       key={scan?.id}
       path={`/api/prospects/${prospect.id}/audits`}
       label={completed ? t.pRescan : t.pScan}
       pendingLabel={t.pScanning}
+      primary={!completed}
       icon={<ScanLine size={16} aria-hidden="true" />}
     />
   );
@@ -38,6 +53,9 @@ export function ProspectDetails({
       path={`/api/audits/${scan.id}/opportunities`}
       label={opportunities.length ? t.pRefreshFindings : t.pViewOpportunities}
       pendingLabel={t.pReviewing}
+      primary={!opportunities.length && !checkedEmpty}
+      expectFindings
+      onEmpty={() => setCheckedEmpty(true)}
       icon={<SearchCheck size={16} aria-hidden="true" />}
     />
   );
@@ -48,12 +66,16 @@ export function ProspectDetails({
       <PendingSubmitButton
         label={t.pPrepare}
         pendingLabel={t.pPreparing}
-        className="button-secondary"
+        className={
+          opportunities.length && !proposals.length
+            ? "button-primary"
+            : "button-secondary"
+        }
       />
     </form>
   );
   return (
-    <div className="space-y-5 border-t border-border pt-5">
+    <div className="space-y-5">
       {active ? (
         <div className="space-y-3">
           <p className="max-w-xl text-sm text-muted">{t.pActiveDescription}</p>
@@ -70,28 +92,27 @@ export function ProspectDetails({
         </div>
       ) : (
         <section aria-label={t.pOpportunities}>
+          <p className="text-sm text-muted">{t.pOnePageScanned}</p>
           {opportunities.length ? (
             <>
-              <p className="mb-2 text-xs text-muted">{t.pPageEvidence}</p>
-              {opportunities.map((item) => (
-                <CompactFinding
-                  key={item.id}
-                  item={item}
-                  service={
-                    services.find(
-                      (service) => service.id === item.agencyServiceId,
-                    )?.name
-                  }
-                  insight={insights.find(
-                    (insight) => insight.opportunityId === item.id,
-                  )}
-                />
-              ))}
+              <h3 className="mt-5 text-sm font-semibold">
+                {opportunities.length} {t.pFoundLabel}
+              </h3>
+              <p className="mt-2 text-xs text-muted">{t.pPageEvidence}</p>
+              {opportunities.slice(0, 3).map(finding)}
+              {opportunities.length > 3 && (
+                <details className="py-3">
+                  <summary className="cursor-pointer py-2 text-sm text-accent">
+                    {t.pMoreOpportunities} ({opportunities.length - 3})
+                  </summary>
+                  {opportunities.slice(3).map(finding)}
+                </details>
+              )}
               <div className="mt-5">
                 {proposals.length ? (
                   <Link
                     href={`/dashboard/proposals/${proposals[0].id}`}
-                    className="button-secondary"
+                    className="button-primary"
                   >
                     {t.pContinue}
                   </Link>
@@ -102,8 +123,13 @@ export function ProspectDetails({
             </>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-muted">{t.pNoOpportunities}</p>
-              {findingsControl}
+              <p
+                className="mt-3 text-sm text-muted"
+                role={checkedEmpty ? "status" : undefined}
+              >
+                {checkedEmpty ? t.pNoSupportedFindings : t.pNoOpportunities}
+              </p>
+              {!checkedEmpty && findingsControl}
             </div>
           )}
         </section>
@@ -121,7 +147,9 @@ export function ProspectDetails({
               {t.pEdit}
             </Link>
             {completed && scanControl}
-            {completed && opportunities.length > 0 && findingsControl}
+            {completed &&
+              (opportunities.length > 0 || checkedEmpty) &&
+              findingsControl}
             {completed &&
               (!opportunities.length || proposals.length > 0) &&
               proposalControl}
