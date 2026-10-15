@@ -12,6 +12,7 @@ import {
   RefreshWorkspace,
 } from "./workspace-controls";
 import { CompactFinding } from "./compact-finding";
+import { opportunityCountLabel } from "@/lib/i18n/prospects";
 
 export function ProspectDetails({
   data,
@@ -20,9 +21,10 @@ export function ProspectDetails({
   data: ProspectWorkspaceData;
   createProposal: (form: FormData) => Promise<void>;
 }) {
-  const { t } = useInterface();
+  const { t, locale } = useInterface();
   const { prospect, scan, opportunities, services, insights, proposals } = data;
   const completed = scan?.status === "completed";
+  const unverified = scan?.verification === "unverified";
   const active = scanIsActive(scan);
   const existingProposal =
     proposals.find((proposal) => proposal.status === "draft") ?? proposals[0];
@@ -74,6 +76,14 @@ export function ProspectDetails({
   );
   return (
     <div className="space-y-5">
+      {unverified && (
+        <p
+          role="status"
+          className="border-s-2 border-accent ps-3 text-sm text-muted"
+        >
+          {t.pUnverifiedDescription}
+        </p>
+      )}
       {active ? (
         <div className="space-y-3">
           <p className="max-w-xl text-sm text-muted">{t.pActiveDescription}</p>
@@ -82,9 +92,11 @@ export function ProspectDetails({
       ) : !completed ? (
         <div className="space-y-3">
           <p className="max-w-xl text-sm text-muted">
-            {scan?.status === "failed"
-              ? t.pFailedDescription
-              : t.pScanDescription}
+            {unverified
+              ? t.pUnverifiedHelp
+              : scan?.status === "failed"
+                ? t.pFailedDescription
+                : t.pScanDescription}
           </p>
           {scanControl}
         </div>
@@ -102,9 +114,9 @@ export function ProspectDetails({
                     ? t.pContinue
                     : t.pOpenProposal}
                 </Link>
-              ) : (
+              ) : !unverified ? (
                 proposalControl
-              )}
+              ) : null}
               <p className="max-w-xl text-xs leading-relaxed text-muted">
                 {existingProposal ? t.pResumeProposalHelp : t.pPrepareHelp}
               </p>
@@ -113,7 +125,7 @@ export function ProspectDetails({
           {opportunities.length ? (
             <>
               <h3 className="mt-5 text-sm font-semibold">
-                {opportunities.length} {t.pFoundLabel}
+                {opportunityCountLabel(opportunities.length, locale)}
               </h3>
               <p className="mt-2 text-xs text-muted">{t.pPageEvidence}</p>
               {opportunities.slice(0, 3).map(finding)}
@@ -134,7 +146,7 @@ export function ProspectDetails({
               >
                 {checkedEmpty ? t.pNoSupportedFindings : t.pNoOpportunities}
               </p>
-              {!checkedEmpty && findingsControl}
+              {!checkedEmpty && !unverified && findingsControl}
             </div>
           )}
         </section>
@@ -153,6 +165,7 @@ export function ProspectDetails({
             </Link>
             {completed && scanControl}
             {completed &&
+              !unverified &&
               (opportunities.length > 0 || checkedEmpty) &&
               findingsControl}
           </div>

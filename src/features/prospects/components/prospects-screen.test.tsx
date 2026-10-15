@@ -65,6 +65,24 @@ function render(
   );
 }
 describe("simplified prospects presentation", () => {
+  it.each(["en", "ar"] as const)(
+    "shows localized unverified status and blocks new finding generation: %s",
+    (locale) => {
+      const data = workspace();
+      data.scan!.verification = "unverified";
+      data.opportunities = [];
+      const html = render(data, locale);
+      expect(html).toContain(
+        locale === "en" ? "Unable to verify page" : "تعذّر التحقّق من الصفحة",
+      );
+      expect(html).not.toContain('name="auditId"');
+      expect(html).not.toContain("/opportunities");
+    },
+  );
+  it("uses singular English and Arabic for a single opportunity", () => {
+    expect(render(workspace())).toContain("1 opportunity found");
+    expect(render(workspace(), "ar")).toContain("فرصة تحسين واحدة");
+  });
   it("shows website entry and save/scan intent in both locales", () => {
     for (const locale of ["en", "ar"] as const) {
       const html = render(null, locale);

@@ -17,14 +17,17 @@ import {
 
 export function ScanLabel({ scan }: { scan: ScanSummary | null }) {
   const { t } = useInterface();
-  const label = scan
-    ? {
-        pending: t.pQueued,
-        running: t.pScanning,
-        completed: t.pCompleted,
-        failed: t.pFailed,
-      }[scan.status]
-    : t.pNotScanned;
+  const label =
+    scan?.verification === "unverified"
+      ? t.pUnverified
+      : scan
+        ? {
+            pending: t.pQueued,
+            running: t.pScanning,
+            completed: t.pCompleted,
+            failed: t.pFailed,
+          }[scan.status]
+        : t.pNotScanned;
   return (
     <span
       className={`status-${scan?.status ?? "draft"} inline-block rounded px-2 py-1 text-xs font-medium`}

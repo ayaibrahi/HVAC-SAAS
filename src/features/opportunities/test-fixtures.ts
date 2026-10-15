@@ -33,6 +33,12 @@ export function makeAudit(
 
 export function makeDetectedSignals(): NormalizedAuditSignals {
   return {
+    quality: {
+      version: 1,
+      status: "sufficient",
+      reasons: [],
+      visibleCharacters: 1000,
+    },
     schemaVersion: "1.0.0",
     verticalKey: "hvac",
     playbookVersion: "1.0.0",

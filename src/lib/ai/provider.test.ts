@@ -539,7 +539,7 @@ describe("both workflows retain validation and safety through Groq", () => {
     expect(provider.metadata).toMatchObject({
       provider: "groq",
       model: groqModel,
-      promptVersion: "v1",
+      promptVersion: "v2",
       schemaVersion: "1.0.0",
     });
     expect(

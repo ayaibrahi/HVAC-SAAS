@@ -1,6 +1,7 @@
 import type { Locale } from "@/lib/ui/preferences";
 
 const english = {
+  savedProposals: "Saved proposals",
   back: "Back to proposals",
   builder: "Proposal Builder",
   forBusiness: "Proposal for",
@@ -86,6 +87,8 @@ const english = {
   versionHistory: "Previous versions",
   download: "Download PDF",
   downloading: "Preparing PDF...",
+  downloadError:
+    "We could not download the PDF. Check your connection and try Download PDF again. Your saved version has not changed.",
   created: "Created",
   lineItems: "Line items",
   active: "Active",
@@ -114,6 +117,7 @@ const english = {
 export type ProposalCopy = Record<keyof typeof english, string>;
 
 const arabic: ProposalCopy = {
+  savedProposals: "العروض المحفوظة",
   back: "العودة إلى العروض",
   builder: "محرّر عرض الخدمات",
   forBusiness: "عرض خدمات لـ",
@@ -195,6 +199,8 @@ const arabic: ProposalCopy = {
   versionHistory: "النسخ السابقة",
   download: "تنزيل PDF",
   downloading: "جارٍ إعداد PDF...",
+  downloadError:
+    "تعذّر تنزيل PDF. تحقّق من الاتصال ثم حاول التنزيل مجددًا. لم تتغيّر النسخة المحفوظة.",
   created: "تاريخ الإنشاء",
   lineItems: "البنود",
   active: "نشط",

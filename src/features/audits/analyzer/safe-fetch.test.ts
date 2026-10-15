@@ -18,6 +18,96 @@ afterEach(() => {
 });
 
 describe("safeFetchHtml", () => {
+  it("fails safely for an unsupported character encoding", async () => {
+    const transport: SafeFetchTransport = async () =>
+      new Response("not decoded", {
+        headers: { "content-type": "text/html; charset=utf-16" },
+      });
+    await expect(
+      safeFetchHtml("https://example.com", {
+        transport,
+        resolveHostname: publicResolver,
+      }),
+    ).rejects.toMatchObject({ code: "CONTENT_NOT_VERIFIABLE" });
+  });
+  it("does not silently replace malformed UTF-8 with corrupt detector input", async () => {
+    const transport: SafeFetchTransport = async () =>
+      new Response(new Uint8Array([0xff, 0xfe]), {
+        headers: { "content-type": "text/html; charset=utf-8" },
+      });
+    await expect(
+      safeFetchHtml("https://example.com", {
+        transport,
+        resolveHostname: publicResolver,
+      }),
+    ).rejects.toMatchObject({ code: "FETCH_FAILED" });
+  });
+  it.each([403, 404, 429, 500, 204, 206])(
+    "rejects unusable HTTP %s without extracting its body",
+    async (status) => {
+      const transport: SafeFetchTransport = async () =>
+        new Response(
+          status === 204
+            ? null
+            : "<html><body>Not a customer page</body></html>",
+          { status, headers: { "content-type": "text/html" } },
+        );
+      await expect(
+        safeFetchHtml("https://example.com", {
+          transport,
+          resolveHostname: publicResolver,
+        }),
+      ).rejects.toMatchObject({ code: "CONTENT_NOT_VERIFIABLE" });
+    },
+  );
+  it.each(["gzip", "br"])(
+    "does not interpret undecoded %s bytes as missing features",
+    async (encoding) => {
+      const transport: SafeFetchTransport = async (request) => {
+        expect(createPinnedRequestOptions(request).headers).toMatchObject({
+          "accept-encoding": "identity",
+        });
+        return new Response("encoded bytes", {
+          headers: {
+            "content-type": "text/html",
+            "content-encoding": encoding,
+          },
+        });
+      };
+      await expect(
+        safeFetchHtml("https://example.com", {
+          transport,
+          resolveHostname: publicResolver,
+        }),
+      ).rejects.toMatchObject({ code: "CONTENT_NOT_VERIFIABLE" });
+    },
+  );
+  it("decodes declared Windows-1252 without corrupting the text", async () => {
+    const transport: SafeFetchTransport = async () =>
+      new Response(
+        new Uint8Array([0x3c, 0x70, 0x3e, 0x97, 0x3c, 0x2f, 0x70, 0x3e]),
+        { headers: { "content-type": "text/html; charset=windows-1252" } },
+      );
+    await expect(
+      safeFetchHtml("https://example.com", {
+        transport,
+        resolveHostname: publicResolver,
+      }),
+    ).resolves.toMatchObject({ html: "<p>\u2014</p>" });
+  });
+  it.each(["image/png", "application/json"])(
+    "rejects unsupported response type %s",
+    async (contentType) => {
+      const transport: SafeFetchTransport = async () =>
+        new Response("not HTML", { headers: { "content-type": contentType } });
+      await expect(
+        safeFetchHtml("https://example.com", {
+          transport,
+          resolveHostname: publicResolver,
+        }),
+      ).rejects.toMatchObject({ code: "UNSUPPORTED_CONTENT_TYPE" });
+    },
+  );
   it("passes the previously validated address to the transport", async () => {
     const calls: Parameters<SafeFetchTransport>[0][] = [];
     const transport: SafeFetchTransport = async (request) => {
@@ -107,7 +197,9 @@ describe("safeFetchHtml", () => {
       return [
         {
           address:
-            hostname === "redirect.example.com" ? "93.184.216.35" : "93.184.216.34",
+            hostname === "redirect.example.com"
+              ? "93.184.216.35"
+              : "93.184.216.34",
           family: 4,
         },
       ];

@@ -9,7 +9,10 @@ import {
   auditSignalSchemaVersion,
   extractNormalizedAuditSignals,
 } from "@/features/audits/analyzer/signals";
-import { normalizeAnalyzerError } from "@/features/audits/analyzer/errors";
+import {
+  AnalyzerError,
+  normalizeAnalyzerError,
+} from "@/features/audits/analyzer/errors";
 import { safeFetchHtml } from "@/features/audits/analyzer/safe-fetch";
 import {
   createPendingAudit,
@@ -20,7 +23,10 @@ import {
 import { AppError, getPublicErrorMessage } from "@/lib/errors";
 import type { Json } from "@/lib/supabase/database.types";
 import { logger } from "@/lib/logger";
-import { startAuditSchema, type StartAuditInput } from "@/lib/validation/audits";
+import {
+  startAuditSchema,
+  type StartAuditInput,
+} from "@/lib/validation/audits";
 
 export async function runAuditForProspect(input: {
   agencyId: string;
@@ -38,6 +44,7 @@ export async function runAuditForProspect(input: {
     playbookVersion,
     signalSchemaVersion: auditSignalSchemaVersion,
   });
+  let inspected: { finalUrl: string; normalizedSignals: Json } | undefined;
 
   try {
     await markAuditRunning(audit.id, input.agencyId);
@@ -48,6 +55,17 @@ export async function runAuditForProspect(input: {
       verticalKey,
       playbookVersion,
     });
+    inspected = {
+      finalUrl: fetchResult.finalUrl,
+      normalizedSignals: normalizedSignals as unknown as Json,
+    };
+    if (normalizedSignals.quality?.status !== "sufficient") {
+      throw new AnalyzerError(
+        "CONTENT_NOT_VERIFIABLE",
+        "We could not reliably inspect enough of this page. No website recommendations were made.",
+        422,
+      );
+    }
 
     return await markAuditCompleted({
       auditId: audit.id,
@@ -65,6 +83,7 @@ export async function runAuditForProspect(input: {
         agencyId: input.agencyId,
         errorCode: analyzerError.code,
         errorMessage: analyzerError.publicMessage,
+        ...inspected,
       });
     } catch (failureUpdateError) {
       logger.error("Could not persist audit failure state.", {

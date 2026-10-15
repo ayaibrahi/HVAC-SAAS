@@ -1,5 +1,6 @@
 import type { Audit } from "@/domain/audits/types";
 import { AppError } from "@/lib/errors";
+import { hasVerifiedPageContent } from "@/features/audits/analyzer/content-quality";
 
 export function assertAuditReadyForOpportunityGeneration(
   audit: Audit | null,
@@ -26,6 +27,12 @@ export function assertAuditReadyForOpportunityGeneration(
   if (Object.keys(audit.normalizedSignals).length === 0) {
     throw new AppError(
       "The audit does not include normalized website signals.",
+      409,
+    );
+  }
+  if (!hasVerifiedPageContent(audit.normalizedSignals)) {
+    throw new AppError(
+      "This scan's page content could not be reliably verified. No new recommendations were made. A new authorized scan is needed.",
       409,
     );
   }

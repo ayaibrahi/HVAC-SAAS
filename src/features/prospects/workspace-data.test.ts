@@ -188,6 +188,47 @@ function database(failure?: string) {
 }
 beforeEach(() => vi.clearAllMocks());
 describe("tenant-scoped bounded prospect reads", () => {
+  it("marks legacy scans unverified without hiding or modifying saved findings", async () => {
+    const { datasets, queries } = database(),
+      before = JSON.stringify(datasets);
+    const result = await getProspectWorkspace(a);
+    expect(result?.scan?.verification).toBe("unverified");
+    expect(result?.opportunities).toHaveLength(1);
+    expect(JSON.stringify(datasets)).toBe(before);
+    expect(queries.find((q) => q.table === "audits")?.columns).toContain(
+      "quality:normalized_signals->quality",
+    );
+  });
+  it("accepts valid versioned quality and rejects inconsistent sufficient metadata", async () => {
+    const { datasets } = database();
+    datasets.audits[0].quality = {
+      version: 1,
+      status: "sufficient",
+      reasons: [],
+      visibleCharacters: 1000,
+    };
+    expect((await getProspectWorkspace(a))?.scan?.verification).toBe(
+      "verified",
+    );
+    datasets.audits[0].quality = {
+      version: 1,
+      status: "sufficient",
+      reasons: ["challenge"],
+      visibleCharacters: 1000,
+    };
+    expect((await getProspectWorkspace(a))?.scan?.verification).toBe(
+      "unverified",
+    );
+  });
+  it("shows unverified status for new content-quality failures and loads no findings", async () => {
+    const { datasets, queries } = database();
+    datasets.audits[0].status = "failed";
+    datasets.audits[0].error_code = "CONTENT_NOT_VERIFIABLE";
+    expect((await getProspectWorkspace(a))?.scan?.verification).toBe(
+      "unverified",
+    );
+    expect(queries.some((q) => q.table === "opportunities")).toBe(false);
+  });
   it("reads only the current agency and caps scan lookups to the visible 12", async () => {
     const { datasets, queries } = database();
     datasets.prospects.push(

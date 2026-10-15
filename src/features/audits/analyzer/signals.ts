@@ -7,6 +7,7 @@ import {
   type HtmlLink,
 } from "@/features/audits/analyzer/html";
 import type { SafeFetchResult } from "@/features/audits/analyzer/safe-fetch";
+import { assessContentQuality, type ContentQuality } from "./content-quality";
 
 export const auditSignalSchemaVersion = "1.0.0";
 
@@ -27,6 +28,7 @@ export type AuditSignal<T> = {
 };
 
 export type NormalizedAuditSignals = {
+  quality?: ContentQuality;
   schemaVersion: string;
   verticalKey: VerticalPlaybookKey;
   playbookVersion: string;
@@ -81,17 +83,28 @@ export function extractNormalizedAuditSignals(input: {
   playbookVersion: string;
   fetchedAt?: string;
 }): NormalizedAuditSignals {
-  const document = parseHtmlDocument(input.fetchResult.html, input.fetchResult.finalUrl);
+  const document = parseHtmlDocument(
+    input.fetchResult.html,
+    input.fetchResult.finalUrl,
+  );
   const metaDescription = getMetaContent(document, "description");
   const viewportMeta = getMetaContent(document, "viewport");
   const robotsMeta = getMetaContent(document, "robots");
   const canonicalUrl = getCanonicalUrl(document, input.fetchResult.finalUrl);
   const imagesMissingAlt = document.images.filter(isMissingAlt).length;
-  const phoneEvidence = findPatternEvidence(
-    document.visibleText,
-    /\b(?:\+?1[\s.-]?)?(?:\(?[2-9]\d{2}\)?[\s.-]?)?[2-9]\d{2}[\s.-]?\d{4}\b/,
-    "phone number",
-  );
+  const phoneEvidence = [
+    ...findPatternEvidence(
+      document.visibleText,
+      /\b(?:\+?1[\s.-]?)?(?:\(?[2-9]\d{2}\)?[\s.-]?)?[2-9]\d{2}[\s.-]?\d{4}\b/,
+      "phone number",
+    ),
+    ...document.anchors
+      .filter((link) => /^tel:\+?[\d(][\d() .-]{4,}/i.test(link.href ?? ""))
+      .slice(0, 5)
+      .map((link) =>
+        evidence("link", "Phone link detected.", link.text, link.href),
+      ),
+  ];
   const emailEvidence = findPatternEvidence(
     document.visibleText,
     /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
@@ -103,22 +116,49 @@ export function extractNormalizedAuditSignals(input: {
     "Contact link",
   );
   const contactFormEvidence = findFormEvidence(document.forms);
-  const ctaEvidence = findCtaEvidence(document.anchors, document.buttons, document.inputs);
-  const bookingEvidence = findLinkEvidence(
+  const ctaEvidence = findCtaEvidence(
     document.anchors,
-    /(book|booking|schedule|appointment)/i,
-    "Booking or scheduling link",
+    document.buttons,
+    document.inputs,
   );
+  const bookingEvidence = [
+    ...findLinkEvidence(
+      document.anchors,
+      /(book|booking|schedule|appointment)/i,
+      "Booking or scheduling link",
+    ),
+    ...document.buttons
+      .filter((button) =>
+        /(book|booking|schedule|appointment)/i.test(
+          `${button.text} ${button.attrs["aria-label"] ?? ""} ${button.attrs.title ?? ""}`,
+        ),
+      )
+      .slice(0, 5)
+      .map((button) =>
+        evidence(
+          "button",
+          "Booking or scheduling control detected.",
+          button.text || button.attrs["aria-label"],
+        ),
+      ),
+  ];
   const estimateEvidence = findLinkEvidence(
     document.anchors,
     /(estimate|quote)/i,
     "Quote or estimate link",
   );
-  const emergencyEvidence = findPatternEvidence(
-    document.visibleText,
-    /(24\s*\/\s*7|24-hour|24 hour|emergency)\s+(ac|air conditioning|heating|hvac|furnace|cooling|repair|service)/i,
-    "emergency HVAC wording",
-  );
+  const emergencyEvidence = [
+    ...findPatternEvidence(
+      document.visibleText,
+      /(24\s*\/\s*7|24-hour|24 hour|emergency)\s+(ac|air conditioning|heating|hvac|furnace|cooling|repair|service)/i,
+      "emergency HVAC wording",
+    ),
+    ...findLinkEvidence(
+      document.anchors,
+      /emergency[-\s/]*(?:hvac|ac|heating|air|service|repair)|(?:hvac|ac|heating)[-\s]*emergenc/i,
+      "Emergency service link detected.",
+    ),
+  ];
   const maintenanceEvidence = findPatternEvidence(
     document.visibleText,
     /(maintenance plan|service plan|preventive maintenance|preventative maintenance|tune[-\s]?up plan)/i,
@@ -137,6 +177,7 @@ export function extractNormalizedAuditSignals(input: {
   const hvacServiceEvidence = findHvacServiceLinkEvidence(document.anchors);
 
   return {
+    quality: assessContentQuality(input.fetchResult, document),
     schemaVersion: auditSignalSchemaVersion,
     verticalKey: input.verticalKey,
     playbookVersion: input.playbookVersion,
@@ -147,21 +188,51 @@ export function extractNormalizedAuditSignals(input: {
       httpStatus: signal(input.fetchResult.status, "HTTP response status", [
         evidence("fetch", `Received HTTP ${input.fetchResult.status}.`),
       ]),
-      responseTimeMs: signal(input.fetchResult.responseTimeMs, "Response time", [
-        evidence("fetch", `Fetched in ${input.fetchResult.responseTimeMs} ms.`),
-      ]),
-      responseSizeBytes: signal(input.fetchResult.responseSizeBytes, "Response size", [
-        evidence("fetch", `Read ${input.fetchResult.responseSizeBytes} response bytes.`),
-      ]),
+      responseTimeMs: signal(
+        input.fetchResult.responseTimeMs,
+        "Response time",
+        [
+          evidence(
+            "fetch",
+            `Fetched in ${input.fetchResult.responseTimeMs} ms.`,
+          ),
+        ],
+      ),
+      responseSizeBytes: signal(
+        input.fetchResult.responseSizeBytes,
+        "Response size",
+        [
+          evidence(
+            "fetch",
+            `Read ${input.fetchResult.responseSizeBytes} response bytes.`,
+          ),
+        ],
+      ),
       redirectCount: signal(input.fetchResult.redirectCount, "Redirect count", [
-        evidence("fetch", `Followed ${input.fetchResult.redirectCount} redirect(s).`),
+        evidence(
+          "fetch",
+          `Followed ${input.fetchResult.redirectCount} redirect(s).`,
+        ),
       ]),
-      httpsEnabled: signal(new URL(input.fetchResult.finalUrl).protocol === "https:", "HTTPS", [
-        evidence("fetch", `Final URL is ${input.fetchResult.finalUrl}.`, undefined, input.fetchResult.finalUrl),
-      ]),
+      httpsEnabled: signal(
+        new URL(input.fetchResult.finalUrl).protocol === "https:",
+        "HTTPS",
+        [
+          evidence(
+            "fetch",
+            `Final URL is ${input.fetchResult.finalUrl}.`,
+            undefined,
+            input.fetchResult.finalUrl,
+          ),
+        ],
+      ),
     },
     page: {
-      title: signal(document.title, "Page title", textEvidence("title", document.title)),
+      title: signal(
+        document.title,
+        "Page title",
+        textEvidence("title", document.title),
+      ),
       metaDescription: signal(
         metaDescription,
         "Meta description",
@@ -171,7 +242,14 @@ export function extractNormalizedAuditSignals(input: {
         canonicalUrl,
         "Canonical URL",
         canonicalUrl
-          ? [evidence("link", "Canonical URL detected.", undefined, canonicalUrl)]
+          ? [
+              evidence(
+                "link",
+                "Canonical URL detected.",
+                undefined,
+                canonicalUrl,
+              ),
+            ]
           : [evidence("link", "No canonical URL detected.")],
       ),
       h1Count: countSignal(document.h1.length, "H1 headings"),
@@ -181,7 +259,11 @@ export function extractNormalizedAuditSignals(input: {
           ? evidence("meta", "Viewport meta tag detected.", viewportMeta)
           : evidence("meta", "No viewport meta tag detected."),
       ]),
-      robotsMeta: signal(robotsMeta, "Robots meta", textEvidence("meta", robotsMeta)),
+      robotsMeta: signal(
+        robotsMeta,
+        "Robots meta",
+        textEvidence("meta", robotsMeta),
+      ),
       hasJsonLd: signal(document.hasJsonLd, "JSON-LD structured data", [
         document.hasJsonLd
           ? evidence("script", "JSON-LD script tag detected.")
@@ -189,36 +271,74 @@ export function extractNormalizedAuditSignals(input: {
       ]),
       imageCount: countSignal(document.images.length, "Images"),
       imagesMissingAlt: signal(imagesMissingAlt, "Images missing alt text", [
-        evidence("img", `${imagesMissingAlt} image(s) missing alt text.`, undefined, undefined, imagesMissingAlt),
+        evidence(
+          "img",
+          `${imagesMissingAlt} image(s) missing alt text.`,
+          undefined,
+          undefined,
+          imagesMissingAlt,
+        ),
       ]),
     },
     contactConversion: {
       phoneDetected: booleanPatternSignal(phoneEvidence, "Phone number"),
       emailDetected: booleanPatternSignal(emailEvidence, "Email address"),
-      contactLinkDetected: booleanPatternSignal(contactLinkEvidence, "Contact link"),
-      contactFormDetected: booleanPatternSignal(contactFormEvidence, "Contact form"),
-      ctaCount: signal(ctaEvidence.length, "CTA-like links and buttons", ctaEvidence),
-      bookingLinkDetected: booleanPatternSignal(bookingEvidence, "Booking link"),
-      estimateLinkDetected: booleanPatternSignal(estimateEvidence, "Quote or estimate link"),
+      contactLinkDetected: booleanPatternSignal(
+        contactLinkEvidence,
+        "Contact link",
+      ),
+      contactFormDetected: booleanPatternSignal(
+        contactFormEvidence,
+        "Contact form",
+      ),
+      ctaCount: signal(
+        ctaEvidence.length,
+        "CTA-like links and buttons",
+        ctaEvidence,
+      ),
+      bookingLinkDetected: booleanPatternSignal(
+        bookingEvidence,
+        "Booking link",
+      ),
+      estimateLinkDetected: booleanPatternSignal(
+        estimateEvidence,
+        "Quote or estimate link",
+      ),
     },
     hvac: {
-      emergencyService: booleanPatternSignal(emergencyEvidence, "Emergency service"),
-      maintenancePlan: booleanPatternSignal(maintenanceEvidence, "Maintenance plan"),
+      emergencyService: booleanPatternSignal(
+        emergencyEvidence,
+        "Emergency service",
+      ),
+      maintenancePlan: booleanPatternSignal(
+        maintenanceEvidence,
+        "Maintenance plan",
+      ),
       financing: booleanPatternSignal(financingEvidence, "Financing"),
       serviceArea: booleanPatternSignal(serviceAreaEvidence, "Service area"),
       hvacServicePages: signal(
         {
           detected: hvacServiceEvidence.length > 0,
-          services: [...new Set(hvacServiceEvidence.map((item) => item.detail))],
+          services: [
+            ...new Set(hvacServiceEvidence.map((item) => item.detail)),
+          ],
         },
         "HVAC service pages",
         hvacServiceEvidence.length > 0
           ? hvacServiceEvidence
-          : [evidence("link", "No HVAC service-page links detected on the fetched page.")],
+          : [
+              evidence(
+                "link",
+                "No HVAC service-page links detected on the fetched page.",
+              ),
+            ],
         hvacServiceEvidence.length > 0 ? "high" : "medium",
       ),
       onlineBooking: booleanPatternSignal(bookingEvidence, "Online booking"),
-      requestEstimate: booleanPatternSignal(estimateEvidence, "Request estimate"),
+      requestEstimate: booleanPatternSignal(
+        estimateEvidence,
+        "Request estimate",
+      ),
     },
   };
 }
@@ -232,7 +352,10 @@ function signal<T>(
   return {
     value,
     confidence,
-    evidence: signalEvidence.length > 0 ? signalEvidence : [evidence("analysis", label)],
+    evidence:
+      signalEvidence.length > 0
+        ? signalEvidence
+        : [evidence("analysis", label)],
   };
 }
 
@@ -242,13 +365,26 @@ function booleanPatternSignal(signalEvidence: SignalEvidence[], label: string) {
     label,
     signalEvidence.length > 0
       ? signalEvidence
-      : [evidence("analysis", `No ${label.toLowerCase()} evidence detected on the fetched page.`)],
+      : [
+          evidence(
+            "analysis",
+            `No ${label.toLowerCase()} evidence detected on the fetched page.`,
+          ),
+        ],
     signalEvidence.length > 0 ? "high" : "medium",
   );
 }
 
 function countSignal(value: number, label: string) {
-  return signal(value, label, [evidence("html", `${value} ${label.toLowerCase()} detected.`, undefined, undefined, value)]);
+  return signal(value, label, [
+    evidence(
+      "html",
+      `${value} ${label.toLowerCase()} detected.`,
+      undefined,
+      undefined,
+      value,
+    ),
+  ]);
 }
 
 function textEvidence(source: string, value: string | null) {
@@ -280,14 +416,22 @@ function findPatternEvidence(text: string, pattern: RegExp, label: string) {
     return [];
   }
 
-  return [evidence("text", `${label} detected.`, surroundingSnippet(text, match.index, match[0].length))];
+  return [
+    evidence(
+      "text",
+      `${label} detected.`,
+      surroundingSnippet(text, match.index, match[0].length),
+    ),
+  ];
 }
 
 function findLinkEvidence(links: HtmlLink[], pattern: RegExp, detail: string) {
   return links
     .filter((link) => pattern.test(`${link.text} ${link.href ?? ""}`))
     .slice(0, 5)
-    .map((link) => evidence("link", detail, link.text || (link.href ?? ""), link.href));
+    .map((link) =>
+      evidence("link", detail, link.text || (link.href ?? ""), link.href),
+    );
 }
 
 function findFormEvidence(forms: HtmlElement[]) {
@@ -303,10 +447,18 @@ function findFormEvidence(forms: HtmlElement[]) {
         .filter(Boolean)
         .join(" ");
 
-      return /(contact|quote|estimate|schedule|appointment|email|tel)/i.test(formText);
+      return /(contact|quote|estimate|schedule|appointment|email|tel)/i.test(
+        formText,
+      );
     })
     .slice(0, 3)
-    .map((form) => evidence("form", "Contact or conversion form detected.", form.text || form.attrs.action));
+    .map((form) =>
+      evidence(
+        "form",
+        "Contact or conversion form detected.",
+        form.text || form.attrs.action,
+      ),
+    );
 }
 
 function findCtaEvidence(
@@ -317,41 +469,73 @@ function findCtaEvidence(
   const ctaPattern =
     /(call|book|schedule|appointment|contact|get started|request|quote|estimate|free estimate|learn more)/i;
   const linkEvidence = links
-    .filter((link) => ctaPattern.test(`${link.text} ${link.href ?? ""}`))
+    .filter(
+      (link) =>
+        ctaPattern.test(`${link.text} ${link.href ?? ""}`) ||
+        /^tel:/i.test(link.href ?? ""),
+    )
     .slice(0, 8)
     .map((link) =>
-      evidence("link", "CTA-like link detected.", link.text || (link.href ?? ""), link.href),
+      evidence(
+        "link",
+        "CTA-like link detected.",
+        link.text || (link.href ?? ""),
+        link.href,
+      ),
     );
   const buttonEvidence = buttons
-    .filter((button) => ctaPattern.test(button.text))
+    .filter((button) =>
+      ctaPattern.test(
+        `${button.text} ${button.attrs["aria-label"] ?? ""} ${button.attrs.title ?? ""}`,
+      ),
+    )
     .slice(0, 5)
-    .map((button) => evidence("button", "CTA-like button detected.", button.text));
+    .map((button) =>
+      evidence("button", "CTA-like button detected.", button.text),
+    );
   const inputEvidence = inputs
-    .filter((input) => ctaPattern.test(`${input.attrs.value ?? ""} ${input.attrs.type ?? ""}`))
+    .filter((input) =>
+      ctaPattern.test(`${input.attrs.value ?? ""} ${input.attrs.type ?? ""}`),
+    )
     .slice(0, 5)
-    .map((input) => evidence("input", "CTA-like form control detected.", input.attrs.value));
+    .map((input) =>
+      evidence("input", "CTA-like form control detected.", input.attrs.value),
+    );
 
   return [...linkEvidence, ...buttonEvidence, ...inputEvidence];
 }
 
 function findHvacServiceLinkEvidence(links: HtmlLink[]) {
   const servicePatterns = [
-    { label: "Air conditioning", pattern: /(air conditioning|ac repair|a\/c repair|cooling)/i },
+    {
+      label: "Air conditioning",
+      pattern: /(air conditioning|ac repair|a\/c repair|cooling)/i,
+    },
     { label: "Heating", pattern: /(heating|heater repair|heat pump)/i },
     { label: "Furnace", pattern: /(furnace)/i },
     { label: "Ductless", pattern: /(ductless|mini[-\s]?split)/i },
-    { label: "Indoor air quality", pattern: /(indoor air quality|air purifier|humidifier)/i },
+    {
+      label: "Indoor air quality",
+      pattern: /(indoor air quality|air purifier|humidifier)/i,
+    },
   ];
 
   const matches: SignalEvidence[] = [];
 
   for (const link of links) {
     const searchable = `${link.text} ${link.href ?? ""}`;
-    const matchedService = servicePatterns.find((service) => service.pattern.test(searchable));
+    const matchedService = servicePatterns.find((service) =>
+      service.pattern.test(searchable),
+    );
 
     if (matchedService) {
       matches.push(
-        evidence("link", matchedService.label, link.text || (link.href ?? ""), link.href),
+        evidence(
+          "link",
+          matchedService.label,
+          link.text || (link.href ?? ""),
+          link.href,
+        ),
       );
     }
   }
@@ -373,5 +557,7 @@ function surroundingSnippet(text: string, index: number, matchLength: number) {
 function truncateSnippet(value: string) {
   const normalized = value.replace(/\s+/g, " ").trim();
 
-  return normalized.length > 240 ? `${normalized.slice(0, 237)}...` : normalized;
+  return normalized.length > 240
+    ? `${normalized.slice(0, 237)}...`
+    : normalized;
 }

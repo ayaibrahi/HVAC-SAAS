@@ -1,4 +1,5 @@
 import type { Audit } from "@/domain/audits/types";
+import { hasVerifiedPageContent } from "@/features/audits/analyzer/content-quality";
 import type { OpportunityEvidence } from "@/domain/opportunities/types";
 import {
   createOpportunityEvidence,
@@ -13,7 +14,10 @@ const coreHvacServices = ["Air conditioning", "Heating", "Furnace"] as const;
 export function evaluateHvacOpportunityRules(input: {
   audit: Audit;
 }): OpportunityDraft[] {
-  if (input.audit.verticalKey !== "hvac") {
+  if (
+    input.audit.verticalKey !== "hvac" ||
+    !hasVerifiedPageContent(input.audit.normalizedSignals)
+  ) {
     return [];
   }
 
@@ -31,7 +35,9 @@ export function evaluateHvacOpportunityRules(input: {
     evaluateServiceAreas(context),
     evaluateHvacServiceCoverage(context),
     evaluateLeadCapture(context),
-  ].filter((opportunity): opportunity is OpportunityDraft => Boolean(opportunity));
+  ].filter((opportunity): opportunity is OpportunityDraft =>
+    Boolean(opportunity),
+  );
 }
 
 type RuleContext = {
@@ -41,7 +47,10 @@ type RuleContext = {
 };
 
 function evaluateOnlineBooking(context: RuleContext): OpportunityDraft | null {
-  const onlineBooking = getBooleanSignal(context.signals, ["hvac", "onlineBooking"]);
+  const onlineBooking = getBooleanSignal(context.signals, [
+    "hvac",
+    "onlineBooking",
+  ]);
 
   if (!onlineBooking || onlineBooking.value !== false) {
     return null;
@@ -69,7 +78,9 @@ function evaluateOnlineBooking(context: RuleContext): OpportunityDraft | null {
   };
 }
 
-function evaluateEmergencyConversion(context: RuleContext): OpportunityDraft | null {
+function evaluateEmergencyConversion(
+  context: RuleContext,
+): OpportunityDraft | null {
   const emergencyService = getBooleanSignal(context.signals, [
     "hvac",
     "emergencyService",
@@ -113,7 +124,8 @@ function evaluateFinancing(context: RuleContext): OpportunityDraft | null {
     playbookVersion: context.playbookVersion,
     ruleKey: "financing_visibility",
     title: "Financing Visibility Opportunity",
-    shortDescription: "Financing information was not detected on the analyzed page.",
+    shortDescription:
+      "Financing information was not detected on the analyzed page.",
     businessImpact:
       "Visible financing messaging can reduce price hesitation on larger repair or replacement decisions.",
     evidence: [
@@ -129,7 +141,9 @@ function evaluateFinancing(context: RuleContext): OpportunityDraft | null {
   };
 }
 
-function evaluateMaintenancePlans(context: RuleContext): OpportunityDraft | null {
+function evaluateMaintenancePlans(
+  context: RuleContext,
+): OpportunityDraft | null {
   const maintenancePlan = getBooleanSignal(context.signals, [
     "hvac",
     "maintenancePlan",
@@ -162,7 +176,10 @@ function evaluateMaintenancePlans(context: RuleContext): OpportunityDraft | null
 }
 
 function evaluateServiceAreas(context: RuleContext): OpportunityDraft | null {
-  const serviceArea = getBooleanSignal(context.signals, ["hvac", "serviceArea"]);
+  const serviceArea = getBooleanSignal(context.signals, [
+    "hvac",
+    "serviceArea",
+  ]);
 
   if (!serviceArea || serviceArea.value !== false) {
     return null;
@@ -190,7 +207,9 @@ function evaluateServiceAreas(context: RuleContext): OpportunityDraft | null {
   };
 }
 
-function evaluateHvacServiceCoverage(context: RuleContext): OpportunityDraft | null {
+function evaluateHvacServiceCoverage(
+  context: RuleContext,
+): OpportunityDraft | null {
   const servicePages = getHvacServicePagesSignal(context.signals);
 
   if (!servicePages) {
@@ -306,7 +325,9 @@ function evaluateLeadCapture(context: RuleContext): OpportunityDraft | null {
       "Stronger CTAs and contact paths can improve conversion from high-intent HVAC visitors.",
     evidence,
     priority: "high",
-    confidence: evidence.some((item) => item.signal === "contactConversion.ctaCount")
+    confidence: evidence.some(
+      (item) => item.signal === "contactConversion.ctaCount",
+    )
       ? "high"
       : "medium",
     recommendedServiceCategory: "Conversion Optimization / CTA Redesign",
@@ -314,7 +335,10 @@ function evaluateLeadCapture(context: RuleContext): OpportunityDraft | null {
 }
 
 function normalizeServiceName(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function formatList(values: readonly string[]) {

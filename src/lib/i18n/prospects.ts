@@ -1,3 +1,23 @@
+import type { Locale } from "@/lib/ui/preferences";
+
+export function opportunityCountLabel(count: number, locale: Locale) {
+  const value = count.toLocaleString(locale);
+  if (locale === "en")
+    return `${value} ${count === 1 ? "opportunity" : "opportunities"} found`;
+  switch (new Intl.PluralRules("ar").select(count)) {
+    case "zero":
+      return `لم تُرصد فرص تحسين (${value})`;
+    case "one":
+      return `فرصة تحسين واحدة (${value})`;
+    case "two":
+      return `فرصتا تحسين (${value})`;
+    case "few":
+      return `${value} فرص تحسين`;
+    default:
+      return `${value} فرصة تحسين`;
+  }
+}
+
 export const prospectEnglish = {
   pOpenProposal: "Open saved proposal",
   pPrepareHelp:
@@ -88,6 +108,11 @@ export const prospectEnglish = {
   pQueued: "Scan queued",
   pScanning: "Scanning website...",
   pCompleted: "Scan completed",
+  pUnverified: "Unable to verify page",
+  pUnverifiedDescription:
+    "We could not reliably verify this page's content. Do not treat saved findings as confirmed website weaknesses. No new recommendations can be generated from this scan.",
+  pUnverifiedHelp:
+    "The page may be incomplete, protected, or require browser rendering. Check the address and access restrictions before authorizing another scan.",
   pFailed: "Unable to complete scan",
   pScan: "Scan website",
   pRescan: "Scan again",
@@ -229,6 +254,11 @@ export const prospectArabic: Record<keyof typeof prospectEnglish, string> = {
   pQueued: "الفحص في الانتظار",
   pScanning: "جارٍ فحص الموقع...",
   pCompleted: "اكتمل الفحص",
+  pUnverified: "تعذّر التحقّق من الصفحة",
+  pUnverifiedDescription:
+    "لم نتمكّن من التحقّق الموثوق من محتوى الصفحة. لا تعتبر النتائج المحفوظة نقاط ضعف مؤكدة في الموقع. لا يمكن إنشاء توصيات جديدة من هذا الفحص.",
+  pUnverifiedHelp:
+    "قد تكون الصفحة غير مكتملة أو محمية أو تتطلّب عرضًا في المتصفّح. راجع العنوان وقيود الوصول قبل السماح بفحص جديد.",
   pFailed: "تعذّر إكمال الفحص",
   pScan: "فحص الموقع",
   pRescan: "إعادة الفحص",

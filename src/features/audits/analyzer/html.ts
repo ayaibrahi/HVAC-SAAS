@@ -12,6 +12,7 @@ export type HtmlLink = {
 
 export type ParsedHtmlDocument = {
   visibleText: string;
+  mainText: string;
   title: string | null;
   metaTags: HtmlElement[];
   linkTags: HtmlElement[];
@@ -25,27 +26,42 @@ export type ParsedHtmlDocument = {
   hasJsonLd: boolean;
 };
 
-export function parseHtmlDocument(html: string, baseUrl: string): ParsedHtmlDocument {
+export function parseHtmlDocument(
+  html: string,
+  baseUrl: string,
+): ParsedHtmlDocument {
   const scripts = getPairedTags(html, "script");
   const visibleHtml = removeNonContentHtml(html);
-  const anchors = getPairedTags(html, "a").map((element) => ({
+  const anchors = getPairedTags(visibleHtml, "a").map((element) => ({
     attrs: element.attrs,
     href: normalizeHref(element.attrs.href ?? null, baseUrl),
-    text: element.text,
+    text: normalizeWhitespace(
+      [element.text, element.attrs["aria-label"], element.attrs.title]
+        .filter(Boolean)
+        .join(" "),
+    ),
   }));
 
   return {
     visibleText: normalizeWhitespace(stripTags(visibleHtml)),
+    mainText: normalizeWhitespace(
+      stripTags(
+        visibleHtml.replace(
+          /<(header|nav|footer)\b[^>]*>[\s\S]*?<\/\1>/gi,
+          " ",
+        ),
+      ),
+    ),
     title: getPairedTags(html, "title").at(0)?.text ?? null,
     metaTags: getOpeningTags(html, "meta"),
     linkTags: getOpeningTags(html, "link"),
     anchors,
-    buttons: getPairedTags(html, "button"),
-    inputs: getOpeningTags(html, "input"),
-    forms: getPairedTags(html, "form"),
-    images: getOpeningTags(html, "img"),
-    h1: getPairedTags(html, "h1"),
-    h2: getPairedTags(html, "h2"),
+    buttons: getPairedTags(visibleHtml, "button"),
+    inputs: getOpeningTags(visibleHtml, "input"),
+    forms: getPairedTags(visibleHtml, "form"),
+    images: getOpeningTags(visibleHtml, "img"),
+    h1: getPairedTags(visibleHtml, "h1"),
+    h2: getPairedTags(visibleHtml, "h2"),
     hasJsonLd: scripts.some((script) =>
       (script.attrs.type ?? "").toLowerCase().includes("application/ld+json"),
     ),
@@ -65,10 +81,7 @@ export function getMetaContent(document: ParsedHtmlDocument, name: string) {
 
 export function getCanonicalUrl(document: ParsedHtmlDocument, baseUrl: string) {
   const canonical = document.linkTags.find((tag) =>
-    (tag.attrs.rel ?? "")
-      .toLowerCase()
-      .split(/\s+/)
-      .includes("canonical"),
+    (tag.attrs.rel ?? "").toLowerCase().split(/\s+/).includes("canonical"),
   );
 
   if (!canonical?.attrs.href) {
@@ -103,7 +116,10 @@ function getOpeningTags(html: string, tagName: string): HtmlElement[] {
 }
 
 function getPairedTags(html: string, tagName: string): HtmlElement[] {
-  const pattern = new RegExp(`<${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/${tagName}>`, "gi");
+  const pattern = new RegExp(
+    `<${tagName}\\b([^>]*)>([\\s\\S]*?)<\\/${tagName}>`,
+    "gi",
+  );
   const elements: HtmlElement[] = [];
   let match: RegExpExecArray | null;
 
@@ -120,7 +136,8 @@ function getPairedTags(html: string, tagName: string): HtmlElement[] {
 
 function parseAttributes(value: string) {
   const attrs: Record<string, string> = {};
-  const pattern = /([^\s"'=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>]+)))?/g;
+  const pattern =
+    /([^\s"'=<>/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>]+)))?/g;
   let match: RegExpExecArray | null;
 
   while ((match = pattern.exec(value)) !== null) {
@@ -137,7 +154,8 @@ function removeNonContentHtml(html: string) {
   return html
     .replace(/<!--[\s\S]*?-->/g, " ")
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ");
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<(head|template|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, " ");
 }
 
 function normalizeHref(href: string | null, baseUrl: string) {
@@ -159,7 +177,7 @@ function decodeHtmlEntities(value: string) {
     gt: ">",
     lt: "<",
     nbsp: " ",
-    quot: "\"",
+    quot: '"',
   };
 
   return value
@@ -169,5 +187,8 @@ function decodeHtmlEntities(value: string) {
     .replace(/&#(\d+);/g, (_entity, codepoint: string) =>
       String.fromCodePoint(Number.parseInt(codepoint, 10)),
     )
-    .replace(/&([a-z]+);/gi, (entity, name: string) => namedEntities[name.toLowerCase()] ?? entity);
+    .replace(
+      /&([a-z]+);/gi,
+      (entity, name: string) => namedEntities[name.toLowerCase()] ?? entity,
+    );
 }

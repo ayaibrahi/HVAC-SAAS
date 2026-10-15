@@ -4,6 +4,7 @@ import {
   formatSnapshotMoney,
 } from "@/features/proposals/pdf/format";
 import type { ProposalPdfView } from "@/features/proposals/pdf/view-model";
+import { encodePdfText, measurePdfText, wrapPdfText } from "./text";
 
 type PdfFont = "regular" | "bold";
 
@@ -26,6 +27,7 @@ export function renderProposalPdf(view: ProposalPdfView) {
   const pdf = new PdfLayout();
 
   pdf.text(view.agencyName, { size: 11, font: "bold" });
+  pdf.spacer(10);
   pdf.text(view.title, { size: 22, font: "bold" });
   pdf.spacer(8);
   pdf.rule();
@@ -56,13 +58,13 @@ class PdfLayout {
   private readonly document = new SimplePdfDocument();
   private y = pageHeight - margin;
 
-  text(text: string, options: PdfTextOptions = {}) {
+  text(text: string, options: PdfTextOptions = {}, width = contentWidth) {
     const fontSize = options.size ?? 10;
-    const lines = wrapText(text, contentWidth, fontSize);
+    const lines = wrapPdfText(text, width, fontSize, options.font);
 
     for (const line of lines) {
       this.ensureSpace(fontSize + 4);
-      this.document.text(margin, this.y, line, options);
+      this.document.text(margin, this.y - fontSize, line, options);
       this.y -= fontSize + 4;
     }
   }
@@ -83,40 +85,69 @@ class PdfLayout {
       return;
     }
 
+    this.ensureSpace(100);
     this.spacer(12);
     this.text(title, { size: 14, font: "bold" });
     this.spacer(2);
 
+    let firstParagraph = true;
     for (const paragraph of body.split(/\n+/u)) {
       if (!paragraph.trim()) {
         continue;
       }
 
+      const height = wrapPdfText(paragraph, contentWidth, 10).length * 14 + 4;
+      if (!firstParagraph && height <= pageHeight - margin - bottomMargin)
+        this.ensureSpace(height);
       this.text(paragraph, { size: 10 });
       this.spacer(4);
+      firstParagraph = false;
     }
   }
 
   lineItems(view: ProposalPdfView) {
+    const itemHeight = (item: ProposalPdfView["lineItems"][number]) => {
+      const nameLines = wrapPdfText(
+        item.serviceName,
+        contentWidth - 140,
+        11,
+        "bold",
+      ).length;
+      const detailLines =
+        wrapPdfText(item.serviceDescription ?? "", contentWidth, 9).length +
+        wrapPdfText(item.description, contentWidth, 9).length +
+        1;
+      return 24 + nameLines * 15 + detailLines * 13;
+    };
+    this.ensureSpace(
+      Math.min(
+        pageHeight - margin - bottomMargin,
+        32 + (view.lineItems[0] ? itemHeight(view.lineItems[0]) : 64),
+      ),
+    );
     this.spacer(12);
     this.text("Services", { size: 14, font: "bold" });
     this.spacer(2);
 
     for (const item of view.lineItems) {
-      this.ensureSpace(64);
+      this.ensureSpace(
+        Math.min(pageHeight - margin - bottomMargin, itemHeight(item)),
+      );
       this.document.rectangle(margin, this.y - 8, contentWidth, 1);
       this.y -= 18;
-      this.document.text(margin, this.y, item.serviceName, {
-        size: 11,
-        font: "bold",
-      });
+      const priceTop = this.y;
+      this.text(
+        item.serviceName,
+        { size: 11, font: "bold" },
+        contentWidth - 140,
+      );
+      const price = formatSnapshotMoney(item.lineTotal, view.currency);
       this.document.text(
-        pageWidth - margin - 130,
-        this.y,
-        formatSnapshotMoney(item.lineTotal, view.currency),
+        pageWidth - margin - measurePdfText(price, 10, "bold"),
+        priceTop - 11,
+        price,
         { size: 10, font: "bold" },
       );
-      this.y -= 14;
 
       if (item.serviceDescription) {
         this.text(item.serviceDescription, { size: 9 });
@@ -135,6 +166,7 @@ class PdfLayout {
   }
 
   pricing(view: ProposalPdfView) {
+    this.ensureSpace(view.pricing.discountAmount > 0 ? 80 : 64);
     this.spacer(10);
     this.rule();
     this.priceRow("Subtotal", view.pricing.subtotal, view.currency);
@@ -162,13 +194,19 @@ class PdfLayout {
     strong = false,
   ) {
     this.ensureSpace(18);
-    this.document.text(pageWidth - margin - 210, this.y, label, {
+    this.document.text(pageWidth - margin - 210, this.y - 12, label, {
       size: strong ? 12 : 10,
       font: strong ? "bold" : "regular",
     });
     this.document.text(
-      pageWidth - margin - 90,
-      this.y,
+      pageWidth -
+        margin -
+        measurePdfText(
+          formatSnapshotMoney(value, currency),
+          strong ? 12 : 10,
+          strong ? "bold" : "regular",
+        ),
+      this.y - 12,
       formatSnapshotMoney(value, currency),
       {
         size: strong ? 12 : 10,
@@ -204,7 +242,7 @@ class SimplePdfDocument {
     this.currentPage.commands.push(
       `BT /${font === "bold" ? "F2" : "F1"} ${size} Tf ${formatNumber(
         x,
-      )} ${formatNumber(y)} Td (${escapePdfText(text)}) Tj ET`,
+      )} ${formatNumber(y)} Td (${encodePdfText(text)}) Tj ET`,
     );
   }
 
@@ -228,8 +266,8 @@ class SimplePdfDocument {
     const objects: string[] = [
       "",
       "",
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
     ];
     const pageObjectIds: number[] = [];
 
@@ -292,59 +330,6 @@ function buildPdfDocument(objects: string[]) {
   ].join("\n");
 
   return Buffer.from(body, "latin1");
-}
-
-function wrapText(text: string, width: number, fontSize: number) {
-  const normalized = normalizePdfText(text);
-  const maxChars = Math.max(18, Math.floor(width / (fontSize * 0.52)));
-  const lines: string[] = [];
-
-  for (const paragraph of normalized.split(/\n+/u)) {
-    const words = paragraph.split(/\s+/u).filter(Boolean);
-    let line = "";
-
-    for (const word of words) {
-      if (word.length > maxChars) {
-        if (line.length > 0) {
-          lines.push(line);
-          line = "";
-        }
-
-        for (let index = 0; index < word.length; index += maxChars) {
-          lines.push(word.slice(index, index + maxChars));
-        }
-
-        continue;
-      }
-
-      const candidate = line.length === 0 ? word : `${line} ${word}`;
-
-      if (candidate.length > maxChars && line.length > 0) {
-        lines.push(line);
-        line = word;
-      } else {
-        line = candidate;
-      }
-    }
-
-    if (line.length > 0) {
-      lines.push(line);
-    }
-  }
-
-  return lines.length > 0 ? lines : [""];
-}
-
-function normalizePdfText(text: string) {
-  return text
-    .replace(/\r\n?/gu, "\n")
-    .replace(/[^\x09\x0A\x0D\x20-\x7E]/gu, "?")
-    .replace(/[\t ]+/gu, " ")
-    .trim();
-}
-
-function escapePdfText(text: string) {
-  return normalizePdfText(text).replace(/[\\()]/gu, (character) => `\\${character}`);
 }
 
 function formatNumber(value: number) {

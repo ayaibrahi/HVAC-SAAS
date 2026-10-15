@@ -13,6 +13,9 @@ import { getProspectWorkspace } from "@/features/prospects/workspace-data";
 
 const state = vi.hoisted(() => ({ path: "/dashboard" }));
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/ui/server-preferences", () => ({
+  getUiPreferences: async () => ({ locale: "en", theme: "light" }),
+}));
 vi.mock("next/navigation", () => ({
   usePathname: () => state.path,
   useRouter: () => ({ refresh() {}, replace() {} }),

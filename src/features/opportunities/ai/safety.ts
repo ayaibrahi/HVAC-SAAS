@@ -18,6 +18,8 @@ const agencyServiceClaimPattern =
   /\b(?:agency|we|our team)\s+can\s+(?:address|provide|deliver|implement|build|create|offer|sell)\b|\bthrough\s+(?:our|the agency's)\b/i;
 
 const wholeSiteClaimPatterns = [
+  /\b(?:company|business|contractor|they)\s+(?:(?:currently|clearly|visibly|apparently|still|simply|also)\s+){0,4}(?:(?:does not|doesn't|do not|don't|never)\s+(?:offer|provide|have)|(?:offers?|provides?|has)\s+no|lacks?)\b/i,
+  /\b(?:website|site)\s+(?:(?:currently|clearly|visibly|apparently|still|simply|also|entirely)\s+){0,4}(?:does\s+not|doesn't|has\s+no|lacks?|is\s+missing)\b/i,
   /\b(?:entire|whole)\s+(?:website|site)\b/i,
   /\banywhere\s+on\s+(?:the\s+)?(?:website|site)\b/i,
   /\bacross\s+(?:the\s+)?(?:website|site)\b/i,
@@ -53,7 +55,10 @@ export function assertOpportunityAiInsightIsSafe(
   const issues = getOpportunityAiSafetyIssues(insight, input);
 
   if (issues.length > 0) {
-    throw new AppError(`AI insight failed safety validation: ${issues[0]}`, 422);
+    throw new AppError(
+      `AI insight failed safety validation: ${issues[0]}`,
+      422,
+    );
   }
 }
 
@@ -80,6 +85,10 @@ export function getSalesAiTextSafetyIssues(
     allowedServiceNames: string[];
   },
 ) {
+  text = text
+    .normalize("NFKC")
+    .replace(/[\u200b-\u200d\ufeff]/g, "")
+    .replace(/[\u2018\u2019]/g, "'");
   const issues: string[] = [];
 
   if (currencyClaimPattern.test(text)) {
@@ -147,5 +156,8 @@ function getInsightText(insight: OpportunityAiInsightOutput) {
 }
 
 function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }

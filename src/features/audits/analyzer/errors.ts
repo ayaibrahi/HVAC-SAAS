@@ -12,6 +12,7 @@ export type AnalyzerErrorCode =
   | "UNSAFE_REDIRECT"
   | "INVALID_REDIRECT"
   | "RESPONSE_TOO_LARGE"
+  | "CONTENT_NOT_VERIFIABLE"
   | "UNSUPPORTED_CONTENT_TYPE";
 
 export class AnalyzerError extends Error {
@@ -19,7 +20,11 @@ export class AnalyzerError extends Error {
   readonly publicMessage: string;
   readonly statusCode: number;
 
-  constructor(code: AnalyzerErrorCode, publicMessage: string, statusCode = 400) {
+  constructor(
+    code: AnalyzerErrorCode,
+    publicMessage: string,
+    statusCode = 400,
+  ) {
     super(publicMessage);
     this.name = "AnalyzerError";
     this.code = code;

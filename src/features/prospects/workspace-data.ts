@@ -1,4 +1,5 @@
 import "server-only";
+import { contentQualitySchema } from "@/features/audits/analyzer/content-quality";
 import { requireCurrentAgency } from "@/features/agencies/data";
 import { getProspect } from "@/features/prospects/data";
 import {
@@ -25,7 +26,9 @@ async function latestScan(
 ): Promise<ScanSummary | null> {
   const { data, error } = await supabase
     .from("audits")
-    .select("id,status,created_at,completed_at")
+    .select(
+      "id,status,created_at,completed_at,error_code,quality:normalized_signals->quality",
+    )
     .eq("agency_id", agencyId)
     .eq("prospect_id", prospectId)
     .order("created_at", { ascending: false })
@@ -33,12 +36,22 @@ async function latestScan(
     .limit(1)
     .maybeSingle();
   if (error) throw new AppError("We could not load the scan.", 500);
+  const quality = contentQualitySchema.safeParse(data?.quality);
   return data
     ? {
         id: data.id,
         status: data.status,
         createdAt: data.created_at,
         completedAt: data.completed_at,
+        verification:
+          data.status === "completed" ||
+          data.error_code === "CONTENT_NOT_VERIFIABLE"
+            ? quality.success &&
+              quality.data.status === "sufficient" &&
+              quality.data.reasons.length === 0
+              ? "verified"
+              : "unverified"
+            : undefined,
       }
     : null;
 }

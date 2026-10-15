@@ -11,7 +11,7 @@ export const prospectIdSchema = z.uuid();
 export type ScanSummary = Pick<
   Audit,
   "id" | "status" | "createdAt" | "completedAt"
->;
+> & { verification?: "verified" | "unverified" };
 export type ProspectListItem = Pick<
   Prospect,
   "id" | "businessName" | "websiteUrl" | "createdAt"

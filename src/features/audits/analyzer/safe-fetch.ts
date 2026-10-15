@@ -2,7 +2,10 @@ import * as http from "node:http";
 import * as https from "node:https";
 import { isIP } from "node:net";
 import { Readable } from "node:stream";
-import { AnalyzerError, normalizeAnalyzerError } from "@/features/audits/analyzer/errors";
+import {
+  AnalyzerError,
+  normalizeAnalyzerError,
+} from "@/features/audits/analyzer/errors";
 import {
   defaultResolveHostname,
   normalizeHostname,
@@ -78,7 +81,11 @@ export async function safeFetchHtml(
     );
     const initialUrl = currentTarget.url.toString();
 
-    for (let redirectCount = 0; redirectCount <= limits.maxRedirects; redirectCount += 1) {
+    for (
+      let redirectCount = 0;
+      redirectCount <= limits.maxRedirects;
+      redirectCount += 1
+    ) {
       const response = await fetchWithTimeout(
         currentTarget,
         limits,
@@ -107,6 +114,21 @@ export async function safeFetchHtml(
         continue;
       }
 
+      if (
+        response.status < 200 ||
+        response.status >= 300 ||
+        response.status === 204 ||
+        response.status === 206 ||
+        !["", "identity"].includes(
+          (response.headers.get("content-encoding") ?? "").trim().toLowerCase(),
+        )
+      ) {
+        throw new AnalyzerError(
+          "CONTENT_NOT_VERIFIABLE",
+          "We could not reliably inspect this page. No website recommendations were made.",
+          422,
+        );
+      }
       assertSupportedContentType(response.headers.get("content-type"));
       const { html, bytes } = await readLimitedBody(
         response,
@@ -134,6 +156,7 @@ export async function safeFetchHtml(
   } catch (error) {
     throw normalizeAnalyzerError(error);
   } finally {
+    controller.abort();
     clearTimeout(timeout);
   }
 }
@@ -235,6 +258,7 @@ export function createPinnedRequestOptions(
       accept: "text/html,application/xhtml+xml;q=0.9,text/plain;q=0.5",
       host: buildHostHeader(request.url),
       "user-agent": request.limits.userAgent,
+      "accept-encoding": "identity",
     },
   };
 
@@ -321,7 +345,10 @@ async function readLimitedBody(
 
   const declaredLength = response.headers.get("content-length");
 
-  if (declaredLength && Number.parseInt(declaredLength, 10) > maxResponseBytes) {
+  if (
+    declaredLength &&
+    Number.parseInt(declaredLength, 10) > maxResponseBytes
+  ) {
     throw new AnalyzerError(
       "RESPONSE_TOO_LARGE",
       "The website response is too large to analyze safely.",
@@ -337,7 +364,23 @@ async function readLimitedBody(
   const abortReader = () => {
     void reader.cancel(getAbortReason(signal)).catch(() => undefined);
   };
-  const decoder = new TextDecoder("utf-8", { fatal: false });
+  const charset =
+    response.headers
+      .get("content-type")
+      ?.match(/charset\s*=\s*["']?([\w-]+)/i)?.[1]
+      ?.toLowerCase() ?? "utf-8";
+  if (
+    !["utf-8", "utf8", "us-ascii", "iso-8859-1", "windows-1252"].includes(
+      charset,
+    )
+  ) {
+    throw new AnalyzerError(
+      "CONTENT_NOT_VERIFIABLE",
+      "We could not reliably read this page's text. No website recommendations were made.",
+      422,
+    );
+  }
+  const decoder = new TextDecoder(charset, { fatal: true });
   let bytes = 0;
   let html = "";
 
@@ -374,11 +417,16 @@ async function readLimitedBody(
 }
 
 function createAbortError() {
-  return new DOMException("The website did not respond before the audit timeout.", "AbortError");
+  return new DOMException(
+    "The website did not respond before the audit timeout.",
+    "AbortError",
+  );
 }
 
 function getAbortReason(signal: AbortSignal) {
-  return signal.reason instanceof DOMException ? signal.reason : createAbortError();
+  return signal.reason instanceof DOMException
+    ? signal.reason
+    : createAbortError();
 }
 
 function assertNotAborted(signal: AbortSignal) {
@@ -406,12 +454,17 @@ function readChunkWithAbort(
 ) {
   assertNotAborted(signal);
 
-  return new Promise<ReadableStreamReadResult<Uint8Array>>((resolve, reject) => {
-    const abortRead = () => reject(getAbortReason(signal));
+  return new Promise<ReadableStreamReadResult<Uint8Array>>(
+    (resolve, reject) => {
+      const abortRead = () => reject(getAbortReason(signal));
 
-    signal.addEventListener("abort", abortRead, { once: true });
-    reader.read().then(resolve, reject).finally(() => {
-      signal.removeEventListener("abort", abortRead);
-    });
-  });
+      signal.addEventListener("abort", abortRead, { once: true });
+      reader
+        .read()
+        .then(resolve, reject)
+        .finally(() => {
+          signal.removeEventListener("abort", abortRead);
+        });
+    },
+  );
 }

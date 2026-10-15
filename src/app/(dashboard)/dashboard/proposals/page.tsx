@@ -10,6 +10,8 @@ import { createProposalAction } from "@/features/proposals/actions";
 import { listProposalsForAgency } from "@/features/proposals/data";
 import { listProspects } from "@/features/prospects/data";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getUiPreferences } from "@/lib/ui/server-preferences";
+import { getProposalCopy } from "@/lib/i18n/proposals";
 
 type ProposalsPageProps = {
   searchParams: Promise<{
@@ -22,6 +24,7 @@ export default async function ProposalsPage({
   searchParams,
 }: ProposalsPageProps) {
   const params = await searchParams;
+  const copy = getProposalCopy((await getUiPreferences()).locale);
   const user = await getCurrentUser();
   const agency = user ? await getAgencyForUser(user.id) : null;
 
@@ -115,7 +118,9 @@ export default async function ProposalsPage({
       </section>
 
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
-        <h2 className="text-lg font-semibold text-ink">Drafts</h2>
+        <h2 className="text-lg font-semibold text-ink">
+          {copy.savedProposals}
+        </h2>
         {proposals.length === 0 ? (
           <p className="mt-3 text-sm text-muted">No proposals yet.</p>
         ) : (

@@ -9,12 +9,19 @@ import {
 } from "@/features/proposals/ai/test-fixtures";
 
 describe("proposal AI safety", () => {
-  it("accepts cautious page-scoped proposal language", () => {
-    expect(() =>
-      assertProposalAiDraftIsSafe(
-        makeProposalAiDraft(),
+  it("rejects historical AI website-wide wording when repeated in a new proposal", () => {
+    expect(
+      getProposalAiDraftSafetyIssues(
+        makeProposalAiDraft({
+          summary: "The website currently lacks visible financing options.",
+        }),
         makeProposalAiInput(),
       ),
+    ).toContain("unsupported whole-site claim");
+  });
+  it("accepts cautious page-scoped proposal language", () => {
+    expect(() =>
+      assertProposalAiDraftIsSafe(makeProposalAiDraft(), makeProposalAiInput()),
     ).not.toThrow();
   });
 
@@ -37,7 +44,8 @@ describe("proposal AI safety", () => {
   it("rejects unsupported whole-site claims", () => {
     const issues = getProposalAiDraftSafetyIssues(
       makeProposalAiDraft({
-        summary: "The business does not offer financing anywhere on the website.",
+        summary:
+          "The business does not offer financing anywhere on the website.",
       }),
       makeProposalAiInput(),
     );

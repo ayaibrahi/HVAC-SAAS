@@ -9,6 +9,35 @@ import {
 } from "@/features/opportunities/ai/test-fixtures";
 
 describe("opportunity AI safety validation", () => {
+  it.each([
+    "The website currently lacks visible financing options.",
+    "The site still has no booking system.",
+    "The website clearly does not offer financing.",
+    "The website currently doesn\u2019t offer financing.",
+    "The web\u200bsite currently lacks visible financing options.",
+    "The business currently does not offer financing.",
+  ])("rejects saved-example page-scope broadening: %s", (salesSummary) => {
+    expect(
+      getOpportunityAiSafetyIssues(
+        makeOpportunityAiInsight({ salesSummary }),
+        makeOpportunityAiInput(),
+      ),
+    ).toContain("unsupported whole-site claim");
+  });
+  it("accepts cautious non-detection without changing authoritative input", () => {
+    const input = makeOpportunityAiInput(),
+      before = JSON.stringify(input);
+    expect(
+      getOpportunityAiSafetyIssues(
+        makeOpportunityAiInsight({
+          salesSummary:
+            "Financing information was not detected on the analyzed page. Confirm the offering with the business before proposing a change.",
+        }),
+        input,
+      ),
+    ).toEqual([]);
+    expect(JSON.stringify(input)).toBe(before);
+  });
   it("accepts page-scoped evidence-bound language", () => {
     expect(() =>
       assertOpportunityAiInsightIsSafe(

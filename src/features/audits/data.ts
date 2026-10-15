@@ -168,6 +168,8 @@ export async function markAuditFailed(input: {
   agencyId: string;
   errorCode: string;
   errorMessage: string;
+  normalizedSignals?: Json;
+  finalUrl?: string;
 }) {
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -177,6 +179,10 @@ export async function markAuditFailed(input: {
       completed_at: new Date().toISOString(),
       error_code: input.errorCode,
       error_message: input.errorMessage,
+      ...(input.normalizedSignals
+        ? { normalized_signals: input.normalizedSignals }
+        : {}),
+      ...(input.finalUrl ? { final_url: input.finalUrl } : {}),
     })
     .eq("id", input.auditId)
     .eq("agency_id", input.agencyId)

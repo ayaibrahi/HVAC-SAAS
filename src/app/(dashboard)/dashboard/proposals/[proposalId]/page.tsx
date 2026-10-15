@@ -438,6 +438,7 @@ function DownloadPdfLink({
       href={`/api/proposal-delivery-snapshots/${snapshot.id}/pdf`}
       label={copy.download}
       pendingLabel={copy.downloading}
+      errorLabel={copy.downloadError}
       className="rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-ink"
     />
   );

@@ -4,8 +4,52 @@ import {
   renderProposalPdf,
 } from "@/features/proposals/pdf/renderer";
 import type { ProposalPdfView } from "@/features/proposals/pdf/view-model";
+import { encodePdfText, measurePdfText, wrapPdfText } from "./text";
 
 describe("proposal PDF renderer", () => {
+  it("preserves ordinary punctuation with explicitly encoded WinAnsi fonts", () => {
+    const text = extractPdfInspectableText(
+      renderProposalPdf(
+        makePdfView({
+          title: "TEST ONLY \u2014 Proposal \u2013 \u201cReview\u201d",
+        }),
+      ),
+    );
+    expect(text).toContain("/Encoding /WinAnsiEncoding");
+    expect(text).toContain(String.fromCharCode(151));
+    expect(text).not.toContain("TEST ONLY ?");
+    expect(encodePdfText("\u2014\u2013\u201c\u201d\u2019")).toBe(
+      String.fromCharCode(151, 150, 147, 148, 146),
+    );
+  });
+  it("positions the larger title below the agency instead of reusing its baseline gap", () => {
+    const text = extractPdfInspectableText(renderProposalPdf(makePdfView()));
+    const agency = /11 Tf 54 ([\d.]+) Td \(Growth Agency\)/.exec(text);
+    const title = /22 Tf 54 ([\d.]+) Td \(Proposal for Example HVAC\)/.exec(
+      text,
+    );
+    expect(Number(agency?.[1]) - Number(title?.[1])).toBeGreaterThanOrEqual(26);
+  });
+  it("wraps wide glyphs, long words and line names within measured column widths", () => {
+    for (const sample of [
+      "W".repeat(200),
+      "Long agency name ".repeat(30),
+      "TEST ONLY \u2014 Review ".repeat(20),
+    ]) {
+      for (const line of wrapPdfText(sample, 360, 22, "bold"))
+        expect(measurePdfText(line, 22, "bold")).toBeLessThanOrEqual(360);
+    }
+    const text = extractPdfInspectableText(
+      renderProposalPdf(
+        makePdfView({
+          title: "Long title ".repeat(40),
+          scope: "Synthetic scope paragraph. ".repeat(600),
+        }),
+      ),
+    );
+    expect((text.match(/\/Type \/Page\b/g) ?? []).length).toBeGreaterThan(1);
+    expect(text).toContain("USD 500.00");
+  });
   it("renders deterministic PDF bytes from snapshot-only view data", () => {
     const view = makePdfView();
     const first = renderProposalPdf(view);
@@ -135,7 +179,9 @@ describe("proposal PDF renderer", () => {
   });
 });
 
-function makePdfView(overrides: Partial<ProposalPdfView> = {}): ProposalPdfView {
+function makePdfView(
+  overrides: Partial<ProposalPdfView> = {},
+): ProposalPdfView {
   return {
     title: "Proposal for Example HVAC",
     agencyName: "Growth Agency",
