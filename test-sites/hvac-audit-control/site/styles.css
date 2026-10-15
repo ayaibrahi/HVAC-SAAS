@@ -1,0 +1,162 @@
+:root {
+  color-scheme: light;
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #192c2b;
+  background: #f4f7f7;
+  line-height: 1.65;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: #0b6256;
+  text-underline-offset: 4px;
+}
+a:focus-visible {
+  outline: 3px solid #b74052;
+  outline-offset: 5px;
+}
+.test-notice {
+  padding: 12px 24px;
+  text-align: center;
+  background: #782b3a;
+  color: white;
+  font-size: 14px;
+}
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 24px max(24px, calc((100% - 1056px) / 2));
+  background: white;
+  border-bottom: 1px solid #d4dfde;
+}
+.brand {
+  font-size: 22px;
+  font-weight: 750;
+  text-decoration: none;
+  line-height: 1.25;
+}
+.brand span {
+  display: block;
+  font-size: 16px;
+  font-weight: 500;
+}
+nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.phone {
+  white-space: nowrap;
+  font-weight: 700;
+}
+main {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+section {
+  padding: 32px 0;
+  border-bottom: 1px solid #d4dfde;
+  scroll-margin-top: 24px;
+}
+.intro {
+  padding-top: 0;
+}
+h1 {
+  font-size: 38px;
+  line-height: 1.2;
+  margin: 12px 0 18px;
+  overflow-wrap: anywhere;
+}
+h2 {
+  font-size: 25px;
+  line-height: 1.3;
+  margin: 0 0 16px;
+}
+h3 {
+  font-size: 18px;
+  margin: 24px 0 8px;
+}
+p {
+  max-width: 76ch;
+  margin: 12px 0;
+}
+.eyebrow {
+  font-size: 13px;
+  font-weight: 700;
+  color: #7c3040;
+}
+.lead {
+  font-size: 22px;
+}
+.primary {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 12px 20px;
+  background: #0b6256;
+  color: white;
+  border-radius: 4px;
+  text-decoration: none;
+  font-weight: 650;
+}
+.small,
+figcaption {
+  font-size: 13px;
+  color: #495e5c;
+}
+.system-figure {
+  margin: 32px 0 0;
+}
+.system-figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+.service-grid a {
+  padding: 12px 0;
+  border-block: 1px solid #9bb6af;
+  font-weight: 650;
+}
+.highlight {
+  border-left: 4px solid #0b6256;
+  padding-left: 24px;
+}
+footer {
+  padding: 32px 24px;
+  text-align: center;
+  background: #e5eceb;
+  font-size: 14px;
+}
+@media (max-width: 800px) {
+  .site-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 18px;
+  }
+  main {
+    padding-top: 32px;
+  }
+  h1 {
+    font-size: 30px;
+  }
+  .service-grid {
+    grid-template-columns: 1fr;
+  }
+}

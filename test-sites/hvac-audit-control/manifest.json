@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "purpose": "Fictional static HTML QA only; not real prospect data or a business offer.",
+  "scope": "analyzed_page",
+  "verticalKey": "hvac",
+  "playbookVersion": "1.0.0",
+  "signalSchemaVersion": "1.0.0",
+  "classificationSemantics": {
+    "true": "detected_in_delivered_html",
+    "false": "not_detected_on_analyzed_page",
+    "insufficientQuality": "unknown_for_opportunity_generation"
+  },
+  "testOrigin": "https://fixture.example",
+  "pages": [
+    {
+      "key": "positive",
+      "file": "index.html",
+      "explanation": "All seven rule families have observable static evidence. A same-page appointment destination proves discoverability, never functional booking.",
+      "extractor": {
+        "title": "Northstar Test Heating & Air | Positive Evidence",
+        "h1Count": 1,
+        "mainTextContains": "Emergency HVAC repair",
+        "linkHrefs": [
+          "tel:+12025550147",
+          "#appointment",
+          "#cooling",
+          "#heating",
+          "#furnace"
+        ],
+        "targetIds": ["appointment", "cooling", "heating", "furnace"]
+      },
+      "signals": {
+        "contactConversion.phoneDetected": true,
+        "contactConversion.bookingLinkDetected": true,
+        "contactConversion.contactFormDetected": false,
+        "hvac.onlineBooking": true,
+        "hvac.emergencyService": true,
+        "hvac.serviceArea": true,
+        "hvac.financing": true,
+        "hvac.maintenancePlan": true
+      },
+      "deliberatelyAbsentSignals": ["contactConversion.contactFormDetected"],
+      "ctaCount": 2,
+      "serviceNames": ["Air conditioning", "Heating", "Furnace"],
+      "quality": "sufficient",
+      "opportunityRules": [],
+      "uncertaintyConditions": [
+        "Booking destination interactivity is not tested.",
+        "Only this delivered document is inspected; no whole-site or service-availability claim is supported."
+      ]
+    },
+    {
+      "key": "absence",
+      "file": "absence.html",
+      "explanation": "Substantial static copy deliberately omits phone, booking, emergency and contact CTAs. Other rule evidence is present to isolate three valid absence rules below the top-five cap.",
+      "extractor": {
+        "title": "Meadow Test Climate Care | Controlled Absence",
+        "h1Count": 1,
+        "mainTextContains": "Seasonal heating care",
+        "linkHrefs": ["#cooling", "#heating", "#furnace"],
+        "targetIds": ["cooling", "heating", "furnace"]
+      },
+      "signals": {
+        "contactConversion.phoneDetected": false,
+        "contactConversion.bookingLinkDetected": false,
+        "contactConversion.contactLinkDetected": false,
+        "contactConversion.contactFormDetected": false,
+        "hvac.onlineBooking": false,
+        "hvac.emergencyService": false,
+        "hvac.serviceArea": true,
+        "hvac.financing": true,
+        "hvac.maintenancePlan": true
+      },
+      "deliberatelyAbsentSignals": [
+        "contactConversion.phoneDetected",
+        "hvac.onlineBooking",
+        "hvac.emergencyService",
+        "contactConversion.contactLinkDetected",
+        "contactConversion.contactFormDetected"
+      ],
+      "ctaCount": 0,
+      "serviceNames": ["Air conditioning", "Heating", "Furnace"],
+      "quality": "sufficient",
+      "opportunityRules": [
+        "weak_lead_capture",
+        "weak_emergency_conversion",
+        "missing_online_booking"
+      ],
+      "uncertaintyConditions": [
+        "Absence means not detected on this inspected page, not unavailable throughout a business.",
+        "A substantial static document cannot prove that hydration will add no further evidence."
+      ]
+    }
+  ],
+  "unsafeInferenceConditions": [
+    "Shell, thin, recognized challenge, HTTP failure, partial response, incomplete HTML or unsupported media: do not generate opportunities.",
+    "Hybrid hydrated content, hidden/responsive controls, unrecognized interstitials, misleading keyword substrings and broken booking links require human verification; current heuristics cannot reliably classify all of them.",
+    "A detected link is not proof that a target page or integration works.",
+    "Legal whitespace before a closing-tag bracket is not reliably parsed. Tests characterize missed or merged links; Page A deliberately uses conventional anchor closing tags, with this limitation reported separately."
+  ]
+}

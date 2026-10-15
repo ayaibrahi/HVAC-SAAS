@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="200" viewBox="0 0 720 200" role="img" aria-labelledby="title desc">
+  <title id="title">Illustrative HVAC system</title>
+  <desc id="desc">A simple fictional diagram of an outdoor unit connected to an indoor unit and a room.</desc>
+  <rect width="720" height="200" fill="#e5eeeb"/>
+  <g fill="none" stroke="#28665b" stroke-width="3">
+    <rect x="50" y="42" width="130" height="100" rx="4"/>
+    <circle cx="115" cy="92" r="34"/>
+    <path d="M85 92h60M115 62v60M180 85h120M180 105h120"/>
+    <rect x="300" y="40" width="110" height="110" rx="4"/>
+    <path d="M320 65h70M320 80h70M320 95h70M410 75h100v30h60"/>
+    <rect x="550" y="35" width="125" height="115" rx="4"/>
+    <path d="M585 145v-40h30v40M565 55h30v25h-30M625 55h30v25h-30"/>
+  </g>
+  <g fill="#193e35" font-family="system-ui, sans-serif" font-size="15" text-anchor="middle">
+    <text x="115" y="177">Outdoor unit</text>
+    <text x="355" y="177">Indoor unit</text>
+    <text x="613" y="177">Room</text>
+  </g>
+</svg>
