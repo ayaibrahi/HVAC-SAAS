@@ -7,6 +7,9 @@ import {
   revokeProposalShareLinkAction,
 } from "@/features/proposals/share-links/actions";
 import { initialShareLinkActionState } from "@/features/proposals/share-links/state";
+import { useInterface } from "@/components/ui-preferences";
+import { getProposalCopy } from "@/lib/i18n/proposals";
+import { formatInterfaceDate } from "@/lib/ui/preferences";
 
 export function ShareLinkControls({
   snapshotId,
@@ -15,6 +18,8 @@ export function ShareLinkControls({
   snapshotId: string;
   activeLink: ProposalShareLinkMetadata | null;
 }) {
+  const { locale } = useInterface();
+  const copy = getProposalCopy(locale);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [createState, createAction, isCreating] = useActionState(
     createProposalShareLinkAction,
@@ -63,9 +68,9 @@ export function ShareLinkControls({
 
     try {
       await navigator.clipboard.writeText(shareUrl);
-      setCopyMessage("Share link copied.");
+      setCopyMessage(copy.copied);
     } catch {
-      setCopyMessage("Copy failed. Select the link and copy it manually.");
+      setCopyMessage(copy.copyFailed);
     }
   }
 
@@ -73,20 +78,18 @@ export function ShareLinkControls({
     <div className="mt-4 rounded-md border border-border bg-surface p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-ink">Public share link</p>
+          <p className="text-sm font-semibold text-ink">{copy.share}</p>
           <p className="mt-1 text-xs text-muted">
-            {hasActiveLink
-              ? "Active for this immutable snapshot."
-              : "Inactive. Create a link to share this snapshot publicly."}
+            {hasActiveLink ? copy.shareActive : copy.shareInactive}
           </p>
           {expiresAt ? (
             <p className="mt-1 text-xs text-muted">
-              Expires {new Date(expiresAt).toLocaleDateString()}.
+              {copy.expires} {formatInterfaceDate(expiresAt, locale)}.
             </p>
           ) : null}
         </div>
         <span className="rounded-md border border-border px-2 py-1 text-xs font-semibold text-ink">
-          {hasActiveLink ? "Active" : "Inactive"}
+          {hasActiveLink ? copy.active : copy.inactive}
         </span>
       </div>
 
@@ -98,10 +101,10 @@ export function ShareLinkControls({
             disabled={isMutating}
           >
             {isCreating
-              ? "Creating..."
+              ? copy.creating
               : hasActiveLink
-                ? "Create New Link"
-                : "Create Share Link"}
+                ? copy.newLink
+                : copy.createLink}
           </button>
         </form>
 
@@ -111,17 +114,21 @@ export function ShareLinkControls({
             className="rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!hasActiveLink || isMutating}
           >
-            {isRevoking ? "Revoking..." : "Revoke Share Link"}
+            {isRevoking ? copy.revoking : copy.revoke}
           </button>
         </form>
       </div>
+      <p className="mt-3 text-xs text-muted">{copy.previewProtection}</p>
 
       {shareUrl ? (
         <div className="mt-4">
           <label>
-            <span className="text-xs font-medium text-ink">Share URL</span>
+            <span className="text-xs font-medium text-ink">
+              {copy.shareUrl}
+            </span>
             <input
               readOnly
+              dir="ltr"
               value={shareUrl}
               className="mt-1 w-full rounded-md border border-border bg-white px-3 py-2 text-xs text-ink"
             />
@@ -131,14 +138,11 @@ export function ShareLinkControls({
             onClick={copyShareUrl}
             className="mt-2 rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-ink"
           >
-            Copy Share Link
+            {copy.copy}
           </button>
         </div>
       ) : hasActiveLink ? (
-        <p className="mt-3 text-xs text-muted">
-          The existing token is not stored. Create a new link to reveal a fresh
-          URL for copying.
-        </p>
+        <p className="mt-3 text-xs text-muted">{copy.hiddenLink}</p>
       ) : null}
 
       {createState.message && createState.snapshotId === snapshotId ? (
@@ -162,7 +166,9 @@ export function ShareLinkControls({
       ) : null}
 
       {copyMessage ? (
-        <p className="mt-3 text-xs text-muted">{copyMessage}</p>
+        <p role="status" className="mt-3 text-xs text-muted">
+          {copyMessage}
+        </p>
       ) : null}
     </div>
   );

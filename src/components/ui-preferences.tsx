@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { Moon, Sun } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { getDictionary, type TranslationKey } from "@/lib/i18n/dictionaries";
 import {
   localeDirection,
@@ -72,6 +73,7 @@ export function InterfaceText({ name }: { name: TranslationKey }) {
 
 export function PreferenceControls() {
   const { theme, locale, setPreference, t } = useInterface();
+  const router = useRouter();
   return (
     <div className="preference-controls flex shrink-0 items-center gap-2">
       <div
@@ -104,7 +106,10 @@ export function PreferenceControls() {
           aria-label={t.language}
           dir="auto"
           value={locale}
-          onChange={(event) => setPreference("locale", event.target.value)}
+          onChange={(event) => {
+            setPreference("locale", event.target.value);
+            router.refresh();
+          }}
           className="locale-select min-h-11 rounded-md border border-border px-2 text-sm"
         >
           <option value="en" lang="en">

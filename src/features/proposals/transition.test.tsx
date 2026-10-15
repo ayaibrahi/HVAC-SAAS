@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { redirect } from "next/navigation";
-import { createProposalAction } from "./actions";
+import { createProposalAction, updateProposalAction } from "./actions";
 import { getProposalBuilderData } from "./data";
 import ProposalBuilderPage from "@/app/(dashboard)/dashboard/proposals/[proposalId]/page";
 import ProposalsPage from "@/app/(dashboard)/dashboard/proposals/page";
@@ -9,9 +9,13 @@ import ProposalWorkspaceError from "@/app/(dashboard)/dashboard/proposals/error"
 import { UiPreferencesProvider } from "@/components/ui-preferences";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { generateProposalAiDraftForProposal } from "./ai/data";
+import { getUiPreferences } from "@/lib/ui/server-preferences";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/ui/server-preferences", () => ({
+  getUiPreferences: vi.fn(async () => ({ locale: "en", theme: "light" })),
+}));
 vi.mock("next/navigation", async (original) => {
   const actual = await original<typeof import("next/navigation")>();
   return { ...actual, redirect: vi.fn(actual.redirect) };
@@ -44,7 +48,38 @@ type Row = Record<string, unknown>;
 let rows: Record<string, Row[]>;
 let signedIn: boolean;
 let failInsert: boolean;
+let failSave: boolean;
 const inserts = vi.fn();
+const saveRpc = vi.fn(async (_name: string, input: Row) => {
+  if (failSave) return { error: { message: "private storage failure" } };
+  const proposal = rows.proposals.find(
+    (row) =>
+      row.id === input.p_proposal_id && row.agency_id === input.p_agency_id,
+  )!;
+  for (const field of [
+    "title",
+    "status",
+    "summary",
+    "scope",
+    "next_step",
+    "currency",
+    "subtotal_amount",
+    "discount_type",
+    "discount_value",
+    "discount_amount",
+    "total_amount",
+  ])
+    proposal[field] = input[`p_${field}`];
+  rows.proposal_line_items = (input.p_line_items as Row[]).map(
+    (line, index) => ({
+      ...line,
+      id: `saved-${index}`,
+      proposal_id: proposalId,
+      agency_id: agencyId,
+    }),
+  );
+  return { error: null };
+});
 const queries: { table: string; filters: [string, unknown][] }[] = [];
 
 // In-memory HTTP/storage substitute only. Real actions, authorization, row mappers,
@@ -98,6 +133,7 @@ function query(table: string) {
 }
 const client = {
   from: query,
+  rpc: saveRpc,
   auth: {
     getUser: async () => ({
       data: { user: signedIn ? { id: userId } : null },
@@ -110,6 +146,11 @@ beforeEach(() => {
   queries.length = 0;
   signedIn = true;
   failInsert = false;
+  failSave = false;
+  vi.mocked(getUiPreferences).mockResolvedValue({
+    locale: "en",
+    theme: "light",
+  });
   rows = {
     agencies: [
       {
@@ -214,6 +255,90 @@ describe("website findings to real proposal action and editor (mocked storage)",
     expect(data.services).toEqual([]);
     expect(data.lineItemsByOpportunityId.size).toBe(0);
   });
+  it("does not default an unmatched finding to an unrelated catalog service or price", async () => {
+    await submit();
+    rows.agency_services = [
+      {
+        id: "unrelated",
+        agency_id: agencyId,
+        name: "Logo Design",
+        price: 1500,
+        currency: "USD",
+        is_active: true,
+      },
+    ];
+    const html = await editorHtml(proposalId);
+    const serviceChoices = html.match(
+      new RegExp(
+        `<select name="serviceId:${opportunityId}"[^>]*>(.*?)</select>`,
+      ),
+    )![1];
+    expect(serviceChoices).toContain(
+      '<option value="" selected="">Choose a relevant service</option>',
+    );
+    expect(serviceChoices).not.toContain('value="unrelated" selected');
+    expect(
+      html.match(
+        new RegExp(`<input[^>]*name="unitPrice:${opportunityId}"[^>]*>`),
+      )![0],
+    ).toContain('value="0.00"');
+    expect(html).toContain("No matching catalog service was suggested.");
+    expect(html).not.toContain("checked=");
+    expect(generateProposalAiDraftForProposal).not.toHaveBeenCalled();
+  });
+  it("keeps a relevant active recommendation available without preselecting its opportunity", async () => {
+    await submit();
+    rows.opportunities[0].agency_service_id = "booking";
+    rows.agency_services = [
+      {
+        id: "booking",
+        agency_id: agencyId,
+        name: "Booking Integration",
+        price: 350,
+        currency: "USD",
+        is_active: true,
+      },
+    ];
+    const html = await editorHtml(proposalId);
+    expect(html).toContain(
+      '<option value="booking" selected="">Booking Integration</option>',
+    );
+    expect(
+      html.match(
+        new RegExp(`<input[^>]*name="unitPrice:${opportunityId}"[^>]*>`),
+      )![0],
+    ).toContain('value="350.00"');
+    expect(html).not.toContain("checked=");
+  });
+  it.each(["en", "ar"] as const)(
+    "explains empty drafts, saved totals and Ready delivery prerequisites (%s)",
+    async (locale) => {
+      await submit();
+      vi.mocked(getUiPreferences).mockResolvedValue({ locale, theme: "dark" });
+      const html = await editorHtml(proposalId);
+      expect(html).toContain(
+        `lang="${locale}" dir="${locale === "ar" ? "rtl" : "ltr"}"`,
+      );
+      expect(html).toContain(
+        locale === "en" ? "Nothing is selected yet." : "لم تُختر أي خدمة بعد.",
+      );
+      expect(html).toContain(
+        locale === "en"
+          ? "Save changes to update this preview"
+          : "احفظ التعديلات لتحديث المعاينة",
+      );
+      expect(html).toMatch(
+        /disabled=""[^>]*>(?:Generate summary and scope|إعداد الملخص ونطاق العمل)/,
+      );
+      expect(html).toMatch(
+        /disabled=""[^>]*>(?:Prepare client-ready version|إعداد نسخة جاهزة للعميل)/,
+      );
+      expect(html).toContain(
+        `/dashboard/prospects?prospect=${prospectId}#website-results`,
+      );
+      expect(html).not.toContain("checked=");
+    },
+  );
   it("preserves the existing completed-audit blank draft contract even with zero opportunities", async () => {
     rows.opportunities = [];
     await submit();
@@ -321,6 +446,103 @@ describe("website findings to real proposal action and editor (mocked storage)",
         ),
     ).toBe(true);
   });
+  it("saves and reopens manual selections/prices using the real action and pricing path, then marks the saved draft Ready", async () => {
+    await submit();
+    const serviceId = "66666666-6666-4666-8666-666666666666";
+    rows.agency_services = [
+      {
+        id: serviceId,
+        agency_id: agencyId,
+        name: "Booking Integration",
+        price: 99,
+        currency: "USD",
+        is_active: true,
+      },
+    ];
+    const form = new FormData();
+    for (const [key, value] of Object.entries({
+      title: "Manually reviewed",
+      summary: "On the analyzed page booking was not detected.",
+      scope: "Add the selected booking integration.",
+      nextStep: "Review together.",
+      currency: "USD",
+      status: "draft",
+      discountType: "none",
+      discountValue: "0",
+      opportunityId,
+      [`serviceId:${opportunityId}`]: serviceId,
+      [`quantity:${opportunityId}`]: "1",
+      [`unitPrice:${opportunityId}`]: "500.00",
+      [`description:${opportunityId}`]: "Manual scope",
+    }))
+      form.set(key, value);
+    vi.mocked(redirect).mockClear();
+    await expect(updateProposalAction(proposalId, form)).rejects.toMatchObject({
+      message: "NEXT_REDIRECT",
+    });
+    expect(saveRpc).toHaveBeenCalledExactlyOnceWith(
+      "save_proposal_draft",
+      expect.objectContaining({
+        p_agency_id: agencyId,
+        p_requested_by: userId,
+        p_total_amount: 500,
+        p_line_items: [
+          expect.objectContaining({
+            agency_service_id: serviceId,
+            unit_price: 500,
+          }),
+        ],
+      }),
+    );
+    expect(vi.mocked(redirect).mock.calls[0][0]).toContain(
+      "success=Proposal+saved.",
+    );
+    rows.agency_services[0].price = 900;
+    const html = await editorHtml(proposalId);
+    expect(html).toContain('value="500.00"');
+    expect(html).toContain("Manual scope");
+    expect(html).toContain('value="Manually reviewed"');
+    expect(html).toContain('checked=""');
+    form.set("status", "ready");
+    await expect(updateProposalAction(proposalId, form)).rejects.toMatchObject({
+      message: "NEXT_REDIRECT",
+    });
+    const readyHtml = await editorHtml(proposalId);
+    expect(readyHtml).toMatch(
+      /aria-disabled="false">Prepare client-ready version/,
+    );
+    expect(rows.proposals[0].total_amount).toBe(500);
+    expect(inserts).toHaveBeenCalledTimes(1);
+    expect(generateProposalAiDraftForProposal).not.toHaveBeenCalled();
+  });
+  it("returns safe save failure feedback and keeps the previous saved values after a failed RPC", async () => {
+    await submit();
+    const before = structuredClone(rows.proposals[0]);
+    failSave = true;
+    const form = new FormData();
+    for (const [key, value] of Object.entries({
+      title: "New title",
+      summary: "",
+      scope: "",
+      nextStep: "",
+      currency: "USD",
+      status: "draft",
+      discountType: "none",
+      discountValue: "0",
+    }))
+      form.set(key, value);
+    vi.mocked(redirect).mockClear();
+    await expect(updateProposalAction(proposalId, form)).rejects.toMatchObject({
+      message: "NEXT_REDIRECT",
+    });
+    const target = vi.mocked(redirect).mock.calls[0][0];
+    expect(
+      new URL(target, "https://example.test").searchParams.get("error"),
+    ).toBe("We could not update the proposal.");
+    expect(target).not.toContain("private");
+    expect(rows.proposals[0]).toEqual(before);
+    expect(saveRpc).toHaveBeenCalledTimes(1);
+  });
   it("rejects foreign proposal navigation before loading snapshots or changing anything", async () => {
     await submit();
     rows.proposals[0].agency_id = "foreign";
@@ -341,4 +563,39 @@ describe("website findings to real proposal action and editor (mocked storage)",
       expect(html).not.toContain("<form");
     },
   );
+});
+it("preserves a saved inactive service and manual price visibly instead of silently choosing another service", async () => {
+  await submit();
+  rows.proposal_line_items = [
+    {
+      id: "saved-line",
+      proposal_id: proposalId,
+      agency_id: agencyId,
+      opportunity_id: opportunityId,
+      agency_service_id: "inactive",
+      service_name: "Original service",
+      quantity: 1,
+      unit_price: 500,
+      line_total: 500,
+      position: 0,
+      description: "Saved scope",
+    },
+  ];
+  rows.agency_services = [
+    {
+      id: "inactive",
+      agency_id: agencyId,
+      name: "Original service",
+      price: 99,
+      currency: "USD",
+      is_active: false,
+    },
+  ];
+  const html = await editorHtml(proposalId);
+  expect(html).toContain('value="inactive" disabled="" selected=""');
+  const checkbox = html.match(/<input[^>]*name="opportunityId"[^>]*>/)![0];
+  expect(checkbox).toContain('checked=""');
+  expect(checkbox).not.toContain('disabled=""');
+  expect(html).toContain('value="500.00"');
+  expect(html).toContain("Saved scope");
 });

@@ -6,7 +6,9 @@ import { EnglishWorkflow } from "@/components/ui-preferences";
 
 export function WorkspaceContent({ children }: { children: ReactNode }) {
   const path = usePathname();
-  return path === "/dashboard" || path === "/dashboard/prospects" ? (
+  return path === "/dashboard" ||
+    path === "/dashboard/prospects" ||
+    /^\/dashboard\/proposals\/[^/]+$/.test(path) ? (
     children
   ) : (
     <EnglishWorkflow>{children}</EnglishWorkflow>

@@ -148,7 +148,7 @@ export function DashboardOverview({ data }: { data: DashboardOverviewData }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <Link
-                      href={`/dashboard/prospects/${prospect.id}/edit`}
+                      href={`/dashboard/prospects?prospect=${prospect.id}#website-results`}
                       className="activity-link text-sm"
                     >
                       <bdi>{prospect.business_name}</bdi>

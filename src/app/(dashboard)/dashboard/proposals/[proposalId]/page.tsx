@@ -17,6 +17,13 @@ import { createDeliverySnapshotAction } from "@/features/proposals/delivery/acti
 import { listDeliverySnapshotsForProposal } from "@/features/proposals/delivery/data";
 import { ShareLinkControls } from "@/features/proposals/share-links/components/share-link-controls";
 import { listShareLinksForSnapshots } from "@/features/proposals/share-links/data";
+import { getProposalCopy, type ProposalCopy } from "@/lib/i18n/proposals";
+import {
+  formatInterfaceDate,
+  localeDirection,
+  type Locale,
+} from "@/lib/ui/preferences";
+import { getUiPreferences } from "@/lib/ui/server-preferences";
 
 type ProposalBuilderPageProps = {
   params: Promise<{
@@ -35,6 +42,8 @@ export default async function ProposalBuilderPage({
   const { proposalId } = await params;
   const feedback = await searchParams;
   const data = await getProposalBuilderData(proposalId);
+  const { locale } = await getUiPreferences();
+  const copy = getProposalCopy(locale);
   const deliverySnapshots = await listDeliverySnapshotsForProposal(
     data.proposal.id,
   );
@@ -53,42 +62,91 @@ export default async function ProposalBuilderPage({
   );
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" lang={locale} dir={localeDirection(locale)}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <Link href="/dashboard/proposals" className="text-sm text-muted">
-            Back to proposals
+            {copy.back}
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-ink">
-            Proposal Builder
+            {copy.builder}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            Draft and price a proposal for {data.prospect.businessName} from the
-            completed audit of {data.audit.finalUrl ?? data.audit.websiteUrl}.
+            {copy.forBusiness} <bdi>{data.prospect.businessName}</bdi>.{" "}
+            {copy.sourcePage}:{" "}
+            <bdi dir="ltr">{data.audit.finalUrl ?? data.audit.websiteUrl}</bdi>.
           </p>
         </div>
         <form action={generateAction}>
           <PendingSubmitButton
-            label="Generate summary and scope"
-            pendingLabel="Generating..."
+            label={copy.generate}
+            pendingLabel={copy.generating}
             className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={data.lineItemsByOpportunityId.size === 0}
           />
+          <p className="mt-2 max-w-sm text-xs text-muted">
+            {data.lineItemsByOpportunityId.size === 0
+              ? copy.aiSaveFirst
+              : copy.aiOptional}
+          </p>
         </form>
       </div>
 
       <FeedbackMessage error={feedback.error} success={feedback.success} />
+
+      <section
+        aria-labelledby="proposal-workflow"
+        className="border-y border-border py-5"
+      >
+        <h2 id="proposal-workflow" className="text-base font-semibold text-ink">
+          {copy.workflow}
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          {data.proposal.status === "ready"
+            ? copy.readyGuidance
+            : copy.draftGuidance}
+        </p>
+        <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-muted">
+          {[
+            copy.reviewStep,
+            copy.selectStep,
+            copy.priceStep,
+            copy.copyStep,
+            copy.saveStep,
+          ].map((step) => (
+            <li key={step}>{step}</li>
+          ))}
+        </ol>
+        <Link
+          href={`/dashboard/prospects?prospect=${data.prospect.id}#website-results`}
+          className="mt-3 inline-block text-sm font-semibold text-accent hover:underline"
+        >
+          {copy.businessResults}
+        </Link>
+        <p className="mt-1 text-xs text-muted">{copy.sourceNote}</p>
+        {data.lineItemsByOpportunityId.size === 0 && (
+          <p className="mt-3 text-sm font-medium text-ink">{copy.emptyDraft}</p>
+        )}
+      </section>
 
       <DeliverySnapshotPanel
         snapshots={deliverySnapshots}
         shareLinks={shareLinks}
         proposalStatus={data.proposal.status}
         createSnapshotAction={createSnapshotAction}
+        copy={copy}
+        locale={locale}
       />
 
       {activeServices.length === 0 ? (
         <div className="rounded-md border border-border bg-white p-4 text-sm text-muted">
-          Add at least one active service before selecting proposal
-          opportunities.
+          {copy.noServices}{" "}
+          <Link
+            href="/dashboard/services"
+            className="font-semibold text-accent hover:underline"
+          >
+            {copy.manageServices}
+          </Link>
         </div>
       ) : null}
 
@@ -98,10 +156,12 @@ export default async function ProposalBuilderPage({
       >
         <div className="space-y-6">
           <section className="rounded-md border border-border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Proposal details</h2>
+            <h2 className="text-lg font-semibold text-ink">{copy.details}</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">Title</span>
+                <span className="text-sm font-medium text-ink">
+                  {copy.title}
+                </span>
                 <input
                   name="title"
                   defaultValue={data.proposal.title}
@@ -110,18 +170,22 @@ export default async function ProposalBuilderPage({
                 />
               </label>
               <label>
-                <span className="text-sm font-medium text-ink">Status</span>
+                <span className="text-sm font-medium text-ink">
+                  {copy.status}
+                </span>
                 <select
                   name="status"
                   defaultValue={data.proposal.status}
                   className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
                 >
-                  <option value="draft">Draft</option>
-                  <option value="ready">Ready</option>
+                  <option value="draft">{copy.draft}</option>
+                  <option value="ready">{copy.ready}</option>
                 </select>
               </label>
               <label>
-                <span className="text-sm font-medium text-ink">Currency</span>
+                <span className="text-sm font-medium text-ink">
+                  {copy.currency}
+                </span>
                 <select
                   name="currency"
                   defaultValue={data.proposal.currency}
@@ -135,7 +199,9 @@ export default async function ProposalBuilderPage({
                 </select>
               </label>
               <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">Summary</span>
+                <span className="text-sm font-medium text-ink">
+                  {copy.summary}
+                </span>
                 <textarea
                   name="summary"
                   defaultValue={data.proposal.summary}
@@ -144,7 +210,9 @@ export default async function ProposalBuilderPage({
                 />
               </label>
               <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">Scope</span>
+                <span className="text-sm font-medium text-ink">
+                  {copy.scope}
+                </span>
                 <textarea
                   name="scope"
                   defaultValue={data.proposal.scope}
@@ -153,7 +221,9 @@ export default async function ProposalBuilderPage({
                 />
               </label>
               <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">Next step</span>
+                <span className="text-sm font-medium text-ink">
+                  {copy.nextStep}
+                </span>
                 <textarea
                   name="nextStep"
                   defaultValue={data.proposal.nextStep}
@@ -166,8 +236,11 @@ export default async function ProposalBuilderPage({
 
           <section className="rounded-md border border-border bg-white p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-ink">
-              Selected opportunities
+              {copy.opportunities}
             </h2>
+            {data.opportunities.length === 0 && (
+              <p className="mt-3 text-sm text-muted">{copy.noOpportunities}</p>
+            )}
             <div className="mt-4 space-y-4">
               {data.opportunities.map((opportunity) => (
                 <OpportunitySelection
@@ -177,8 +250,9 @@ export default async function ProposalBuilderPage({
                   selectedServiceId={
                     data.lineItemsByOpportunityId.get(opportunity.id)
                       ?.agencyServiceId ??
-                    opportunity.agencyServiceId ??
-                    activeServices[0]?.id ??
+                    activeServices.find(
+                      (service) => service.id === opportunity.agencyServiceId,
+                    )?.id ??
                     ""
                   }
                   selected={data.lineItemsByOpportunityId.has(opportunity.id)}
@@ -199,31 +273,32 @@ export default async function ProposalBuilderPage({
                     data.aiInsightsByOpportunityId.get(opportunity.id)
                       ?.salesSummary ?? null
                   }
+                  copy={copy}
                 />
               ))}
             </div>
           </section>
 
           <section className="rounded-md border border-border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">Discount</h2>
+            <h2 className="text-lg font-semibold text-ink">{copy.discount}</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label>
                 <span className="text-sm font-medium text-ink">
-                  Discount type
+                  {copy.discountType}
                 </span>
                 <select
                   name="discountType"
                   defaultValue={data.proposal.discountType}
                   className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
                 >
-                  <option value="none">None</option>
-                  <option value="fixed">Fixed amount</option>
-                  <option value="percentage">Percentage</option>
+                  <option value="none">{copy.none}</option>
+                  <option value="fixed">{copy.fixed}</option>
+                  <option value="percentage">{copy.percentage}</option>
                 </select>
               </label>
               <label>
                 <span className="text-sm font-medium text-ink">
-                  Discount value
+                  {copy.discountValue}
                 </span>
                 <input
                   name="discountValue"
@@ -235,13 +310,13 @@ export default async function ProposalBuilderPage({
           </section>
 
           <PendingSubmitButton
-            label="Save proposal"
-            pendingLabel="Saving..."
+            label={copy.save}
+            pendingLabel={copy.saving}
             className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
           />
         </div>
 
-        <ProposalPreview data={data} />
+        <ProposalPreview data={data} copy={copy} />
       </form>
     </div>
   );
@@ -252,11 +327,15 @@ function DeliverySnapshotPanel({
   shareLinks,
   proposalStatus,
   createSnapshotAction,
+  copy,
+  locale,
 }: {
   snapshots: ProposalDeliverySnapshot[];
   shareLinks: ProposalShareLinkMetadata[];
   proposalStatus: string;
   createSnapshotAction: () => Promise<void>;
+  copy: ProposalCopy;
+  locale: Locale;
 }) {
   const activeSnapshot = snapshots.find(
     (snapshot) => snapshot.status === "active",
@@ -266,15 +345,15 @@ function DeliverySnapshotPanel({
     <section className="rounded-md border border-border bg-white p-6 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-lg font-semibold text-ink">Delivery snapshots</h2>
+          <h2 className="text-lg font-semibold text-ink">{copy.delivery}</h2>
           <p className="mt-1 max-w-2xl text-sm text-muted">
-            Create an immutable delivery record from the current ready proposal.
+            {copy.deliveryDescription}
           </p>
         </div>
         <form action={createSnapshotAction}>
           <PendingSubmitButton
-            label="Create delivery snapshot"
-            pendingLabel="Creating snapshot..."
+            label={copy.prepare}
+            pendingLabel={copy.preparing}
             className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
             disabled={proposalStatus !== "ready"}
           />
@@ -282,18 +361,22 @@ function DeliverySnapshotPanel({
       </div>
 
       {proposalStatus !== "ready" ? (
-        <p className="mt-3 text-sm text-muted">
-          Mark the proposal ready before creating a delivery snapshot.
-        </p>
+        <p className="mt-3 text-sm text-muted">{copy.readyRequired}</p>
       ) : null}
 
       {activeSnapshot ? (
         <div className="mt-4 rounded-md border border-border p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <p className="text-sm font-semibold text-ink">Current snapshot</p>
-            <DownloadPdfLink snapshot={activeSnapshot} />
+            <p className="text-sm font-semibold text-ink">
+              {copy.currentVersion}
+            </p>
+            <DownloadPdfLink snapshot={activeSnapshot} copy={copy} />
           </div>
-          <SnapshotSummary snapshot={activeSnapshot} />
+          <SnapshotSummary
+            snapshot={activeSnapshot}
+            copy={copy}
+            locale={locale}
+          />
           <ShareLinkControls
             snapshotId={activeSnapshot.id}
             activeLink={findUsableActiveShareLink(
@@ -303,14 +386,14 @@ function DeliverySnapshotPanel({
           />
         </div>
       ) : (
-        <p className="mt-4 text-sm text-muted">
-          No delivery snapshot exists yet.
-        </p>
+        <p className="mt-4 text-sm text-muted">{copy.noVersion}</p>
       )}
 
       {snapshots.length > 1 ? (
         <div className="mt-4">
-          <p className="text-sm font-semibold text-ink">Snapshot history</p>
+          <p className="text-sm font-semibold text-ink">
+            {copy.versionHistory}
+          </p>
           <div className="mt-2 space-y-2">
             {snapshots
               .filter((snapshot) => snapshot.status !== "active")
@@ -320,8 +403,12 @@ function DeliverySnapshotPanel({
                   className="rounded-md border border-border p-3"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <SnapshotSummary snapshot={snapshot} />
-                    <DownloadPdfLink snapshot={snapshot} />
+                    <SnapshotSummary
+                      snapshot={snapshot}
+                      copy={copy}
+                      locale={locale}
+                    />
+                    <DownloadPdfLink snapshot={snapshot} copy={copy} />
                   </div>
                   <ShareLinkControls
                     snapshotId={snapshot.id}
@@ -339,26 +426,50 @@ function DeliverySnapshotPanel({
   );
 }
 
-function DownloadPdfLink({ snapshot }: { snapshot: ProposalDeliverySnapshot }) {
+function DownloadPdfLink({
+  snapshot,
+  copy,
+}: {
+  snapshot: ProposalDeliverySnapshot;
+  copy: ProposalCopy;
+}) {
   return (
     <PendingDownloadLink
       href={`/api/proposal-delivery-snapshots/${snapshot.id}/pdf`}
-      label="Download PDF"
-      pendingLabel="Preparing PDF..."
+      label={copy.download}
+      pendingLabel={copy.downloading}
       className="rounded-md border border-border bg-white px-3 py-2 text-xs font-semibold text-ink"
     />
   );
 }
 
-function SnapshotSummary({ snapshot }: { snapshot: ProposalDeliverySnapshot }) {
+function SnapshotSummary({
+  snapshot,
+  copy,
+  locale,
+}: {
+  snapshot: ProposalDeliverySnapshot;
+  copy: ProposalCopy;
+  locale: Locale;
+}) {
   return (
     <div className="mt-2 grid gap-2 text-sm text-muted md:grid-cols-4">
-      <span>Status: {snapshot.status}</span>
-      <span>Created: {new Date(snapshot.createdAt).toLocaleDateString()}</span>
       <span>
-        Total: {snapshot.currency} {snapshot.total.toFixed(2)}
+        {copy.status}:{" "}
+        {snapshot.status === "active" ? copy.active : copy.archived}
       </span>
-      <span>Line items: {snapshot.lineItems.length}</span>
+      <span>
+        {copy.created}: {formatInterfaceDate(snapshot.createdAt, locale)}
+      </span>
+      <span>
+        {copy.total}:{" "}
+        <bdi dir="ltr">
+          {snapshot.currency} {snapshot.total.toFixed(2)}
+        </bdi>
+      </span>
+      <span>
+        {copy.lineItems}: {snapshot.lineItems.length}
+      </span>
     </div>
   );
 }
@@ -388,6 +499,7 @@ function OpportunitySelection({
   quantity,
   description,
   aiSummary,
+  copy,
 }: {
   opportunity: Opportunity;
   services: AgencyService[];
@@ -397,6 +509,7 @@ function OpportunitySelection({
   quantity: number;
   description: string;
   aiSummary: string | null;
+  copy: ProposalCopy;
 }) {
   return (
     <div className="rounded-md border border-border p-4">
@@ -407,14 +520,15 @@ function OpportunitySelection({
             name="opportunityId"
             value={opportunity.id}
             defaultChecked={selected}
+            disabled={services.length === 0 && !selected}
             className="mt-1"
           />
           <span>
             <span className="block text-sm font-semibold text-ink">
-              {opportunity.title}
+              <bdi>{opportunity.title}</bdi>
             </span>
             <span className="mt-1 block text-xs text-muted">
-              {opportunity.shortDescription}
+              <bdi>{opportunity.shortDescription}</bdi>
             </span>
           </span>
         </label>
@@ -428,36 +542,54 @@ function OpportunitySelection({
         </div>
       </div>
 
-      <ul className="mt-3 space-y-1 text-xs text-muted">
+      <p className="mt-3 text-xs text-muted">{copy.evidenceScope}</p>
+      <ul className="mt-2 space-y-1 text-xs text-muted">
         {opportunity.evidence.map((item, index) => (
           <li key={`${opportunity.id}-${item.signal}-${index}`}>
-            {item.details} Signal: {item.signal}; observed{" "}
-            {formatEvidenceValue(item.observed_value)}; scope {item.scope}.
+            <bdi>{item.details}</bdi>{" "}
+            <bdi dir="ltr">
+              ({item.signal}: {formatEvidenceValue(item.observed_value)};{" "}
+              {item.scope})
+            </bdi>
           </li>
         ))}
       </ul>
 
       {aiSummary ? (
-        <p className="mt-3 text-xs text-muted">AI sales insight: {aiSummary}</p>
+        <p className="mt-3 text-xs text-muted">
+          {copy.aiInsight}: <bdi>{aiSummary}</bdi>
+        </p>
       ) : null}
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         <label className="md:col-span-3">
-          <span className="text-xs font-medium text-ink">Service</span>
+          <span className="text-xs font-medium text-ink">{copy.service}</span>
           <select
             name={`serviceId:${opportunity.id}`}
             defaultValue={selectedServiceId}
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
           >
+            <option value="">{copy.chooseService}</option>
+            {selectedServiceId &&
+              !services.some((service) => service.id === selectedServiceId) && (
+                <option value={selectedServiceId} disabled>
+                  {copy.unavailableService}
+                </option>
+              )}
             {services.map((service) => (
               <option key={service.id} value={service.id}>
                 {service.name}
               </option>
             ))}
           </select>
+          {!opportunity.agencyServiceId && !selected && (
+            <span className="mt-2 block text-xs text-muted">
+              {copy.unmatched}
+            </span>
+          )}
         </label>
         <label>
-          <span className="text-xs font-medium text-ink">Quantity</span>
+          <span className="text-xs font-medium text-ink">{copy.quantity}</span>
           <input
             name={`quantity:${opportunity.id}`}
             defaultValue={String(quantity)}
@@ -465,15 +597,16 @@ function OpportunitySelection({
           />
         </label>
         <label>
-          <span className="text-xs font-medium text-ink">Unit price</span>
+          <span className="text-xs font-medium text-ink">{copy.unitPrice}</span>
           <input
             name={`unitPrice:${opportunity.id}`}
+            inputMode="decimal"
             defaultValue={unitPrice.toFixed(2)}
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
           />
         </label>
         <label>
-          <span className="text-xs font-medium text-ink">Line note</span>
+          <span className="text-xs font-medium text-ink">{copy.lineNote}</span>
           <input
             name={`description:${opportunity.id}`}
             defaultValue={description}
@@ -487,32 +620,45 @@ function OpportunitySelection({
 
 function ProposalPreview({
   data,
+  copy,
 }: {
   data: Awaited<ReturnType<typeof getProposalBuilderData>>;
+  copy: ProposalCopy;
 }) {
   const lineItems = [...data.lineItemsByOpportunityId.values()].sort(
     (left, right) => left.position - right.position,
   );
 
   return (
-    <aside className="space-y-4 rounded-md border border-border bg-white p-6 shadow-sm lg:sticky lg:top-6">
+    <aside className="min-w-0 space-y-4 self-start rounded-md border border-border bg-white p-6 shadow-sm lg:sticky lg:top-6">
       <div>
         <p className="text-xs font-semibold uppercase text-muted">
-          Authenticated preview
+          {copy.savedPreview}
         </p>
         <h2 className="mt-2 text-xl font-semibold text-ink">
-          {data.proposal.title}
+          <bdi>{data.proposal.title}</bdi>
         </h2>
-        <p className="mt-1 text-sm text-muted">{data.prospect.businessName}</p>
+        <p className="mt-1 text-sm text-muted">
+          <bdi>{data.prospect.businessName}</bdi>
+        </p>
+        <p className="mt-2 text-xs text-muted">{copy.savedPreviewNote}</p>
       </div>
 
-      <PreviewBlock label="Summary" value={data.proposal.summary} />
-      <PreviewBlock label="Scope" value={data.proposal.scope} />
+      <PreviewBlock
+        label={copy.summary}
+        value={data.proposal.summary}
+        empty={copy.emptySummary}
+      />
+      <PreviewBlock
+        label={copy.scope}
+        value={data.proposal.scope}
+        empty={copy.emptyScope}
+      />
 
       <div>
-        <p className="text-sm font-semibold text-ink">Selected work</p>
+        <p className="text-sm font-semibold text-ink">{copy.selectedWork}</p>
         {lineItems.length === 0 ? (
-          <p className="mt-1 text-sm text-muted">No line items selected.</p>
+          <p className="mt-1 text-sm text-muted">{copy.noLines}</p>
         ) : (
           <div className="mt-2 space-y-3">
             {lineItems.map((item) => (
@@ -537,37 +683,47 @@ function ProposalPreview({
 
       <div className="space-y-2 border-t border-border pt-4 text-sm">
         <PriceRow
-          label="Subtotal"
+          label={copy.subtotal}
           currency={data.proposal.currency}
           value={data.proposal.subtotal}
         />
         <PriceRow
-          label="Discount"
+          label={copy.discount}
           currency={data.proposal.currency}
           value={data.proposal.discountAmount}
         />
         <PriceRow
-          label="Total"
+          label={copy.total}
           currency={data.proposal.currency}
           value={data.proposal.total}
           strong
         />
       </div>
 
-      <PreviewBlock label="Next step" value={data.proposal.nextStep} />
+      <PreviewBlock label={copy.nextStep} value={data.proposal.nextStep} />
     </aside>
   );
 }
 
-function PreviewBlock({ label, value }: { label: string; value: string }) {
-  if (!value.trim()) {
+function PreviewBlock({
+  label,
+  value,
+  empty,
+}: {
+  label: string;
+  value: string;
+  empty?: string;
+}) {
+  if (!value.trim() && !empty) {
     return null;
   }
 
   return (
     <div>
       <p className="text-sm font-semibold text-ink">{label}</p>
-      <p className="mt-1 whitespace-pre-wrap text-sm text-muted">{value}</p>
+      <p dir="auto" className="mt-1 whitespace-pre-wrap text-sm text-muted">
+        {value.trim() ? value : empty}
+      </p>
     </div>
   );
 }
@@ -588,7 +744,10 @@ function PriceRow({
       <span className={strong ? "font-semibold text-ink" : "text-muted"}>
         {label}
       </span>
-      <span className={strong ? "font-semibold text-ink" : "text-ink"}>
+      <span
+        dir="ltr"
+        className={strong ? "font-semibold text-ink" : "text-ink"}
+      >
         {currency} {value.toFixed(2)}
       </span>
     </div>
@@ -599,9 +758,9 @@ function getDefaultServicePrice(
   opportunity: Opportunity,
   services: AgencyService[],
 ) {
-  const service =
-    services.find((item) => item.id === opportunity.agencyServiceId) ??
-    services[0];
+  const service = services.find(
+    (item) => item.id === opportunity.agencyServiceId,
+  );
 
   return service?.price ?? 0;
 }

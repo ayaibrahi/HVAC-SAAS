@@ -7,6 +7,7 @@ import { DashboardOverview } from "@/features/dashboard/components/dashboard-ove
 import type { DashboardOverviewData } from "@/features/dashboard/types";
 
 vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
   usePathname: () => "/dashboard/proposals/123",
 }));
 const empty: DashboardOverviewData = {

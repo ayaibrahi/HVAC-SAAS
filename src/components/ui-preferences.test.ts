@@ -13,6 +13,7 @@ import { arabic } from "@/lib/i18n/dictionaries";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard/proposals/123",
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 function render(
   child: ReturnType<typeof createElement>,
