@@ -6,93 +6,129 @@ import type {
 } from "@/features/opportunities/types";
 
 type ServiceMatchProfile = {
-  keywords: string[];
+  phrases: string[];
+  exclusionTopics: string[];
+  exactNames?: string[];
 };
 
+// Capabilities, not shared marketing vocabulary. Generic conversion work belongs
+// to lead capture; specialized findings need an explicit corresponding scope.
 const serviceMatchProfiles: Record<OpportunityRuleKey, ServiceMatchProfile> = {
   missing_online_booking: {
-    keywords: [
+    phrases: [
       "online booking",
       "booking integration",
-      "booking",
-      "scheduling",
-      "schedule",
-      "appointment",
+      "booking landing page",
+      "appointment scheduling",
+      "appointment booking",
+      "scheduling integration",
     ],
+    exclusionTopics: ["booking", "scheduling", "appointments"],
   },
   weak_emergency_conversion: {
-    keywords: [
-      "emergency",
-      "emergency landing",
-      "landing page",
-      "cta",
-      "conversion",
+    phrases: [
+      "emergency hvac landing page",
+      "emergency landing page",
+      "emergency service page",
+      "emergency cta",
+      "emergency ctas",
+      "emergency call to action",
+      "emergency service messaging",
+      "emergency messaging",
     ],
+    exclusionTopics: ["emergency"],
   },
   financing_visibility: {
-    keywords: [
-      "financing",
-      "finance",
-      "payment plan",
-      "monthly payment",
-      "conversion section",
+    phrases: [
+      "financing conversion section",
+      "financing section",
+      "financing sections",
+      "financing information",
+      "financing page",
+      "financing pages",
+      "financing visibility",
+      "financing messaging",
+      "payment plan content",
+      "payment plan page",
+      "payment plan pages",
+      "payment plan section",
+      "payment plan sections",
     ],
+    exclusionTopics: ["financing", "payment plan", "payment plans"],
   },
   maintenance_plan_visibility: {
-    keywords: [
+    phrases: [
+      "maintenance plan landing page",
+      "maintenance plan page",
+      "maintenance plan pages",
+      "maintenance plan promotion",
+      "maintenance plan messaging",
+      "membership landing page",
+      "membership page",
+      "membership pages",
+      "membership promotion",
+      "service plan landing page",
+    ],
+    exclusionTopics: [
       "maintenance plan",
-      "service plan",
+      "maintenance plans",
       "membership",
-      "maintenance",
-      "landing page",
-      "conversion section",
+      "memberships",
     ],
   },
   service_area_local_seo: {
-    keywords: [
-      "service area",
+    phrases: [
+      "service area page",
+      "service area pages",
+      "service area information",
       "areas served",
       "location page",
-      "area page",
+      "location pages",
       "local seo",
-      "seo",
+    ],
+    exclusionTopics: [
+      "service area",
+      "service areas",
+      "location pages",
+      "local seo",
     ],
   },
   hvac_service_visibility: {
-    keywords: [
+    phrases: [
       "service page",
       "service pages",
-      "hvac service",
-      "landing page",
-      "local seo",
-      "seo",
+      "service navigation",
+      "service link",
+      "service links",
     ],
+    exclusionTopics: ["service page", "service pages", "service links"],
   },
   weak_lead_capture: {
-    keywords: [
-      "conversion optimization",
+    phrases: [
+      "website conversion optimization",
+      "mobile conversion optimization",
+      "landing page conversion optimization",
       "lead capture",
-      "cta",
+      "cta redesign",
+      "cta design",
+      "call to action",
       "contact form",
-      "form",
-      "conversion",
-      "redesign",
+      "contact forms",
+      "website redesign",
+    ],
+    exactNames: ["conversion optimization", "conversion rate optimization"],
+    exclusionTopics: [
+      "contact form",
+      "contact forms",
+      "cta",
+      "ctas",
+      "call to action",
+      "lead capture",
+      "conversion optimization",
+      "website redesign",
     ],
   },
 };
-
-const genericStopWords = new Set([
-  "and",
-  "cta",
-  "for",
-  "hvac",
-  "page",
-  "pages",
-  "section",
-  "service",
-  "services",
-  "the",
-]);
 
 export function mapOpportunitiesToServices(input: {
   opportunities: OpportunityDraft[];
@@ -117,13 +153,15 @@ export function mapOpportunityToAgencyService(
       service,
       score: scoreServiceMatch(opportunity, service),
     }))
-    .filter((candidate) => candidate.score >= 3)
+    .filter((candidate) => candidate.score > 0)
     .sort((left, right) => {
       if (right.score !== left.score) {
         return right.score - left.score;
       }
 
-      const nameComparison = left.service.name.localeCompare(right.service.name);
+      const nameComparison = left.service.name.localeCompare(
+        right.service.name,
+      );
 
       return nameComparison === 0
         ? left.service.id.localeCompare(right.service.id)
@@ -140,39 +178,43 @@ function scoreServiceMatch(
   const profile = serviceMatchProfiles[opportunity.ruleKey];
   const name = normalizeSearchText(service.name);
   const description = normalizeSearchText(service.description ?? "");
+  if (
+    hasScopeExclusion(name, profile) ||
+    hasScopeExclusion(description, profile)
+  )
+    return 0;
+
+  // Do not accumulate weak/repeated words. A named capability outranks one in
+  // the description, and the canonical category only breaks already-valid ties.
+  const named = profile.phrases.some((phrase) => hasPhrase(name, phrase));
+  const described = profile.phrases.some((phrase) =>
+    hasPhrase(description, phrase),
+  );
+  if (!named && !described && !profile.exactNames?.includes(name)) return 0;
   const category = normalizeSearchText(opportunity.recommendedServiceCategory);
-  const categoryTerms = category
-    .split(" ")
-    .filter((term) => term.length > 3 && !genericStopWords.has(term));
-  let score = 0;
+  return (
+    (named ? 100 : profile.exactNames?.includes(name) ? 80 : 50) +
+    (hasPhrase(name, category) ? 20 : 0)
+  );
+}
 
-  if (name.includes(category)) {
-    score += 8;
-  }
+function hasPhrase(text: string, phrase: string) {
+  return ` ${text} `.includes(` ${phrase} `);
+}
 
-  for (const keyword of profile.keywords.map(normalizeSearchText)) {
-    if (name.includes(keyword)) {
-      score += 5;
-    }
-
-    if (description.includes(keyword)) {
-      score += 2;
-    }
-  }
-
-  for (const term of categoryTerms) {
-    if (name.includes(term)) {
-      score += 1;
-    }
-
-    if (description.includes(term)) {
-      score += 1;
-    }
-  }
-
-  return score;
+function hasScopeExclusion(text: string, profile: ServiceMatchProfile) {
+  // Finite English scope exclusions, not a claim to parse arbitrary prose.
+  // Topic proximity avoids treating "booking with no monthly fees" as excluded.
+  return profile.exclusionTopics.some((topic) =>
+    new RegExp(
+      `\\b(?:no|not|without|except|exclude[sd]?|excluding) (?:[a-z]+ ){0,3}${topic}\\b|\\b${topic} (?:[a-z]+ ){0,3}(?:not included|not offered|not supported|excluded)\\b`,
+    ).test(text),
+  );
 }
 
 function normalizeSearchText(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
