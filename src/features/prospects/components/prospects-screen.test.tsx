@@ -156,7 +156,7 @@ describe("simplified prospects presentation", () => {
     expect(html).toContain(`href="/dashboard/prospects/${id}/edit"`);
     expect(html).toContain("Delete this business?");
   });
-  it("keeps the existing proposal destination and exposes creation only as a secondary action", () => {
+  it("resumes an existing draft without a second creation action", () => {
     const data = workspace();
     data.proposals = [
       { id: "existing", title: "Existing saved draft", status: "draft" },
@@ -164,9 +164,40 @@ describe("simplified prospects presentation", () => {
     const html = render(data);
     expect(html).toContain('href="/dashboard/proposals/existing"');
     expect(html).toContain("Open proposal draft");
-    expect(html.indexOf("Prepare proposal")).toBeGreaterThan(
-      html.indexOf("Business options"),
+    expect(html).not.toContain("Prepare proposal");
+    expect(html.indexOf("Open proposal draft")).toBeLessThan(
+      html.indexOf("data-finding"),
     );
+  });
+  it("shows exactly one creation action above findings, including without a mapped service", () => {
+    const html = render(workspace());
+    expect(html.match(/>Prepare proposal</g)).toHaveLength(1);
+    expect(html.indexOf("Prepare proposal")).toBeLessThan(
+      html.indexOf("data-finding"),
+    );
+    expect(html).toContain("Start an empty draft");
+    expect(html).toContain('name="auditId" value="audit"');
+  });
+  it("prefers a saved draft over a newer ready proposal and labels ready proposals honestly", () => {
+    const data = workspace();
+    data.proposals = [
+      { id: "ready", title: "Ready", status: "ready" },
+      { id: "draft", title: "Draft", status: "draft" },
+    ];
+    expect(render(data)).toContain(
+      'class="button-primary" href="/dashboard/proposals/draft"',
+    );
+    data.proposals.pop();
+    const html = render(data);
+    expect(html).toContain("Open saved proposal");
+    expect(html).not.toContain("Open proposal draft");
+  });
+  it("does not offer creation without findings, but keeps an existing draft accessible", () => {
+    const data = workspace();
+    data.opportunities = [];
+    expect(render(data)).not.toContain("Prepare proposal");
+    data.proposals = [{ id: "saved", title: "Saved", status: "draft" }];
+    expect(render(data)).toContain("Open proposal draft");
   });
   it("preserves page, search and selected record in inline links", () => {
     const data = workspace();

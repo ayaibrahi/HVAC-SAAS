@@ -24,6 +24,8 @@ export function ProspectDetails({
   const { prospect, scan, opportunities, services, insights, proposals } = data;
   const completed = scan?.status === "completed";
   const active = scanIsActive(scan);
+  const existingProposal =
+    proposals.find((proposal) => proposal.status === "draft") ?? proposals[0];
   const [checkedEmpty, setCheckedEmpty] = useState(false);
   function finding(item: (typeof opportunities)[number]) {
     return (
@@ -53,7 +55,7 @@ export function ProspectDetails({
       path={`/api/audits/${scan.id}/opportunities`}
       label={opportunities.length ? t.pRefreshFindings : t.pViewOpportunities}
       pendingLabel={t.pReviewing}
-      primary={!opportunities.length && !checkedEmpty}
+      primary={!opportunities.length && !checkedEmpty && !existingProposal}
       expectFindings
       onEmpty={() => setCheckedEmpty(true)}
       icon={<SearchCheck size={16} aria-hidden="true" />}
@@ -66,11 +68,7 @@ export function ProspectDetails({
       <PendingSubmitButton
         label={t.pPrepare}
         pendingLabel={t.pPreparing}
-        className={
-          opportunities.length && !proposals.length
-            ? "button-primary"
-            : "button-secondary"
-        }
+        className="button-primary"
       />
     </form>
   );
@@ -93,6 +91,25 @@ export function ProspectDetails({
       ) : (
         <section aria-label={t.pOpportunities}>
           <p className="text-sm text-muted">{t.pOnePageScanned}</p>
+          {(existingProposal || opportunities.length > 0) && (
+            <div className="my-5 space-y-2">
+              {existingProposal ? (
+                <Link
+                  href={`/dashboard/proposals/${existingProposal.id}`}
+                  className="button-primary"
+                >
+                  {existingProposal.status === "draft"
+                    ? t.pContinue
+                    : t.pOpenProposal}
+                </Link>
+              ) : (
+                proposalControl
+              )}
+              <p className="max-w-xl text-xs leading-relaxed text-muted">
+                {existingProposal ? t.pResumeProposalHelp : t.pPrepareHelp}
+              </p>
+            </div>
+          )}
           {opportunities.length ? (
             <>
               <h3 className="mt-5 text-sm font-semibold">
@@ -108,18 +125,6 @@ export function ProspectDetails({
                   {opportunities.slice(3).map(finding)}
                 </details>
               )}
-              <div className="mt-5">
-                {proposals.length ? (
-                  <Link
-                    href={`/dashboard/proposals/${proposals[0].id}`}
-                    className="button-primary"
-                  >
-                    {t.pContinue}
-                  </Link>
-                ) : (
-                  proposalControl
-                )}
-              </div>
             </>
           ) : (
             <div className="space-y-3">
@@ -150,9 +155,6 @@ export function ProspectDetails({
             {completed &&
               (opportunities.length > 0 || checkedEmpty) &&
               findingsControl}
-            {completed &&
-              (!opportunities.length || proposals.length > 0) &&
-              proposalControl}
           </div>
           {proposals.length > 0 && (
             <div>

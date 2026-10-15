@@ -1,4 +1,12 @@
 export const prospectEnglish = {
+  pOpenProposal: "Open saved proposal",
+  pPrepareHelp:
+    "Start an empty draft, then select opportunities, choose your services and confirm prices in the proposal editor.",
+  pResumeProposalHelp:
+    "Continue the saved proposal with its original scan, selections and prices.",
+  pProposalLoadError: "We couldn't open this proposal workspace",
+  pProposalRecovery:
+    "Return to saved proposals to check whether your draft was created before trying again. No creation or AI action is retried here.",
   pSavedBusinesses: "Saved businesses",
   pResults: "Website results",
   pWebsiteEntry: "Website to scan",
@@ -137,6 +145,14 @@ export const prospectEnglish = {
 };
 
 export const prospectArabic: Record<keyof typeof prospectEnglish, string> = {
+  pOpenProposal: "افتح العرض المحفوظ",
+  pPrepareHelp:
+    "ابدأ مسودة فارغة، ثم حدّد الفرص واختر خدماتك وأكّد الأسعار في محرّر العرض.",
+  pResumeProposalHelp:
+    "تابع العرض المحفوظ بفحصه الأصلي واختياراته وأسعاره المحفوظة.",
+  pProposalLoadError: "تعذّر فتح مساحة عروض الخدمات",
+  pProposalRecovery:
+    "ارجع إلى العروض المحفوظة للتحقق من إنشاء مسودتك قبل المحاولة مجددًا. لن تُعاد محاولة الإنشاء أو الذكاء الاصطناعي هنا.",
   pSavedBusinesses: "الأنشطة المحفوظة",
   pResults: "نتائج الموقع",
   pWebsiteEntry: "الموقع المطلوب فحصه",
