@@ -1,7 +1,7 @@
 import type { ProposalAiInput } from "@/features/proposals/ai/types";
 import { buildProposalCopyOptions } from "../sales-content";
 
-export const PROPOSAL_DRAFT_PROMPT_VERSION = "v3";
+export const PROPOSAL_DRAFT_PROMPT_VERSION = "v4";
 
 export const PROPOSAL_DRAFT_SYSTEM_PROMPT = [
   "You are drafting internal proposal content for an HVAC agency.",
@@ -14,6 +14,7 @@ export const PROPOSAL_DRAFT_SYSTEM_PROMPT = [
   "Existing AI insights are not additional evidence: do not repeat website-wide absence claims such as 'the website currently lacks'. Only describe non-detection on the analyzed page, and phrase potential benefits conditionally.",
   "Draft concise client-facing proposal content. Keep wording cautious and evidence-grounded.",
   "The server supplies approvedCopyOptions for the observation, business relevance, selected service, scope to confirm and next step narrative.",
+  "Approved wording is not approved implementation scope. Catalog descriptions are general capabilities, not client commitments. Preserve all missing-scope placeholders and agency-confirmation notices.",
   "Choose exactly one complete string from each corresponding approvedCopyOptions field. Copy it verbatim; do not add, paraphrase, combine or remove text.",
   "Do not invent deliverables, dates, deadlines, credentials, testimonials, qualifications, warranties, meeting links or contact details. Pricing is maintained separately by the agency.",
   "Return only valid JSON matching the provided schema.",

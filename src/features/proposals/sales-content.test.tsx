@@ -25,14 +25,12 @@ describe("sales-focused content from controlled Page B", () => {
     expect(copy.summary).toContain(data.prospect.businessName);
     expect(copy.summary).toContain(data.audit.finalUrl);
     expect(copy.summary).toContain(
-      "No phone number was detected on the analyzed page",
+      "contact or request-service action, phone number, contact link or inquiry form on the analyzed page",
     );
     expect(copy.summary).toContain("can make it easier");
     expect(copy.summary).toContain("Website Conversion Optimization");
     expect(copy.scope).toContain("Scope to confirm together");
-    expect(copy.scope).toContain(
-      [...data.lineItemsByOpportunityId.values()][0].description,
-    );
+    expect(copy.scope).toContain("[Agency to specify included work");
     expect(JSON.stringify(copy)).not.toMatch(
       /Online Booking Integration|Emergency HVAC Landing Page|\$500|USD|testimonial|award-winning|guaranteed/i,
     );

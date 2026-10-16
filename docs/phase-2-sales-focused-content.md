@@ -33,10 +33,13 @@ not declared resolved. Proceed only with isolated local development, no deployme
 ## Existing model, new content
 
 Use only existing `summary`, `scope`, `nextStep` and selected line descriptions.
-Summary holds client opening, analyzed URL, canonical observations, conditional
-business relevance and selected service. Scope quotes the active catalog's service
-focus and any explicitly saved line description; unconfigured implementation
-deliverables and schedule remain to be agreed. Prices/quantities/discounts remain
+Summary holds client opening, analyzed URL, plain-language canonical observations,
+conditional business relevance and selected-service relevance. After the commercial
+refinement, Scope no longer copies the catalog description. It carries an explicitly
+saved line description for review, or a missing-deliverables placeholder. A saved
+description identical to the catalog capability text is treated as unspecified
+scope, not an approved commitment. Deliverables and schedule remain to be agreed.
+Prices/quantities/discounts remain
 in existing line items and totals. Next step asks for a review, not an invented
 meeting link, deadline or commitment. No serialized hidden sections or migration.
 
@@ -47,7 +50,8 @@ rewritten, and existing immutable snapshots are never regenerated automatically.
 
 ## AI boundary
 
-Prompt v3 retains the strict three-string output schema and provider architecture.
+Prompt v4 (original implementation: v3) retains the strict three-string output
+schema and provider architecture.
 AI selects complete wording from server-built options, not unrestricted new prose.
 Runtime membership checks reject even plausible invented wording, deliverables,
 credentials, prices and metrics, in addition to the existing safety filters.
@@ -76,7 +80,7 @@ English; UI copy remains English/Arabic. No new Arabic PDF support is claimed.
 Local tests and sample only: no scans, provider requests, database writes,
 migrations, public links or deployments. Phase 3 PDF visual design is untouched.
 
-## Final verification
+## Original implementation verification
 
 Final local checks on 2026-10-17 (Cairo):
 
@@ -142,7 +146,61 @@ Screenshots and the viewer live outside Git in the local visualization directory
 Request approval before any push/deployment or live provider request. After an
 authorized Preview release, verify a dedicated test agency's saved selections,
 suggestion editing, save/reopen, pricing, Ready transition and delivery using
-only separately authorized test data. Verify Groq v3 compliance separately;
+only separately authorized test data. Verify Groq v4 compliance separately;
 mocked output success is not proof of live model adherence to verbatim choices.
 No database migration, dependency, environment change or paid fallback is needed.
 Resolve or independently triage the Supabase health label before broader rollout.
+
+## Final commercial refinement
+
+Started clean on the same feature branch at
+`06c22f62c7ab26bef3c875c3ae20fd0db8e37dd0`; master is unchanged. The prior review
+identified diagnostic jargon, repeated absence statements, a generic service
+explanation and no defined work supporting the illustrative price.
+
+- The four verified Page B contact facts become one plain-language observation.
+  Only observed false/zero signals are included; unknown facts are not filled in.
+  Canonical stored evidence and ranking are not modified.
+- Summary explains customer contact friction conditionally and why the selected
+  service is relevant. It does not promise implementation or a financial outcome.
+- Scope distinguishes agency-entered work from catalog capability. Missing work
+  receives an explicit placeholder, not fabricated actions. English/Arabic editor
+  guidance asks for work, exclusions, client inputs and completion checks.
+- The illustrative Customer Contact Improvement Sprint is manually authored in
+  a test fixture only: four proposed actions, access/approval conditions, explicit
+  exclusions, no completed-work claim, no invented deadline. USD 500 is supplied
+  only by the local fixture. It is not an approved live price or global package.
+- The sample preserves the complete prior version and includes exact runtime
+  examples with/without entered work, the actual two-page PDF extraction and the
+  actual local public HTML visible text. Tests bind sample fields to runtime copy.
+- The existing PDF/share renderers still repeat line descriptions under Services;
+  public table details collapse newlines, while the full Scope preserves them.
+  The PDF scope continues onto page two. Rendered pages were visually inspected;
+  no missing text or overlap was observed. No template/layout change was made.
+- Existing Ready validation checks nonempty narrative, not semantic completeness.
+  Placeholders can still be marked Ready through the existing workflow. A stricter
+  approval/readiness gate requires separate product approval and is NOT introduced.
+  Human review must resolve notices/placeholders before real client delivery.
+
+Local browser verification repeated typed-text and manual 750.55-price preservation,
+AI-disable-on-edit behavior, English/light and Arabic/dark guidance and no horizontal
+overflow. This is a synthetic component test, not live database acceptance. Actual
+local PDF/HTML examples are in the visualization directory, not a public share link.
+Supabase's historical Unhealthy diagnostic remains separate and unresolved.
+
+Final refinement checks on 2026-10-17 (Cairo), all exit 0:
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | PASS |
+| `npm run typecheck` | PASS |
+| `npm run test` | PASS, 86 files / 925 tests (912 existing + 13 new) |
+| `npm run build` | PASS, Next.js 16.3.8, 13/13 static pages |
+| `npm audit --omit=dev` | PASS, 0 vulnerabilities |
+| `git diff --check` | PASS |
+
+Refinement files: `sales-content.ts`, `ai/prompt.ts`, `sales-test-fixtures.ts`,
+`sales-content.test.tsx`, new `commercial-content.test.tsx`, `src/lib/i18n/proposals.ts`
+and these two proposal documentation files. No migrations, dependencies, provider
+transport, pricing, authorization, PDF/share template or persistence changes.
+No live AI, scans, DB writes, push, deployment or environment changes.

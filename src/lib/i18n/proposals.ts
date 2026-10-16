@@ -36,7 +36,7 @@ const english = {
     "AI is optional. Save any edits first, then review generated copy before using it.",
   suggestCopy: "Use suggested draft",
   contentReview:
-    "Based on saved selections. Agency review required: confirm the scope and specific deliverables before delivery. Prices remain in the selected work below.",
+    "Based on saved selections, not an approved implementation package. Specify included work, exclusions, client inputs and completion checks in Scope before delivery. Catalog capabilities are not agreed deliverables. Prices remain in selected work.",
   contentUnavailable:
     "Suggested copy requires saved selections, verified page evidence and relevant active catalog services. Manual editing remains available.",
   suggestionApplied:
@@ -160,7 +160,7 @@ const arabic: ProposalCopy = {
     "الذكاء الاصطناعي اختياري. احفظ تعديلاتك أولًا وراجع النص الناتج قبل استخدامه.",
   suggestCopy: "استخدم المسودة المقترحة",
   contentReview:
-    "استنادًا إلى الاختيارات المحفوظة. مراجعة الوكالة مطلوبة: أكّد النطاق والمخرجات المحددة قبل التسليم. تبقى الأسعار في بنود العمل المختارة أدناه.",
+    "استنادًا إلى الاختيارات المحفوظة، وليس حزمة تنفيذ معتمدة. حدّد في النطاق العمل المشمول والاستثناءات ومتطلبات العميل ومعايير التحقق من الإنجاز قبل التسليم. إمكانات الدليل ليست مخرجات متفقًا عليها. تبقى الأسعار في بنود العمل.",
   contentUnavailable:
     "يتطلب النص المقترح اختيارات محفوظة وأدلة صفحة موثّقة وخدمات نشطة ومناسبة من الدليل. يبقى التحرير اليدوي متاحًا.",
   suggestionApplied:
