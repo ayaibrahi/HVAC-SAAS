@@ -36,7 +36,7 @@ beforeEach(() => {
   >);
 });
 describe("audit verification lifecycle", () => {
-  it.each(["shell", "challenge", "representative"])(
+  it.each(["shell", "challenge", "access-notice", "representative"])(
     "persists a safe %s result without any opportunity generation",
     async (name) => {
       const html = readFileSync(

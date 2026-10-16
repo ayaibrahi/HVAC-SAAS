@@ -24,9 +24,10 @@ export function assessContentQuality(
   const title = document.title ?? "";
   // Check interstitial identity, not an ordinary business mention of security/cookies.
   if (
-    /^(?:just a moment|access denied|attention required|verify (?:you|your)|robot check|security check|enable javascript|before you continue|consent required)/i.test(
-      title.trim(),
-    ) ||
+    isAccessNoticeIdentity(title) ||
+    document.h1.some((heading) => isAccessNoticeIdentity(heading.text)) ||
+    isPrimaryAccessNotice(document.mainText) ||
+    isPrimaryAccessNotice(withoutLeadingHeading(document)) ||
     /(?:cf-chl-|challenge-platform|id\s*=\s*["'](?:challenge-form|px-captcha))/i.test(
       fetch.html,
     ) ||
@@ -36,6 +37,7 @@ export function assessContentQuality(
   )
     reasons.push("challenge");
   if (
+    document.incompleteMarkup ||
     (/<html\b/i.test(fetch.html) && !/<\/html\s*>/i.test(fetch.html)) ||
     (/<body\b/i.test(fetch.html) && !/<\/body\s*>/i.test(fetch.html))
   )
@@ -56,6 +58,28 @@ export function assessContentQuality(
     reasons,
     visibleCharacters: document.mainText.length,
   };
+}
+
+function isAccessNoticeIdentity(value: string) {
+  // Page identity, not a keyword anywhere in ordinary HVAC/security copy.
+  return /^(?:(?:error|http)\s*[:\-]?\s*)?(?:just a moment\b|access (?:denied|blocked|restricted)\b|attention required\b|verify (?:you|your)\b|robot check\b|security check\b|enable javascript\b|before you continue\b|consent required\b|request (?:unavailable|blocked|rejected|denied|not allowed)\b|(?:authentication|authorization|permission|log\s*in|sign[ -]?in) required\b|(?:403\s*)?forbidden\b|automated (?:traffic|requests?) (?:blocked|denied)\b)/i.test(
+    value.trim(),
+  );
+}
+
+function isPrimaryAccessNotice(value: string) {
+  // Strong first-person access outcomes near the start of representative body
+  // copy. Length alone cannot turn an edge/auth notice into business evidence.
+  return /^(?:[^.!?]{0,100}[.!?]\s*)?(?:you (?:do not|don't) have permission to access\b|your (?:request|access) (?:has been |was |is )?(?:blocked|denied|rejected)\b|(?:the |this )?(?:page|resource) you requested (?:has not been|was not|cannot be) (?:provided|supplied|accessed)\b|(?:please )?(?:sign in|log in|authenticate) to (?:access|view|continue to) (?:this|the requested)\b)/i.test(
+    value.trim(),
+  );
+}
+
+function withoutLeadingHeading(document: ParsedHtmlDocument) {
+  const heading = document.h1[0]?.text;
+  return heading && document.mainText.startsWith(heading)
+    ? document.mainText.slice(heading.length).trim()
+    : document.mainText;
 }
 
 export function hasVerifiedPageContent(

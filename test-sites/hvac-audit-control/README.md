@@ -46,13 +46,16 @@ npm run test -- src/features/audits/analyzer/controlled-site.test.ts
 These tests inject synthetic DNS and HTTP responses into the real `safeFetchHtml`,
 then use the real parser, normalized detector, content gate, HVAC rules, matching
 and ranking. They neither contact the synthetic addresses nor write any database.
-Seven characterization tests deliberately demonstrate current accuracy limitations.
-Their passing assertions confirm a reproducible defect/limitation, NOT product
-acceptance. See `docs/controlled-audit-accuracy-validation.md` for the PASS/FAIL matrix.
+The original seven characterization cases now include five corrected regressions
+(whitespace, hidden controls, social substrings, access notices, and broken-fragment
+uncertainty). Two still document static limitations: hydration and complete-looking
+partial documents. Those two are NOT accuracy passes. See
+`docs/controlled-audit-reliability-remediation.md` for the updated matrix.
 
-Conventional closing tags on Page A keep the baseline reproducible. A separate test
-changes only closing-tag whitespace and exposes the existing regex parser defect.
-It must not be omitted from accuracy reporting or mistaken for a resolved bug.
+The pages themselves are unchanged. A separate regression changes only legal
+closing-tag whitespace and now verifies preserved link ownership and evidence.
+Manifest signal schema advances to 1.1.0 because ambiguous booking can be null
+(unknown); canonical A/B values, CTA counts and rule expectations are unchanged.
 
 ## Free HTTPS Publishing, After Separate Approval
 

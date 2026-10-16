@@ -4,10 +4,11 @@
   "scope": "analyzed_page",
   "verticalKey": "hvac",
   "playbookVersion": "1.0.0",
-  "signalSchemaVersion": "1.0.0",
+  "signalSchemaVersion": "1.1.0",
   "classificationSemantics": {
     "true": "detected_in_delivered_html",
     "false": "not_detected_on_analyzed_page",
+    "nullBooking": "booking_markup_present_but_static_path_unverified",
     "insufficientQuality": "unknown_for_opportunity_generation"
   },
   "testOrigin": "https://fixture.example",
@@ -94,8 +95,8 @@
   ],
   "unsafeInferenceConditions": [
     "Shell, thin, recognized challenge, HTTP failure, partial response, incomplete HTML or unsupported media: do not generate opportunities.",
-    "Hybrid hydrated content, hidden/responsive controls, unrecognized interstitials, misleading keyword substrings and broken booking links require human verification; current heuristics cannot reliably classify all of them.",
+    "Hybrid hydrated content, CSS-dependent responsive controls and unrecognized interstitials still require human verification; current heuristics cannot reliably classify all of them.",
     "A detected link is not proof that a target page or integration works.",
-    "Legal whitespace before a closing-tag bracket is not reliably parsed. Tests characterize missed or merged links; Page A deliberately uses conventional anchor closing tags, with this limitation reported separately."
+    "Legal closing-tag whitespace, generic social substrings, reproduced access notices and explicitly hidden controls have corrected regressions. Broken same-page booking anchors are unknown. Canonical page expectations are unchanged; only signal schema version advances for nullable booking uncertainty."
   ]
 }

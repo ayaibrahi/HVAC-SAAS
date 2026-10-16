@@ -375,27 +375,31 @@ describe("fixture-grounded content reliability", () => {
   });
 });
 
-// These characterization checks intentionally expose current limitations; a
-// passing assertion below is NOT a passing product-accuracy outcome. See report.
-describe("documented static-scanner limitations (not acceptance passes)", () => {
-  it("legal whitespace in closing tags can merge separate anchors and misattribute booking evidence", async () => {
+describe("corrected reliability defects and explicit remaining limitations", () => {
+  it("preserves legal closing whitespace and associates each control with its own text", async () => {
     const formatted = positive.replaceAll("</a>", "</a\n>");
     const document = parseHtmlDocument(formatted, `${baseUrl}index.html`);
-    expect(document.anchors).toEqual([]);
+    expect(document.anchors.map((link) => link.href)).toContain(
+      `${baseUrl}index.html#appointment`,
+    );
     const signals = await inspect(formatted);
     expect(signals.quality?.status).toBe("sufficient");
-    expect(signals.hvac.onlineBooking.value).toBe(false);
-    expect(
-      evaluate(signals).some(
-        (item) => item.ruleKey === "missing_online_booking",
-      ),
-    ).toBe(true);
+    expect(signals.hvac.onlineBooking.value).toBe(true);
+    expect(evaluate(signals)).toEqual([]);
     const partiallyFormatted = positive.replace(
       ">(202) 555-0147</a>",
       ">(202) 555-0147</a\n>",
     );
     const mixed = await inspect(partiallyFormatted);
-    expect(mixed.hvac.onlineBooking.evidence[0]?.url).toBe("tel:+12025550147");
+    expect(mixed.hvac.onlineBooking.evidence[0]?.url).toBe(
+      `${baseUrl}index.html#appointment`,
+    );
+    expect(mixed.contactConversion.phoneDetected.evidence).toContainEqual(
+      expect.objectContaining({
+        url: "tel:+12025550147",
+        snippet: expect.not.stringContaining("Schedule"),
+      }),
+    );
   });
 
   it("hybrid hydration: sufficient static copy cannot establish absence in later-rendered content", async () => {
@@ -410,42 +414,43 @@ describe("documented static-scanner limitations (not acceptance passes)", () => 
     expect(evaluate(signals)).toHaveLength(3);
   });
 
-  it("hidden controls: static markup does not prove visible contact paths", async () => {
+  it("does not promote explicitly hidden controls into static contact/booking evidence", async () => {
     const signals = await inspect(
       inject(
         absence,
         '<div hidden><a href="tel:+12025550147">Call</a><a href="/book">Schedule</a><p>Emergency HVAC service</p></div>',
       ),
     );
-    expect(signals.hvac.onlineBooking.value).toBe(true);
-    expect(signals.contactConversion.phoneDetected.value).toBe(true);
-    expect(signals.hvac.emergencyService.value).toBe(true);
-    expect(evaluate(signals)).toEqual([]);
+    expect(signals.hvac.onlineBooking.value).toBe(false);
+    expect(signals.contactConversion.phoneDetected.value).toBe(false);
+    expect(signals.hvac.emergencyService.value).toBe(false);
+    expect(evaluate(signals)).toHaveLength(3);
   });
 
-  it("Facebook substring is currently mistaken for booking evidence", async () => {
+  it("does not mistake a Facebook profile URL for booking evidence", async () => {
     const signals = await inspect(
       inject(
         absence,
         '<a href="https://www.facebook.com/fictional-qa-only">Social updates</a>',
       ),
     );
-    expect(signals.hvac.onlineBooking.value).toBe(true);
-    expect(signals.contactConversion.ctaCount.value).toBe(1);
+    expect(signals.hvac.onlineBooking.value).toBe(false);
+    expect(signals.contactConversion.ctaCount.value).toBe(0);
     expect(
       evaluate(signals).some(
         (item) => item.ruleKey === "missing_online_booking",
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("broken appointment fragment: link evidence does not establish a usable destination", async () => {
+  it("treats a broken appointment fragment as unknown, never a verified or missing booking path", async () => {
     const broken = positive
       .replace('href="#appointment"', 'href="#missing-target"')
       .replace('id="appointment"', 'id="other-section"');
     expect(broken).not.toContain('id="missing-target"');
     const signals = await inspect(broken);
-    expect(signals.hvac.onlineBooking.value).toBe(true);
+    expect(signals.hvac.onlineBooking.value).toBeNull();
+    expect(signals.hvac.onlineBooking.confidence).toBe("low");
     expect(evaluate(signals)).toEqual([]);
   });
 
@@ -459,11 +464,14 @@ describe("documented static-scanner limitations (not acceptance passes)", () => 
     expect(evaluate(signals)).toHaveLength(3);
   });
 
-  it("unrecognized substantial access interstitial can evade the finite challenge signatures", async () => {
-    const html =
-      "<html><head><title>Request unavailable</title></head><body><main><h1>Request unavailable</h1><p>The edge service is unable to provide the requested resource. This response describes access rules rather than the requested business. An automated request may receive different content from an ordinary browser. The page you requested has not been supplied in this response. Please review your access permissions and the site operator's restrictions before making any further request. Do not treat this notice as the requested organization's homepage.</p></main></body></html>";
+  it("rejects the reproduced substantial access notice before generating opportunities", async () => {
+    const html = readFileSync(
+      new URL("./fixtures/access-notice.html", import.meta.url),
+      "utf8",
+    );
     const signals = await inspect(html);
-    expect(signals.quality?.status).toBe("sufficient");
-    expect(evaluate(signals)).toHaveLength(5);
+    expect(signals.quality?.status).toBe("insufficient");
+    expect(signals.quality?.reasons).toContain("challenge");
+    expect(evaluate(signals)).toEqual([]);
   });
 });

@@ -1,5 +1,11 @@
 # Controlled Audit Accuracy Validation
 
+Historical baseline at `25eb75208843a04c8e0ad341a61e259f650dc9a4`: the observations
+and counts below record the original validation, not the current corrected engine.
+See [the subsequent remediation and updated matrix](controlled-audit-reliability-remediation.md)
+for fixes, current tests, signal schema 1.1.0, and remaining limitations. The original
+false-positive/negative results are retained here for traceability, not acceptance.
+
 ## A. Repository Recovery
 
 No recovery was required. Started clean on `feature/scanvoro-phase-b-simplified`

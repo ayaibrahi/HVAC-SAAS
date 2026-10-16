@@ -9,7 +9,7 @@ import {
 import type { SafeFetchResult } from "@/features/audits/analyzer/safe-fetch";
 import { assessContentQuality, type ContentQuality } from "./content-quality";
 
-export const auditSignalSchemaVersion = "1.0.0";
+export const auditSignalSchemaVersion = "1.1.0";
 
 export type SignalConfidence = "high" | "medium" | "low";
 
@@ -60,7 +60,7 @@ export type NormalizedAuditSignals = {
     contactLinkDetected: AuditSignal<boolean>;
     contactFormDetected: AuditSignal<boolean>;
     ctaCount: AuditSignal<number>;
-    bookingLinkDetected: AuditSignal<boolean>;
+    bookingLinkDetected: AuditSignal<boolean | null>;
     estimateLinkDetected: AuditSignal<boolean>;
   };
   hvac: {
@@ -72,7 +72,7 @@ export type NormalizedAuditSignals = {
       detected: boolean;
       services: string[];
     }>;
-    onlineBooking: AuditSignal<boolean>;
+    onlineBooking: AuditSignal<boolean | null>;
     requestEstimate: AuditSignal<boolean>;
   };
 };
@@ -112,7 +112,7 @@ export function extractNormalizedAuditSignals(input: {
   );
   const contactLinkEvidence = findLinkEvidence(
     document.anchors,
-    /(contact|contact-us|get-in-touch)/i,
+    /\b(?:contact|contact us|get in touch)\b/i,
     "Contact link",
   );
   const contactFormEvidence = findFormEvidence(document.forms);
@@ -122,26 +122,54 @@ export function extractNormalizedAuditSignals(input: {
     document.inputs,
   );
   const bookingEvidence = [
-    ...findLinkEvidence(
-      document.anchors,
-      /(book|booking|schedule|appointment)/i,
-      "Booking or scheduling link",
-    ),
-    ...document.buttons
-      .filter((button) =>
-        /(book|booking|schedule|appointment)/i.test(
-          `${button.text} ${button.attrs["aria-label"] ?? ""} ${button.attrs.title ?? ""}`,
+    ...document.anchors
+      .filter(isBookingLink)
+      .slice(0, 5)
+      .map((link) =>
+        evidence(
+          "link",
+          "Booking or scheduling link detected in static HTML; destination functionality is not tested.",
+          link.text || link.href!,
+          link.href,
         ),
+      ),
+    ...document.buttons
+      .filter(
+        (button) =>
+          !Object.hasOwn(button.attrs, "disabled") &&
+          bookingIntent.test(controlLabel(button)),
       )
       .slice(0, 5)
       .map((button) =>
         evidence(
           "button",
-          "Booking or scheduling control detected.",
+          "Booking or scheduling control detected in static HTML; rendered visibility is not assessed.",
           button.text || button.attrs["aria-label"],
         ),
       ),
   ];
+  const uncertainBooking =
+    bookingEvidence.length === 0 &&
+    (document.anchors.some(
+      (link) =>
+        bookingHint.test(link.text) || bookingPath.test(linkRoute(link)),
+    ) ||
+      document.buttons.some((button) =>
+        bookingHint.test(controlLabel(button)),
+      ));
+  const bookingSignal = uncertainBooking
+    ? signal<boolean | null>(
+        null,
+        "Online booking",
+        [
+          evidence(
+            "analysis",
+            "Booking-related markup was present, but a usable static booking control could not be established. This is unknown, not confirmed absence.",
+          ),
+        ],
+        "low",
+      )
+    : booleanPatternSignal(bookingEvidence, "Online booking");
   const estimateEvidence = findLinkEvidence(
     document.anchors,
     /(estimate|quote)/i,
@@ -296,10 +324,7 @@ export function extractNormalizedAuditSignals(input: {
         "CTA-like links and buttons",
         ctaEvidence,
       ),
-      bookingLinkDetected: booleanPatternSignal(
-        bookingEvidence,
-        "Booking link",
-      ),
+      bookingLinkDetected: bookingSignal,
       estimateLinkDetected: booleanPatternSignal(
         estimateEvidence,
         "Quote or estimate link",
@@ -334,7 +359,7 @@ export function extractNormalizedAuditSignals(input: {
             ],
         hvacServiceEvidence.length > 0 ? "high" : "medium",
       ),
-      onlineBooking: booleanPatternSignal(bookingEvidence, "Online booking"),
+      onlineBooking: bookingSignal,
       requestEstimate: booleanPatternSignal(
         estimateEvidence,
         "Request estimate",
@@ -427,7 +452,9 @@ function findPatternEvidence(text: string, pattern: RegExp, label: string) {
 
 function findLinkEvidence(links: HtmlLink[], pattern: RegExp, detail: string) {
   return links
-    .filter((link) => pattern.test(`${link.text} ${link.href ?? ""}`))
+    .filter((link) =>
+      pattern.test(`${link.text} ${linkRoute(link).replace(/[-_/]/g, " ")}`),
+    )
     .slice(0, 5)
     .map((link) =>
       evidence("link", detail, link.text || (link.href ?? ""), link.href),
@@ -467,11 +494,16 @@ function findCtaEvidence(
   inputs: HtmlElement[],
 ) {
   const ctaPattern =
-    /(call|book|schedule|appointment|contact|get started|request|quote|estimate|free estimate|learn more)/i;
+    /\b(?:call|contact|get started|request|quote|estimate|free estimate|learn more)\b/i;
   const linkEvidence = links
     .filter(
       (link) =>
-        ctaPattern.test(`${link.text} ${link.href ?? ""}`) ||
+        (link.href !== null &&
+          link.localTargetFound !== false &&
+          (ctaPattern.test(
+            `${link.text} ${linkRoute(link).replace(/[-_/]/g, " ")}`,
+          ) ||
+            isBookingLink(link))) ||
         /^tel:/i.test(link.href ?? ""),
     )
     .slice(0, 8)
@@ -484,18 +516,26 @@ function findCtaEvidence(
       ),
     );
   const buttonEvidence = buttons
-    .filter((button) =>
-      ctaPattern.test(
-        `${button.text} ${button.attrs["aria-label"] ?? ""} ${button.attrs.title ?? ""}`,
-      ),
+    .filter(
+      (button) =>
+        !Object.hasOwn(button.attrs, "disabled") &&
+        (bookingIntent.test(controlLabel(button)) ||
+          ctaPattern.test(
+            `${button.text} ${button.attrs["aria-label"] ?? ""} ${button.attrs.title ?? ""}`,
+          )),
     )
     .slice(0, 5)
     .map((button) =>
       evidence("button", "CTA-like button detected.", button.text),
     );
   const inputEvidence = inputs
-    .filter((input) =>
-      ctaPattern.test(`${input.attrs.value ?? ""} ${input.attrs.type ?? ""}`),
+    .filter(
+      (input) =>
+        !Object.hasOwn(input.attrs, "disabled") &&
+        (bookingIntent.test(input.attrs.value ?? "") ||
+          ctaPattern.test(
+            `${input.attrs.value ?? ""} ${input.attrs.type ?? ""}`,
+          )),
     )
     .slice(0, 5)
     .map((input) =>
@@ -503,6 +543,36 @@ function findCtaEvidence(
     );
 
   return [...linkEvidence, ...buttonEvidence, ...inputEvidence];
+}
+
+const bookingIntent =
+  /\b(?:(?:book|schedule)\s+(?:now|online)|book\s+(?:(?:a|an|your|my|the)\s+)?(?:free\s+)?(?:appointment|visit|service|repair|consultation)|(?:schedule|request|make|arrange)\s+(?:(?:a|an|your|my|the)\s+)?(?:free\s+)?(?:appointment|visit|service|repair|consultation)|online booking|booking (?:request|form)|appointment (?:booking|scheduling|request))\b/i;
+const bookingHint = /\b(?:book|booking|schedule|scheduling|appointments?)\b/i;
+const bookingPath =
+  /(?:^|[/#])(?:book|booking|schedule|scheduling|appointments?)(?:$|[/#_.-])/i;
+
+function controlLabel(control: HtmlElement) {
+  return `${control.text} ${control.attrs["aria-label"] ?? ""} ${control.attrs.title ?? ""}`;
+}
+
+function linkRoute(link: HtmlLink) {
+  try {
+    const url = new URL(link.href ?? "");
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return decodeURIComponent(`${url.pathname}${url.hash}`);
+  } catch {
+    return "";
+  }
+}
+
+function isBookingLink(link: HtmlLink) {
+  const route = linkRoute(link);
+  return (
+    route.length > 0 &&
+    link.localTargetFound !== false &&
+    (bookingIntent.test(link.text) ||
+      (link.sameOrigin && bookingPath.test(route)))
+  );
 }
 
 function findHvacServiceLinkEvidence(links: HtmlLink[]) {
