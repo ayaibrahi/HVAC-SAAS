@@ -63,4 +63,25 @@ describe("proposal AI safety", () => {
 
     expect(issues).toContain("out-of-scope or unsupported service reference");
   });
+
+  it.each([
+    "Our award-winning team has served thousands of satisfied customers.",
+    "Clients say we are the best agency in town.",
+    "Our certified technicians have decades of experience.",
+    "We include an online booking integration and emergency landing page.",
+    "We deliver a new contact form within seven days.",
+    "The investment is 500 dollars with a thirty percent return.",
+    "The website has no phone or booking anywhere.",
+    "Guaranteed results with a lifetime warranty.",
+    "Schedule at https://invented.example/meeting before Friday.",
+    "Financing information is completely absent from the business.",
+    "Here is otherwise plausible but unsupported extra wording.",
+  ])("rejects unsupported additions in EVERY output field: %s", (claim) => {
+    for (const field of ["summary", "scope", "nextStep"] as const) {
+      const draft = makeProposalAiDraft({ [field]: claim });
+      expect(() =>
+        assertProposalAiDraftIsSafe(draft, makeProposalAiInput()),
+      ).toThrow();
+    }
+  });
 });

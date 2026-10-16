@@ -34,6 +34,17 @@ const english = {
     "Select services and save the draft before generating copy. Manual editing is always available.",
   aiOptional:
     "AI is optional. Save any edits first, then review generated copy before using it.",
+  suggestCopy: "Use suggested draft",
+  contentReview:
+    "Based on saved selections. Agency review required: confirm the scope and specific deliverables before delivery. Prices remain in the selected work below.",
+  contentUnavailable:
+    "Suggested copy requires saved selections, verified page evidence and relevant active catalog services. Manual editing remains available.",
+  suggestionApplied:
+    "Suggested copy added to empty fields only. Review, edit and save when ready.",
+  aiPreserve:
+    "Saved text is preserved. Edit it manually; AI generation requires an empty Draft.",
+  saveBeforeAi:
+    "Save your current edits before requesting AI copy. Unsaved text and selections are not replaced.",
   noServices:
     "Add at least one active service before selecting proposal opportunities.",
   manageServices: "Open service catalog",
@@ -57,7 +68,7 @@ const english = {
     "No matching catalog service was suggested. Choose a relevant service explicitly before selecting this opportunity.",
   quantity: "Quantity",
   unitPrice: "Unit price",
-  lineNote: "Line note",
+  lineNote: "Service scope and deliverables",
   aiInsight: "AI sales insight",
   evidenceScope:
     "Evidence from the analyzed page only; not a claim about the whole business.",
@@ -147,6 +158,17 @@ const arabic: ProposalCopy = {
     "اختر الخدمات واحفظ المسودة قبل إنشاء النص. يمكنك دائمًا التحرير يدويًا.",
   aiOptional:
     "الذكاء الاصطناعي اختياري. احفظ تعديلاتك أولًا وراجع النص الناتج قبل استخدامه.",
+  suggestCopy: "استخدم المسودة المقترحة",
+  contentReview:
+    "استنادًا إلى الاختيارات المحفوظة. مراجعة الوكالة مطلوبة: أكّد النطاق والمخرجات المحددة قبل التسليم. تبقى الأسعار في بنود العمل المختارة أدناه.",
+  contentUnavailable:
+    "يتطلب النص المقترح اختيارات محفوظة وأدلة صفحة موثّقة وخدمات نشطة ومناسبة من الدليل. يبقى التحرير اليدوي متاحًا.",
+  suggestionApplied:
+    "أُضيف النص المقترح إلى الحقول الفارغة فقط. راجعه وعدّله واحفظه عندما تكون جاهزًا.",
+  aiPreserve:
+    "يُحفظ النص السابق دون استبدال. عدّله يدويًا؛ يتطلب إنشاء نص بالذكاء الاصطناعي مسودة فارغة.",
+  saveBeforeAi:
+    "احفظ تعديلاتك الحالية قبل طلب نص بالذكاء الاصطناعي. لا تُستبدل النصوص والاختيارات غير المحفوظة.",
   noServices: "أضف خدمة نشطة واحدة على الأقل قبل اختيار فرص العرض.",
   manageServices: "افتح دليل الخدمات",
   details: "تفاصيل العرض",
@@ -169,7 +191,7 @@ const arabic: ProposalCopy = {
     "لم تُقترح خدمة مناسبة من الدليل. اختر خدمة مناسبة بنفسك قبل اختيار هذه الفرصة.",
   quantity: "الكمية",
   unitPrice: "سعر الوحدة",
-  lineNote: "ملاحظة البند",
+  lineNote: "نطاق الخدمة ومخرجاتها",
   aiInsight: "رؤية بيعية بالذكاء الاصطناعي",
   evidenceScope:
     "أدلة الصفحة التي تم فحصها فقط، وليست حكمًا على النشاط بأكمله.",

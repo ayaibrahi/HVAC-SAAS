@@ -9,6 +9,13 @@ import type {
 } from "@/domain/proposals/types";
 import type { AgencyService } from "@/domain/services/types";
 import { getProposalBuilderData } from "@/features/proposals/data";
+import { getProposalContentSuggestion } from "@/features/proposals/content-suggestion";
+import {
+  ProposalContentFields,
+  ProposalEditingGuard,
+  ProposalEditForm,
+  ProposalAiSubmitButton,
+} from "@/features/proposals/components/content-fields";
 import {
   generateProposalAiDraftAction,
   updateProposalAction,
@@ -51,6 +58,14 @@ export default async function ProposalBuilderPage({
     deliverySnapshots.map((snapshot) => snapshot.id),
   );
   const activeServices = data.services.filter((service) => service.isActive);
+  const suggestion = getProposalContentSuggestion(data);
+  const preserveCopy =
+    data.proposal.status !== "draft" ||
+    Boolean(
+      data.proposal.summary.trim() ||
+      data.proposal.scope.trim() ||
+      data.proposal.nextStep.trim(),
+    );
   const updateAction = updateProposalAction.bind(null, data.proposal.id);
   const generateAction = generateProposalAiDraftAction.bind(
     null,
@@ -62,263 +77,261 @@ export default async function ProposalBuilderPage({
   );
 
   return (
-    <div className="space-y-8" lang={locale} dir={localeDirection(locale)}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link href="/dashboard/proposals" className="text-sm text-muted">
-            {copy.back}
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-ink">
-            {copy.builder}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
-            {copy.forBusiness} <bdi>{data.prospect.businessName}</bdi>.{" "}
-            {copy.sourcePage}:{" "}
-            <bdi dir="ltr">{data.audit.finalUrl ?? data.audit.websiteUrl}</bdi>.
-          </p>
+    <ProposalEditingGuard key={data.proposal.updatedAt}>
+      <div className="space-y-8" lang={locale} dir={localeDirection(locale)}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Link href="/dashboard/proposals" className="text-sm text-muted">
+              {copy.back}
+            </Link>
+            <h1 className="mt-2 text-2xl font-semibold text-ink">
+              {copy.builder}
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-muted">
+              {copy.forBusiness} <bdi>{data.prospect.businessName}</bdi>.{" "}
+              {copy.sourcePage}:{" "}
+              <bdi dir="ltr">
+                {data.audit.finalUrl ?? data.audit.websiteUrl}
+              </bdi>
+              .
+            </p>
+          </div>
+          <form action={generateAction}>
+            <ProposalAiSubmitButton
+              saveFirstLabel={copy.saveBeforeAi}
+              label={copy.generate}
+              pendingLabel={copy.generating}
+              className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={
+                data.lineItemsByOpportunityId.size === 0 ||
+                preserveCopy ||
+                !suggestion
+              }
+            />
+            <p className="mt-2 max-w-sm text-xs text-muted">
+              {preserveCopy
+                ? copy.aiPreserve
+                : data.lineItemsByOpportunityId.size === 0
+                  ? copy.aiSaveFirst
+                  : copy.aiOptional}
+            </p>
+          </form>
         </div>
-        <form action={generateAction}>
-          <PendingSubmitButton
-            label={copy.generate}
-            pendingLabel={copy.generating}
-            className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={data.lineItemsByOpportunityId.size === 0}
-          />
-          <p className="mt-2 max-w-sm text-xs text-muted">
-            {data.lineItemsByOpportunityId.size === 0
-              ? copy.aiSaveFirst
-              : copy.aiOptional}
-          </p>
-        </form>
-      </div>
 
-      <FeedbackMessage error={feedback.error} success={feedback.success} />
+        <FeedbackMessage error={feedback.error} success={feedback.success} />
 
-      <section
-        aria-labelledby="proposal-workflow"
-        className="border-y border-border py-5"
-      >
-        <h2 id="proposal-workflow" className="text-base font-semibold text-ink">
-          {copy.workflow}
-        </h2>
-        <p className="mt-2 text-sm text-muted">
-          {data.proposal.status === "ready"
-            ? copy.readyGuidance
-            : copy.draftGuidance}
-        </p>
-        <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-muted">
-          {[
-            copy.reviewStep,
-            copy.selectStep,
-            copy.priceStep,
-            copy.copyStep,
-            copy.saveStep,
-          ].map((step) => (
-            <li key={step}>{step}</li>
-          ))}
-        </ol>
-        <Link
-          href={`/dashboard/prospects?prospect=${data.prospect.id}#website-results`}
-          className="mt-3 inline-block text-sm font-semibold text-accent hover:underline"
+        <section
+          aria-labelledby="proposal-workflow"
+          className="border-y border-border py-5"
         >
-          {copy.businessResults}
-        </Link>
-        <p className="mt-1 text-xs text-muted">{copy.sourceNote}</p>
-        {data.lineItemsByOpportunityId.size === 0 && (
-          <p className="mt-3 text-sm font-medium text-ink">{copy.emptyDraft}</p>
-        )}
-      </section>
-
-      <DeliverySnapshotPanel
-        snapshots={deliverySnapshots}
-        shareLinks={shareLinks}
-        proposalStatus={data.proposal.status}
-        createSnapshotAction={createSnapshotAction}
-        copy={copy}
-        locale={locale}
-      />
-
-      {activeServices.length === 0 ? (
-        <div className="rounded-md border border-border bg-white p-4 text-sm text-muted">
-          {copy.noServices}{" "}
-          <Link
-            href="/dashboard/services"
-            className="font-semibold text-accent hover:underline"
+          <h2
+            id="proposal-workflow"
+            className="text-base font-semibold text-ink"
           >
-            {copy.manageServices}
+            {copy.workflow}
+          </h2>
+          <p className="mt-2 text-sm text-muted">
+            {data.proposal.status === "ready"
+              ? copy.readyGuidance
+              : copy.draftGuidance}
+          </p>
+          <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-muted">
+            {[
+              copy.reviewStep,
+              copy.selectStep,
+              copy.priceStep,
+              copy.copyStep,
+              copy.saveStep,
+            ].map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+          <Link
+            href={`/dashboard/prospects?prospect=${data.prospect.id}#website-results`}
+            className="mt-3 inline-block text-sm font-semibold text-accent hover:underline"
+          >
+            {copy.businessResults}
           </Link>
-        </div>
-      ) : null}
+          <p className="mt-1 text-xs text-muted">{copy.sourceNote}</p>
+          {data.lineItemsByOpportunityId.size === 0 && (
+            <p className="mt-3 text-sm font-medium text-ink">
+              {copy.emptyDraft}
+            </p>
+          )}
+        </section>
 
-      <form
-        action={updateAction}
-        className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]"
-      >
-        <div className="space-y-6">
-          <section className="rounded-md border border-border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">{copy.details}</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">
-                  {copy.title}
-                </span>
-                <input
-                  name="title"
-                  defaultValue={data.proposal.title}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                  required
-                />
-              </label>
-              <label>
-                <span className="text-sm font-medium text-ink">
-                  {copy.status}
-                </span>
-                <select
-                  name="status"
-                  defaultValue={data.proposal.status}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  <option value="draft">{copy.draft}</option>
-                  <option value="ready">{copy.ready}</option>
-                </select>
-              </label>
-              <label>
-                <span className="text-sm font-medium text-ink">
-                  {copy.currency}
-                </span>
-                <select
-                  name="currency"
-                  defaultValue={data.proposal.currency}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  {["USD", "EUR", "GBP", "CAD", "AUD"].map((currency) => (
-                    <option key={currency} value={currency}>
-                      {currency}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">
-                  {copy.summary}
-                </span>
-                <textarea
-                  name="summary"
-                  defaultValue={data.proposal.summary}
-                  rows={5}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">
-                  {copy.scope}
-                </span>
-                <textarea
-                  name="scope"
-                  defaultValue={data.proposal.scope}
-                  rows={8}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="md:col-span-2">
-                <span className="text-sm font-medium text-ink">
-                  {copy.nextStep}
-                </span>
-                <textarea
-                  name="nextStep"
-                  defaultValue={data.proposal.nextStep}
-                  rows={3}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
-          </section>
+        <DeliverySnapshotPanel
+          snapshots={deliverySnapshots}
+          shareLinks={shareLinks}
+          proposalStatus={data.proposal.status}
+          createSnapshotAction={createSnapshotAction}
+          copy={copy}
+          locale={locale}
+        />
 
-          <section className="rounded-md border border-border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">
-              {copy.opportunities}
-            </h2>
-            {data.opportunities.length === 0 && (
-              <p className="mt-3 text-sm text-muted">{copy.noOpportunities}</p>
-            )}
-            <div className="mt-4 space-y-4">
-              {data.opportunities.map((opportunity) => (
-                <OpportunitySelection
-                  key={opportunity.id}
-                  opportunity={opportunity}
-                  services={activeServices}
-                  selectedServiceId={
-                    data.lineItemsByOpportunityId.get(opportunity.id)
-                      ?.agencyServiceId ??
-                    activeServices.find(
-                      (service) => service.id === opportunity.agencyServiceId,
-                    )?.id ??
-                    ""
-                  }
-                  selected={data.lineItemsByOpportunityId.has(opportunity.id)}
-                  unitPrice={
-                    data.lineItemsByOpportunityId.get(opportunity.id)
-                      ?.unitPrice ??
-                    getDefaultServicePrice(opportunity, activeServices)
-                  }
-                  quantity={
-                    data.lineItemsByOpportunityId.get(opportunity.id)
-                      ?.quantity ?? 1
-                  }
-                  description={
-                    data.lineItemsByOpportunityId.get(opportunity.id)
-                      ?.description ?? ""
-                  }
-                  aiSummary={
-                    data.aiInsightsByOpportunityId.get(opportunity.id)
-                      ?.salesSummary ?? null
-                  }
+        {activeServices.length === 0 ? (
+          <div className="rounded-md border border-border bg-white p-4 text-sm text-muted">
+            {copy.noServices}{" "}
+            <Link
+              href="/dashboard/services"
+              className="font-semibold text-accent hover:underline"
+            >
+              {copy.manageServices}
+            </Link>
+          </div>
+        ) : null}
+
+        <ProposalEditForm
+          action={updateAction}
+          className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]"
+        >
+          <div className="space-y-6">
+            <section className="rounded-md border border-border bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-ink">{copy.details}</h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label className="md:col-span-2">
+                  <span className="text-sm font-medium text-ink">
+                    {copy.title}
+                  </span>
+                  <input
+                    name="title"
+                    defaultValue={data.proposal.title}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                    required
+                  />
+                </label>
+                <label>
+                  <span className="text-sm font-medium text-ink">
+                    {copy.status}
+                  </span>
+                  <select
+                    name="status"
+                    defaultValue={data.proposal.status}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                  >
+                    <option value="draft">{copy.draft}</option>
+                    <option value="ready">{copy.ready}</option>
+                  </select>
+                </label>
+                <label>
+                  <span className="text-sm font-medium text-ink">
+                    {copy.currency}
+                  </span>
+                  <select
+                    name="currency"
+                    defaultValue={data.proposal.currency}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                  >
+                    {["USD", "EUR", "GBP", "CAD", "AUD"].map((currency) => (
+                      <option key={currency} value={currency}>
+                        {currency}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <ProposalContentFields
+                  key={data.proposal.updatedAt}
+                  initial={{
+                    summary: data.proposal.summary,
+                    scope: data.proposal.scope,
+                    nextStep: data.proposal.nextStep,
+                  }}
+                  suggestion={suggestion}
                   copy={copy}
                 />
-              ))}
-            </div>
-          </section>
+              </div>
+            </section>
 
-          <section className="rounded-md border border-border bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-semibold text-ink">{copy.discount}</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <label>
-                <span className="text-sm font-medium text-ink">
-                  {copy.discountType}
-                </span>
-                <select
-                  name="discountType"
-                  defaultValue={data.proposal.discountType}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  <option value="none">{copy.none}</option>
-                  <option value="fixed">{copy.fixed}</option>
-                  <option value="percentage">{copy.percentage}</option>
-                </select>
-              </label>
-              <label>
-                <span className="text-sm font-medium text-ink">
-                  {copy.discountValue}
-                </span>
-                <input
-                  name="discountValue"
-                  defaultValue={data.proposal.discountValue.toFixed(2)}
-                  className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
-          </section>
+            <section className="rounded-md border border-border bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-ink">
+                {copy.opportunities}
+              </h2>
+              {data.opportunities.length === 0 && (
+                <p className="mt-3 text-sm text-muted">
+                  {copy.noOpportunities}
+                </p>
+              )}
+              <div className="mt-4 space-y-4">
+                {data.opportunities.map((opportunity) => (
+                  <OpportunitySelection
+                    key={opportunity.id}
+                    opportunity={opportunity}
+                    services={activeServices}
+                    selectedServiceId={
+                      data.lineItemsByOpportunityId.get(opportunity.id)
+                        ?.agencyServiceId ??
+                      activeServices.find(
+                        (service) => service.id === opportunity.agencyServiceId,
+                      )?.id ??
+                      ""
+                    }
+                    selected={data.lineItemsByOpportunityId.has(opportunity.id)}
+                    unitPrice={
+                      data.lineItemsByOpportunityId.get(opportunity.id)
+                        ?.unitPrice ??
+                      getDefaultServicePrice(opportunity, activeServices)
+                    }
+                    quantity={
+                      data.lineItemsByOpportunityId.get(opportunity.id)
+                        ?.quantity ?? 1
+                    }
+                    description={
+                      data.lineItemsByOpportunityId.get(opportunity.id)
+                        ?.description ?? ""
+                    }
+                    aiSummary={
+                      data.aiInsightsByOpportunityId.get(opportunity.id)
+                        ?.salesSummary ?? null
+                    }
+                    copy={copy}
+                  />
+                ))}
+              </div>
+            </section>
 
-          <PendingSubmitButton
-            label={copy.save}
-            pendingLabel={copy.saving}
-            className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
-          />
-        </div>
+            <section className="rounded-md border border-border bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-semibold text-ink">
+                {copy.discount}
+              </h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <label>
+                  <span className="text-sm font-medium text-ink">
+                    {copy.discountType}
+                  </span>
+                  <select
+                    name="discountType"
+                    defaultValue={data.proposal.discountType}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                  >
+                    <option value="none">{copy.none}</option>
+                    <option value="fixed">{copy.fixed}</option>
+                    <option value="percentage">{copy.percentage}</option>
+                  </select>
+                </label>
+                <label>
+                  <span className="text-sm font-medium text-ink">
+                    {copy.discountValue}
+                  </span>
+                  <input
+                    name="discountValue"
+                    defaultValue={data.proposal.discountValue.toFixed(2)}
+                    className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
+                  />
+                </label>
+              </div>
+            </section>
 
-        <ProposalPreview data={data} copy={copy} />
-      </form>
-    </div>
+            <PendingSubmitButton
+              label={copy.save}
+              pendingLabel={copy.saving}
+              className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            />
+          </div>
+
+          <ProposalPreview data={data} copy={copy} />
+        </ProposalEditForm>
+      </div>
+    </ProposalEditingGuard>
   );
 }
 
@@ -606,11 +619,13 @@ function OpportunitySelection({
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
           />
         </label>
-        <label>
+        <label className="md:col-span-3">
           <span className="text-xs font-medium text-ink">{copy.lineNote}</span>
-          <input
+          <textarea
             name={`description:${opportunity.id}`}
             defaultValue={description}
+            rows={3}
+            maxLength={1000}
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
           />
         </label>

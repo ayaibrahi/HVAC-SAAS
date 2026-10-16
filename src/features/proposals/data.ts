@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { Audit } from "@/domain/audits/types";
+import type { Agency } from "@/domain/agencies/types";
 import type { Opportunity, OpportunityAiInsight } from "@/domain/opportunities/types";
 import type {
   Proposal,
@@ -42,6 +43,7 @@ type ProposalLineItemRow =
   Database["public"]["Tables"]["proposal_line_items"]["Row"];
 
 export type ProposalBuilderData = {
+  agency: Agency;
   proposal: Proposal;
   prospect: Prospect;
   audit: Audit;
@@ -159,6 +161,7 @@ export async function getProposalBuilderData(
   ]);
 
   return {
+    agency,
     proposal: access.proposal,
     prospect: access.prospect,
     audit: access.audit,
@@ -276,16 +279,40 @@ export function createProposalLineItemPayload(preparedLines: PreparedLine[]) {
 
 export async function applyProposalAiDraft(input: {
   proposalId: string;
+  expectedUpdatedAt: string;
   summary: string;
   scope: string;
   nextStep: string;
   metadata: Record<string, Json>;
 }) {
   const { supabase, agency } = await requireCurrentAgency();
-  const proposal = await getProposalForAgency(input.proposalId, agency.id, supabase);
+  const proposal = await getProposalForAgency(
+    input.proposalId,
+    agency.id,
+    supabase,
+  );
 
   if (!proposal) {
     throw new AppError("Proposal not found.", 404);
+  }
+
+  if (proposal.updatedAt !== input.expectedUpdatedAt) {
+    throw new AppError(
+      "The proposal changed during generation. Reload it before requesting new copy; existing text has not been overwritten.",
+      409,
+    );
+  }
+
+  if (
+    proposal.status !== "draft" ||
+    proposal.summary.trim() ||
+    proposal.scope.trim() ||
+    proposal.nextStep.trim()
+  ) {
+    throw new AppError(
+      "Existing proposal text is preserved. Edit it manually, or save an empty draft before requesting new AI copy.",
+      409,
+    );
   }
 
   const admin = createSupabaseAdminClient();
@@ -303,12 +330,18 @@ export async function applyProposalAiDraft(input: {
     })
     .eq("id", proposal.id)
     .eq("agency_id", agency.id)
+    .eq("updated_at", proposal.updatedAt)
     .select("*")
     .single();
 
-  if (error) {
-    throw new AppError("We could not store the generated proposal draft.", 500);
+  if (error?.code === "PGRST116") {
+    throw new AppError(
+      "The proposal may have changed. Reload it before requesting new copy; existing text has not been overwritten.",
+      409,
+    );
   }
+  if (error)
+    throw new AppError("We could not store the generated proposal draft.", 500);
 
   return mapProposal(data);
 }

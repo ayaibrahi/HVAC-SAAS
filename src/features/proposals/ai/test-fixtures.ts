@@ -1,5 +1,6 @@
 import type { ProposalAiInput } from "@/features/proposals/ai/types";
 import type { ProposalAiDraftOutput } from "@/lib/validation/proposal-ai";
+import { buildProposalCopyOptions, firstProposalCopy } from "../sales-content";
 
 export function makeProposalAiInput(
   overrides: Partial<ProposalAiInput> = {},
@@ -75,12 +76,7 @@ export function makeProposalAiDraft(
   overrides: Partial<ProposalAiDraftOutput> = {},
 ): ProposalAiDraftOutput {
   return {
-    summary:
-      "The analyzed page shows an opportunity to make booking clearer for high-intent visitors.",
-    scope:
-      "Use Online Booking Integration to improve the booking path surfaced from the selected page-scoped opportunity.",
-    nextStep:
-      "Review the selected scope and confirm the booking workflow to include in the draft proposal.",
+    ...firstProposalCopy(buildProposalCopyOptions(makeProposalAiInput())),
     ...overrides,
   };
 }

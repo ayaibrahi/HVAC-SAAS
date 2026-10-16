@@ -11,7 +11,7 @@ import {
 } from "@/features/proposals/data";
 import { enforceAgencyUsageLimit } from "@/features/usage/limits";
 import { AiProviderError } from "@/lib/ai/provider-errors";
-import { getPublicErrorMessage } from "@/lib/errors";
+import { AppError, getPublicErrorMessage } from "@/lib/errors";
 import { logger } from "@/lib/logger";
 
 export async function generateProposalAiDraftForProposal(
@@ -20,6 +20,19 @@ export async function generateProposalAiDraftForProposal(
 ) {
   const { agency, user } = await requireCurrentAgency();
   const builderData = await getProposalBuilderData(proposalId);
+  const saved = builderData.proposal;
+  const expectedUpdatedAt = saved.updatedAt;
+  if (
+    saved.status !== "draft" ||
+    saved.summary.trim() ||
+    saved.scope.trim() ||
+    saved.nextStep.trim()
+  ) {
+    throw new AppError(
+      "Existing proposal text is preserved. Edit it manually, or save an empty draft before requesting new AI copy.",
+      409,
+    );
+  }
   const aiInput = createProposalAiInput({ agency, builderData });
 
   await enforceAgencyUsageLimit({
@@ -39,6 +52,7 @@ export async function generateProposalAiDraftForProposal(
 
     const proposal = await applyProposalAiDraft({
       proposalId,
+      expectedUpdatedAt,
       summary: draft.summary,
       scope: draft.scope,
       nextStep: draft.nextStep,

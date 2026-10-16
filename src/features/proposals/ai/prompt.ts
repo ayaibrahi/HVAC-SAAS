@@ -1,6 +1,7 @@
 import type { ProposalAiInput } from "@/features/proposals/ai/types";
+import { buildProposalCopyOptions } from "../sales-content";
 
-export const PROPOSAL_DRAFT_PROMPT_VERSION = "v2";
+export const PROPOSAL_DRAFT_PROMPT_VERSION = "v3";
 
 export const PROPOSAL_DRAFT_SYSTEM_PROMPT = [
   "You are drafting internal proposal content for an HVAC agency.",
@@ -12,13 +13,16 @@ export const PROPOSAL_DRAFT_SYSTEM_PROMPT = [
   "The analyzed URL represents only the analyzed page. Preserve page-scoped language and never claim the business does not offer something across the whole website.",
   "Existing AI insights are not additional evidence: do not repeat website-wide absence claims such as 'the website currently lacks'. Only describe non-detection on the analyzed page, and phrase potential benefits conditionally.",
   "Draft concise client-facing proposal content. Keep wording cautious and evidence-grounded.",
+  "The server supplies approvedCopyOptions for the observation, business relevance, selected service, scope to confirm and next step narrative.",
+  "Choose exactly one complete string from each corresponding approvedCopyOptions field. Copy it verbatim; do not add, paraphrase, combine or remove text.",
+  "Do not invent deliverables, dates, deadlines, credentials, testimonials, qualifications, warranties, meeting links or contact details. Pricing is maintained separately by the agency.",
   "Return only valid JSON matching the provided schema.",
 ].join("\n");
 
 export function buildProposalDraftUserPrompt(input: ProposalAiInput) {
   return JSON.stringify(
     {
-      task: "Draft a proposal summary, scope of work, and next step for the selected opportunities.",
+      task: "Choose the most useful approved client-facing wording for summary, scope, and nextStep. Human review is required before delivery.",
       constraints: {
         evidenceOnly: true,
         pageScope: "analyzed_page",
@@ -28,6 +32,7 @@ export function buildProposalDraftUserPrompt(input: ProposalAiInput) {
         noGuarantees: true,
       },
       input,
+      approvedCopyOptions: buildProposalCopyOptions(input),
     },
     null,
     2,

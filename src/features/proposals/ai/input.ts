@@ -1,4 +1,5 @@
 import type { ProposalAiInput } from "@/features/proposals/ai/types";
+import { isDeepStrictEqual } from "node:util";
 import type { ProposalBuilderData } from "@/features/proposals/data";
 import type { Agency } from "@/domain/agencies/types";
 import type { OpportunityEvidence } from "@/domain/opportunities/types";
@@ -13,12 +14,23 @@ import {
   budgetNullableAiText,
 } from "@/lib/ai/input-budget";
 import { AppError } from "@/lib/errors";
+import {
+  assertProposalAccess,
+  assertProposalSelection,
+} from "../authorization";
+import { assertAuditReadyForOpportunityGeneration } from "@/features/opportunities/authorization";
+import { evaluateHvacOpportunityRules } from "@/features/opportunities/rules/hvac";
+import { mapOpportunityToAgencyService } from "@/features/opportunities/engine/map-services";
 
 export function createProposalAiInput(input: {
   agency: Agency;
   builderData: ProposalBuilderData;
 }): ProposalAiInput {
   const { agency, builderData } = input;
+  assertProposalAccess({ agencyId: agency.id, ...builderData });
+  assertAuditReadyForOpportunityGeneration(builderData.audit, agency.id);
+  const rules = evaluateHvacOpportunityRules({ audit: builderData.audit });
+  const canonicalEvidence = new Map<string, OpportunityEvidence[]>();
   const selectedItems = builderData.opportunities
     .map((opportunity) => {
       const lineItem = builderData.lineItemsByOpportunityId.get(opportunity.id);
@@ -27,40 +39,79 @@ export function createProposalAiInput(input: {
         return null;
       }
 
-      const insight = builderData.aiInsightsByOpportunityId.get(opportunity.id);
+      const service = builderData.services.find(
+        (item) => item.id === lineItem.agencyServiceId,
+      );
+      if (
+        !service ||
+        lineItem.agencyId !== agency.id ||
+        lineItem.proposalId !== builderData.proposal.id ||
+        lineItem.opportunityId !== opportunity.id
+      ) {
+        throw new AppError(
+          "Saved proposal selections need review before drafting.",
+          409,
+        );
+      }
+      assertProposalSelection({
+        agencyId: agency.id,
+        proposal: builderData.proposal,
+        opportunities: [opportunity],
+        services: [service],
+      });
+      const rule = rules.find((item) => item.ruleKey === opportunity.ruleKey);
+      if (
+        !rule ||
+        rule.evidence.length !== opportunity.evidence.length ||
+        !rule.evidence.every((expected) =>
+          opportunity.evidence.some(
+            (e) =>
+              e.signal === expected.signal &&
+              e.scope === expected.scope &&
+              e.source === expected.source &&
+              isDeepStrictEqual(e.observed_value, expected.observed_value),
+          ),
+        )
+      )
+        throw new AppError(
+          "Saved findings no longer agree with verified page evidence. Review the proposal manually.",
+          409,
+        );
+      canonicalEvidence.set(opportunity.id, rule.evidence);
+      if (mapOpportunityToAgencyService(rule, [service]) !== service.id) {
+        throw new AppError(
+          "The selected service scope does not support this finding. Review the service and proposal manually.",
+          422,
+        );
+      }
 
       return {
         opportunityId: opportunity.id,
-        title: opportunity.title,
-        shortDescription: opportunity.shortDescription,
-        businessImpact: opportunity.businessImpact,
+        title: rule.title,
+        shortDescription: rule.shortDescription,
+        businessImpact: rule.businessImpact,
         priority: opportunity.priority,
         confidence: opportunity.confidence,
         evidence: opportunity.evidence,
-        aiInsight:
-          insight?.status === "completed"
-            ? {
-                salesSummary: insight.salesSummary,
-                whyItMatters: insight.whyItMatters,
-                clientFacingExplanation: insight.clientFacingExplanation,
-                agencyTalkingPoints: insight.agencyTalkingPoints,
-                recommendedNextStep: insight.recommendedNextStep,
-              }
-            : null,
+        aiInsight: null,
         service: {
-          id: lineItem.agencyServiceId,
-          name: lineItem.serviceName,
-          description: lineItem.serviceDescription,
+          id: service.id,
+          name: service.name,
+          description: service.description,
+          approvedScope: lineItem.description,
         },
       };
     })
     .filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   if (selectedItems.length === 0) {
-    throw new AppError("Select at least one opportunity before generating proposal content.", 422);
+    throw new AppError(
+      "Select at least one opportunity before generating proposal content.",
+      422,
+    );
   }
 
-  return budgetProposalAiInput({
+  const result = budgetProposalAiInput({
     agency: {
       id: agency.id,
       name: agency.name,
@@ -84,6 +135,12 @@ export function createProposalAiInput(input: {
     },
     selectedItems,
   });
+  // Use the rule's canonical wording only after checking the stored input budget.
+  result.selectedItems = result.selectedItems.map((item) => ({
+    ...item,
+    evidence: canonicalEvidence.get(item.opportunityId)!,
+  }));
+  return budgetProposalAiInput(result);
 }
 
 function budgetProposalAiInput(input: ProposalAiInput): ProposalAiInput {
@@ -217,8 +274,14 @@ function budgetProposalAiInput(input: ProposalAiInput): ProposalAiInput {
         description: budgetNullableAiText(item.service.description, {
           field: `proposal.selectedItems.${index}.service.description`,
           maxLength: AI_INPUT_TEXT_LIMITS.serviceDescription,
-          truncate: true,
         }),
+        approvedScope: budgetNullableAiText(
+          item.service.approvedScope ?? null,
+          {
+            field: `proposal.selectedItems.${index}.service.approvedScope`,
+            maxLength: AI_INPUT_TEXT_LIMITS.serviceDescription,
+          },
+        ),
       },
     })),
   };

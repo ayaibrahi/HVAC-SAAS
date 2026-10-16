@@ -7,6 +7,7 @@ import {
 } from "@/lib/ai/provider-errors";
 import { AppError } from "@/lib/errors";
 import { parseProposalAiDraftOutput } from "@/lib/validation/proposal-ai";
+import { buildProposalCopyOptions } from "../sales-content";
 
 export const defaultProposalAiProviderTimeoutMs = 30_000;
 
@@ -19,6 +20,7 @@ export async function generateValidatedProposalAiDraft(
   } = {},
 ) {
   assertAiSerializedInputWithinBudget("proposal AI payload", input);
+  buildProposalCopyOptions(input);
 
   const maxAttempts = options.maxAttempts ?? 2;
   const attemptTimeoutMs =

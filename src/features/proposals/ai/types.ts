@@ -51,6 +51,7 @@ export type ProposalAiSelectedItem = {
     id: EntityId;
     name: string;
     description: string | null;
+    approvedScope?: string | null;
   };
 };
 
