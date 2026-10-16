@@ -1,52 +1,39 @@
 import type { CurrencyCode } from "@/config/currencies";
+import { formatSnapshotDate, formatSnapshotMoney } from "./format";
+import type { ProposalPdfView } from "./view-model";
 import {
-  formatSnapshotDate,
-  formatSnapshotMoney,
-} from "@/features/proposals/pdf/format";
-import type { ProposalPdfView } from "@/features/proposals/pdf/view-model";
-import { encodePdfText, measurePdfText, wrapPdfText } from "./text";
-
-type PdfFont = "regular" | "bold";
-
-type PdfTextOptions = {
-  size?: number;
-  font?: PdfFont;
-};
-
-type PdfPage = {
-  commands: string[];
-};
+  SimplePdfDocument,
+  pdfAccent,
+  pdfMuted,
+  type PdfTextOptions,
+} from "./document";
+import { fitLogo, ValidatedAgencyLogo } from "./logo";
+import { measurePdfText, wrapPdfText } from "./text";
 
 const pageWidth = 612;
 const pageHeight = 792;
 const margin = 54;
-const bottomMargin = 54;
+const bottomMargin = 78;
 const contentWidth = pageWidth - margin * 2;
 
-export function renderProposalPdf(view: ProposalPdfView) {
-  const pdf = new PdfLayout();
-
-  pdf.text(view.agencyName, { size: 11, font: "bold" });
-  pdf.spacer(10);
-  pdf.text(view.title, { size: 22, font: "bold" });
-  pdf.spacer(8);
-  pdf.rule();
-  pdf.spacer(14);
-  pdf.text(`Prepared for ${view.prospectName}`, { size: 11, font: "bold" });
-
-  if (view.prospectWebsiteUrl) {
-    pdf.text(view.prospectWebsiteUrl, { size: 10 });
-  }
-
-  pdf.text(`Snapshot date: ${formatSnapshotDate(view.snapshotCreatedAt)}`, {
-    size: 10,
-  });
-  pdf.section("Proposal Summary", view.summary);
-  pdf.section("Scope", view.scope);
-  pdf.lineItems(view);
-  pdf.pricing(view);
-  pdf.section("Next Step", view.nextStep);
-
+// Logo support is local-only until snapshot-bound immutable storage is approved.
+// The authenticated download path intentionally supplies only the frozen view.
+export function renderProposalPdf(
+  view: ProposalPdfView,
+  branding?: { agencyId: string; logo?: ValidatedAgencyLogo | null },
+) {
+  const logo =
+    branding && ValidatedAgencyLogo.belongsTo(branding.logo, branding.agencyId)
+      ? branding.logo
+      : null;
+  const pdf = new PdfLayout(view, logo);
+  pdf.cover();
+  pdf.reviewNotice();
+  pdf.section("Executive summary", view.summary);
+  pdf.section("Scope and deliverables", view.scope);
+  pdf.lineItems();
+  pdf.pricing();
+  pdf.section("Next steps", view.nextStep);
   return pdf.render();
 }
 
@@ -58,14 +45,77 @@ class PdfLayout {
   private readonly document = new SimplePdfDocument();
   private y = pageHeight - margin;
 
-  text(text: string, options: PdfTextOptions = {}, width = contentWidth) {
-    const fontSize = options.size ?? 10;
-    const lines = wrapPdfText(text, width, fontSize, options.font);
+  constructor(
+    private readonly view: ProposalPdfView,
+    private readonly logo: ValidatedAgencyLogo | null,
+  ) {}
 
-    for (const line of lines) {
-      this.ensureSpace(fontSize + 4);
-      this.document.text(margin, this.y - fontSize, line, options);
-      this.y -= fontSize + 4;
+  cover() {
+    const top = this.y;
+    if (this.logo) {
+      const box = fitLogo(this.logo.width, this.logo.height);
+      this.document.logo(
+        pageWidth - margin - box.width,
+        top - box.height,
+        box.width,
+        box.height,
+      );
+    }
+    this.text(
+      this.view.agencyName,
+      { size: 18, font: "bold" },
+      this.logo ? 352 : contentWidth,
+    );
+    if (this.logo) this.y = Math.min(this.y, top - 64);
+    this.spacer(6);
+    this.text("SERVICE PROPOSAL", { size: 8, font: "bold", color: pdfAccent });
+    this.spacer(10);
+    this.rule();
+    this.spacer(14);
+    this.text(this.view.title, { size: 22, font: "bold" });
+    this.spacer(8);
+    this.text(`Prepared for ${this.view.prospectName}`, {
+      size: 11,
+      font: "bold",
+    });
+    if (this.view.prospectWebsiteUrl)
+      this.text(this.view.prospectWebsiteUrl, { size: 9, color: pdfMuted });
+    this.text(`Prepared: ${formatSnapshotDate(this.view.snapshotCreatedAt)}`, {
+      size: 9,
+      color: pdfMuted,
+    });
+  }
+
+  reviewNotice() {
+    if (
+      !/SCOPE DRAFT|\[Agency to specify|TEST ONLY|not an approved/iu.test(
+        this.view.title + "\n" + this.view.scope,
+      )
+    )
+      return;
+    this.ensureSpace(58);
+    this.spacer(12);
+    this.document.rectangle(margin, this.y - 34, contentWidth, 34);
+    this.document.text(margin + 10, this.y - 12, "DRAFT / REVIEW CONTENT", {
+      size: 8,
+      font: "bold",
+      color: pdfAccent,
+    });
+    this.document.text(
+      margin + 10,
+      this.y - 25,
+      "Agency approval is required before client delivery.",
+      { size: 9 },
+    );
+    this.y -= 38;
+  }
+
+  text(text: string, options: PdfTextOptions = {}, width = contentWidth) {
+    const size = options.size ?? 10;
+    for (const line of wrapPdfText(text, width, size, options.font)) {
+      this.ensureSpace(size + 4);
+      this.document.text(margin, this.y - size, line, options);
+      this.y -= size + 4;
     }
   }
 
@@ -80,111 +130,152 @@ class PdfLayout {
     this.y -= 8;
   }
 
+  sectionTitle(title: string, bodyHeight = 35) {
+    this.ensureSpace(41 + bodyHeight);
+    this.spacer(18);
+    this.text(title, { size: 13, font: "bold", color: pdfAccent });
+    this.spacer(6);
+  }
+
   section(title: string, body: string) {
-    if (!body.trim()) {
-      return;
-    }
-
-    this.ensureSpace(100);
-    this.spacer(12);
-    this.text(title, { size: 14, font: "bold" });
-    this.spacer(2);
-
-    let firstParagraph = true;
+    if (!body.trim()) return;
+    const firstParagraph =
+      body.split(/\n+/u).find((paragraph) => paragraph.trim()) ?? "";
+    this.sectionTitle(
+      title,
+      Math.min(
+        84,
+        wrapPdfText(firstParagraph, contentWidth, 10).length * 14 + 5,
+      ),
+    );
+    const subheadings =
+      /^(Page reviewed|What we observed|Why this matters|Recommended approach|Recommended solution|Scope to confirm together|Included work proposed for approval:)$/u;
     for (const paragraph of body.split(/\n+/u)) {
-      if (!paragraph.trim()) {
-        continue;
-      }
-
-      const height = wrapPdfText(paragraph, contentWidth, 10).length * 14 + 4;
-      if (!firstParagraph && height <= pageHeight - margin - bottomMargin)
-        this.ensureSpace(height);
-      this.text(paragraph, { size: 10 });
-      this.spacer(4);
-      firstParagraph = false;
+      if (!paragraph.trim()) continue;
+      const heading =
+        subheadings.test(paragraph.trim()) ||
+        /^[^\n]{1,80}:$/u.test(paragraph.trim());
+      const height =
+        wrapPdfText(paragraph, contentWidth, 10, heading ? "bold" : "regular")
+          .length *
+          14 +
+        5;
+      if (height <= 160) this.ensureSpace(height + (heading ? 56 : 0));
+      this.text(
+        paragraph,
+        heading ? { size: 10, font: "bold", color: pdfAccent } : { size: 10 },
+      );
+      this.spacer(5);
     }
   }
 
-  lineItems(view: ProposalPdfView) {
-    const itemHeight = (item: ProposalPdfView["lineItems"][number]) => {
-      const nameLines = wrapPdfText(
-        item.serviceName,
-        contentWidth - 140,
-        11,
-        "bold",
-      ).length;
-      const detailLines =
-        wrapPdfText(item.serviceDescription ?? "", contentWidth, 9).length +
-        wrapPdfText(item.description, contentWidth, 9).length +
-        1;
-      return 24 + nameLines * 15 + detailLines * 13;
-    };
-    this.ensureSpace(
-      Math.min(
-        pageHeight - margin - bottomMargin,
-        32 + (view.lineItems[0] ? itemHeight(view.lineItems[0]) : 64),
-      ),
-    );
-    this.spacer(12);
-    this.text("Services", { size: 14, font: "bold" });
-    this.spacer(2);
-
-    for (const item of view.lineItems) {
-      this.ensureSpace(
-        Math.min(pageHeight - margin - bottomMargin, itemHeight(item)),
-      );
-      this.document.rectangle(margin, this.y - 8, contentWidth, 1);
-      this.y -= 18;
-      const priceTop = this.y;
-      this.text(
-        item.serviceName,
-        { size: 11, font: "bold" },
-        contentWidth - 140,
-      );
-      const price = formatSnapshotMoney(item.lineTotal, view.currency);
+  lineItems() {
+    this.sectionTitle("Selected services");
+    for (const item of this.view.lineItems) {
+      const nameHeight =
+        wrapPdfText(item.serviceName, contentWidth - 150, 11, "bold").length *
+        15;
+      this.ensureSpace(Math.min(200, nameHeight + 70));
+      this.rule();
+      const price = formatSnapshotMoney(item.lineTotal, this.view.currency);
+      // Draw the amount first so unusually long names cannot move it to another page.
       this.document.text(
         pageWidth - margin - measurePdfText(price, 10, "bold"),
-        priceTop - 11,
+        this.y - 11,
         price,
         { size: 10, font: "bold" },
       );
-
-      if (item.serviceDescription) {
-        this.text(item.serviceDescription, { size: 9 });
-      }
-
-      this.text(item.description, { size: 9 });
       this.text(
-        `Quantity ${item.quantity} | Unit ${formatSnapshotMoney(
-          item.unitPrice,
-          view.currency,
-        )}`,
-        { size: 9 },
+        item.serviceName,
+        { size: 11, font: "bold" },
+        contentWidth - 150,
       );
-      this.spacer(6);
+      this.text(
+        `Quantity ${item.quantity} | Unit ${formatSnapshotMoney(item.unitPrice, this.view.currency)}`,
+        { size: 9, color: pdfMuted },
+      );
+      const narrative = this.view.summary + "\n" + this.view.scope;
+      if (item.description.trim()) {
+        if (narrative.includes(item.description.trim())) {
+          this.text("Line description: see the saved narrative above.", {
+            size: 9,
+            color: pdfMuted,
+          });
+        } else {
+          this.text("Agency-entered line description:", {
+            size: 9,
+            font: "bold",
+          });
+          this.text(item.description, { size: 9 });
+        }
+      }
+      if (item.serviceDescription?.trim()) {
+        if (
+          narrative.includes(item.serviceDescription.trim()) ||
+          item.description.includes(item.serviceDescription.trim())
+        ) {
+          this.text(
+            "Catalog capability: see the saved description above; not agreed deliverables.",
+            { size: 9, color: pdfMuted },
+          );
+        } else {
+          this.text("Catalog capability - not agreed deliverables:", {
+            size: 9,
+            font: "bold",
+          });
+          this.text(item.serviceDescription, { size: 9 });
+        }
+      }
+      this.spacer(8);
     }
   }
 
-  pricing(view: ProposalPdfView) {
-    this.ensureSpace(view.pricing.discountAmount > 0 ? 80 : 64);
-    this.spacer(10);
-    this.rule();
-    this.priceRow("Subtotal", view.pricing.subtotal, view.currency);
-
-    if (view.pricing.discountAmount > 0) {
+  pricing() {
+    this.ensureSpace(150);
+    this.sectionTitle("Investment");
+    this.priceRow("Subtotal", this.view.pricing.subtotal, this.view.currency);
+    if (this.view.pricing.discountAmount > 0) {
       const label =
-        view.pricing.discountType === "percentage"
-          ? `Discount (${view.pricing.discountValue.toFixed(2)}%)`
+        this.view.pricing.discountType === "percentage"
+          ? `Discount (${this.view.pricing.discountValue.toFixed(2)}%)`
           : "Discount";
-
-      this.priceRow(label, view.pricing.discountAmount, view.currency);
+      this.priceRow(
+        label,
+        this.view.pricing.discountAmount,
+        this.view.currency,
+      );
     }
-
-    this.priceRow("Total", view.pricing.total, view.currency, true);
+    this.spacer(4);
+    this.document.rectangle(margin, this.y - 28, contentWidth, 28);
+    this.y -= 4;
+    this.priceRow("Total", this.view.pricing.total, this.view.currency, true);
+    this.spacer(8);
   }
 
   render() {
-    return this.document.render();
+    const fullName = this.view.agencyName.replace(/\s+/gu, " ");
+    const footerName = boundedLabel(fullName, 330, 8);
+    return this.document.render(this.logo, (page, total) => {
+      this.document.line(margin, 54, pageWidth - margin, 54);
+      this.document.text(margin, 39, footerName, {
+        size: 8,
+        font: "bold",
+        color: pdfMuted,
+      });
+      this.document.text(
+        margin,
+        26,
+        `Prepared ${formatSnapshotDate(this.view.snapshotCreatedAt)}`,
+        { size: 8, color: pdfMuted },
+      );
+      const label = `Page ${page} of ${total}`;
+      this.document.text(
+        pageWidth - margin - measurePdfText(label, 8),
+        32,
+        label,
+        { size: 8, color: pdfMuted },
+      );
+    });
   }
 
   private priceRow(
@@ -193,145 +284,46 @@ class PdfLayout {
     currency: CurrencyCode,
     strong = false,
   ) {
-    this.ensureSpace(18);
-    this.document.text(pageWidth - margin - 210, this.y - 12, label, {
-      size: strong ? 12 : 10,
+    const size = strong ? 12 : 10;
+    const amount = formatSnapshotMoney(value, currency);
+    this.document.text(margin + (strong ? 10 : 0), this.y - 12, label, {
+      size,
       font: strong ? "bold" : "regular",
     });
     this.document.text(
       pageWidth -
         margin -
-        measurePdfText(
-          formatSnapshotMoney(value, currency),
-          strong ? 12 : 10,
-          strong ? "bold" : "regular",
-        ),
+        (strong ? 10 : 0) -
+        measurePdfText(amount, size, strong ? "bold" : "regular"),
       this.y - 12,
-      formatSnapshotMoney(value, currency),
-      {
-        size: strong ? 12 : 10,
-        font: strong ? "bold" : "regular",
-      },
+      amount,
+      { size, font: strong ? "bold" : "regular" },
     );
-    this.y -= strong ? 18 : 16;
+    this.y -= strong ? 24 : 20;
   }
 
-  private ensureSpace(requiredHeight: number) {
-    if (this.y - requiredHeight >= bottomMargin) {
-      return;
-    }
-
+  private ensureSpace(height: number) {
+    if (this.y - height >= bottomMargin) return;
     this.document.addPage();
     this.y = pageHeight - margin;
+    this.document.text(
+      margin,
+      this.y - 9,
+      boundedLabel(this.view.agencyName.replace(/\s+/gu, " "), contentWidth, 9),
+      { size: 9, font: "bold", color: pdfMuted },
+    );
+    this.y -= 25;
+    this.rule();
   }
 }
 
-class SimplePdfDocument {
-  private pages: PdfPage[] = [{ commands: [] }];
-
-  addPage() {
-    this.pages.push({ commands: [] });
-  }
-
-  text(
-    x: number,
-    y: number,
-    text: string,
-    { size = 10, font = "regular" }: PdfTextOptions = {},
-  ) {
-    this.currentPage.commands.push(
-      `BT /${font === "bold" ? "F2" : "F1"} ${size} Tf ${formatNumber(
-        x,
-      )} ${formatNumber(y)} Td (${encodePdfText(text)}) Tj ET`,
-    );
-  }
-
-  line(x1: number, y1: number, x2: number, y2: number) {
-    this.currentPage.commands.push(
-      `0.55 w ${formatNumber(x1)} ${formatNumber(y1)} m ${formatNumber(
-        x2,
-      )} ${formatNumber(y2)} l S`,
-    );
-  }
-
-  rectangle(x: number, y: number, width: number, height: number) {
-    this.currentPage.commands.push(
-      `0.92 g ${formatNumber(x)} ${formatNumber(y)} ${formatNumber(
-        width,
-      )} ${formatNumber(height)} re f 0 g`,
-    );
-  }
-
-  render() {
-    const objects: string[] = [
-      "",
-      "",
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-      "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
-    ];
-    const pageObjectIds: number[] = [];
-
-    for (const page of this.pages) {
-      const content = page.commands.join("\n");
-      const contentId = objects.length + 1;
-      objects.push(
-        `<< /Length ${Buffer.byteLength(content, "latin1")} >>\nstream\n${content}\nendstream`,
-      );
-      const pageId = objects.length + 1;
-      objects.push(
-        [
-          "<< /Type /Page",
-          "/Parent 2 0 R",
-          `/MediaBox [0 0 ${pageWidth} ${pageHeight}]`,
-          "/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >>",
-          `/Contents ${contentId} 0 R`,
-          ">>",
-        ].join("\n"),
-      );
-      pageObjectIds.push(pageId);
-    }
-
-    objects[0] = "<< /Type /Catalog /Pages 2 0 R >>";
-    objects[1] = `<< /Type /Pages /Kids [${pageObjectIds
-      .map((id) => `${id} 0 R`)
-      .join(" ")}] /Count ${pageObjectIds.length} >>`;
-
-    return buildPdfDocument(objects);
-  }
-
-  private get currentPage() {
-    return this.pages[this.pages.length - 1];
-  }
-}
-
-function buildPdfDocument(objects: string[]) {
-  let body = "%PDF-1.4\n";
-  const offsets = [0];
-
-  objects.forEach((object, index) => {
-    offsets[index + 1] = Buffer.byteLength(body, "latin1");
-    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  });
-
-  const xrefOffset = Buffer.byteLength(body, "latin1");
-  body += `xref\n0 ${objects.length + 1}\n`;
-  body += "0000000000 65535 f \n";
-
-  for (let index = 1; index <= objects.length; index += 1) {
-    body += `${String(offsets[index]).padStart(10, "0")} 00000 n \n`;
-  }
-
-  body += [
-    "trailer",
-    `<< /Size ${objects.length + 1} /Root 1 0 R >>`,
-    "startxref",
-    String(xrefOffset),
-    "%%EOF",
-  ].join("\n");
-
-  return Buffer.from(body, "latin1");
-}
-
-function formatNumber(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+function boundedLabel(text: string, width: number, size: number) {
+  if (measurePdfText(text, size, "bold") <= width) return text;
+  let end = text.length;
+  while (
+    end > 0 &&
+    measurePdfText(text.slice(0, end) + "...", size, "bold") > width
+  )
+    end--;
+  return text.slice(0, end) + "...";
 }

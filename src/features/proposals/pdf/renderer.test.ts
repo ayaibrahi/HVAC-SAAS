@@ -24,7 +24,7 @@ describe("proposal PDF renderer", () => {
   });
   it("positions the larger title below the agency instead of reusing its baseline gap", () => {
     const text = extractPdfInspectableText(renderProposalPdf(makePdfView()));
-    const agency = /11 Tf 54 ([\d.]+) Td \(Growth Agency\)/.exec(text);
+    const agency = /18 Tf 54 ([\d.]+) Td \(Growth Agency\)/.exec(text);
     const title = /22 Tf 54 ([\d.]+) Td \(Proposal for Example HVAC\)/.exec(
       text,
     );
