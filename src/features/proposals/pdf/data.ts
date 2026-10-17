@@ -7,15 +7,19 @@ import { renderProposalPdf } from "@/features/proposals/pdf/renderer";
 import type { ProposalPdfDownload } from "@/features/proposals/pdf/response";
 import { assertPdfSnapshot } from "@/features/proposals/pdf/snapshot";
 import { buildProposalPdfView } from "@/features/proposals/pdf/view-model";
+import { loadSnapshotLogo } from "@/features/agencies/branding/data";
+import type { ValidatedAgencyLogo } from "./logo";
 
 export async function createProposalPdfDownload(snapshotId: string) {
   const snapshot = await getDeliverySnapshot(snapshotId);
-
-  return createProposalPdfDownloadFromSnapshot(snapshot);
+  assertPdfSnapshot(snapshot);
+  const branding = await loadSnapshotLogo(snapshot);
+  return createProposalPdfDownloadFromSnapshot(snapshot, branding?.logo);
 }
 
 export function createProposalPdfDownloadFromSnapshot(
   snapshot: ProposalDeliverySnapshot | null,
+  logo?: ValidatedAgencyLogo | null,
 ): ProposalPdfDownload {
   assertPdfSnapshot(snapshot);
 
@@ -23,6 +27,6 @@ export function createProposalPdfDownloadFromSnapshot(
 
   return {
     filename: buildProposalPdfFilename(view),
-    bytes: renderProposalPdf(view),
+    bytes: renderProposalPdf(view, { agencyId: snapshot.agencyId, logo }),
   };
 }

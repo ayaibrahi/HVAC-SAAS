@@ -10,7 +10,7 @@ export const logoLimits = {
   minDimension: 16,
 } as const;
 
-/** Local rendering foundation, NOT an upload or storage authorization API. */
+/** Bounded raster decoder, NOT an upload or storage authorization API. */
 export class ValidatedAgencyLogo {
   readonly #rgba: Buffer;
 
@@ -51,7 +51,7 @@ export class ValidatedAgencyLogo {
     ownerAgencyId: string;
     requestingAgencyId: string;
   }) {
-    // Future callers must derive these IDs from session + owned asset metadata.
+    // Callers derive these IDs from session/snapshot + owned asset metadata.
     if (
       !input.ownerAgencyId ||
       input.ownerAgencyId !== input.requestingAgencyId

@@ -16,8 +16,8 @@ const margin = 54;
 const bottomMargin = 78;
 const contentWidth = pageWidth - margin * 2;
 
-// Logo support is local-only until snapshot-bound immutable storage is approved.
-// The authenticated download path intentionally supplies only the frozen view.
+// Branding is supplied only after server-owned snapshot lookup and integrity checks.
+// Legacy snapshots and unavailable assets retain their frozen name-only identity.
 export function renderProposalPdf(
   view: ProposalPdfView,
   branding?: { agencyId: string; logo?: ValidatedAgencyLogo | null },

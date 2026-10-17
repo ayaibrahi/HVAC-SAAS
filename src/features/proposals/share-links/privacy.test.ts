@@ -19,7 +19,7 @@ describe("proposal share link privacy boundary", () => {
     const source = readImplementationSource();
 
     expect(source).not.toMatch(/\bfetch\s*\(/);
-    expect(source).not.toMatch(/\bsrc\s*=/);
+    expect(source).not.toMatch(/\b(?:src|href)\s*=\s*["']https?:/);
     expect(source).not.toMatch(/\bhref\s*=/);
   });
 

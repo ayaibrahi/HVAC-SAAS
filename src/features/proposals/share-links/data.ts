@@ -23,6 +23,7 @@ import { AppError } from "@/lib/errors";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import { proposalShareLinkInputSchema } from "@/lib/validation/proposal-share-links";
+import { loadSnapshotLogo } from "@/features/agencies/branding/data";
 
 type ShareLinkRow =
   Database["public"]["Tables"]["proposal_share_links"]["Row"];
@@ -164,7 +165,13 @@ export async function resolvePublicShareToken(
     return null;
   }
 
-  return mapDeliverySnapshotToPublicView(mapDeliverySnapshot(snapshot));
+  const frozen = mapDeliverySnapshot(snapshot);
+  const view = mapDeliverySnapshotToPublicView(frozen);
+  // Only after valid token + agency-scoped snapshot resolution; no public asset URL.
+  const branding = await loadSnapshotLogo(frozen);
+  if (branding)
+    view.agency.logoDataUrl = `data:image/png;base64,${branding.png.toString("base64")}`;
+  return view;
 }
 
 function assertSnapshotCanBeShared(

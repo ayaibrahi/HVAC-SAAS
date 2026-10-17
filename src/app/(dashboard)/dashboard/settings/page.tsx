@@ -3,6 +3,8 @@ import { PageHeader } from "@/components/workspace-ui";
 import { AgencyForm } from "@/features/agencies/components/agency-form";
 import { getAgencyForUser } from "@/features/agencies/data";
 import { getCurrentUser } from "@/lib/auth/session";
+import { LogoSettings } from "@/features/agencies/branding/components/logo-settings";
+import { getBrandingSettings } from "@/features/agencies/branding/data";
 
 type SettingsPageProps = {
   searchParams: Promise<{
@@ -17,6 +19,12 @@ export default async function SettingsPage({
   const params = await searchParams;
   const user = await getCurrentUser();
   const agency = user ? await getAgencyForUser(user.id) : null;
+  const branding = agency
+    ? await getBrandingSettings().catch(() => ({
+        available: false,
+        activeAssetId: null,
+      }))
+    : null;
 
   return (
     <div className="space-y-6">
@@ -33,6 +41,9 @@ export default async function SettingsPage({
           submitLabel={agency ? "Update agency" : "Create agency"}
         />
       </section>
+      {agency && branding ? (
+        <LogoSettings agencyName={agency.name} initial={branding} />
+      ) : null}
     </div>
   );
 }

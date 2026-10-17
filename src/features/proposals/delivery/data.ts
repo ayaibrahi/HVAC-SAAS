@@ -109,6 +109,7 @@ export function mapDeliverySnapshot(
 
   return {
     id: row.id,
+    brandingAssetId: row.branding_asset_id ?? null,
     agencyId: row.agency_id,
     proposalId: row.proposal_id,
     status: row.status,

@@ -19,6 +19,39 @@ type TableDefinition<Row, Insert, Update> = {
 export type Database = {
   public: {
     Tables: {
+      agency_branding_assets: TableDefinition<
+        {
+          id: string;
+          agency_id: string;
+          sha256: string;
+          object_key: string;
+          mime_type: "image/png";
+          byte_length: number;
+          width: number;
+          height: number;
+          created_at: string;
+        },
+        {
+          id: string;
+          agency_id: string;
+          sha256: string;
+          object_key: string;
+          mime_type: "image/png";
+          byte_length: number;
+          width: number;
+          height: number;
+        },
+        never
+      >;
+      agency_branding: TableDefinition<
+        {
+          agency_id: string;
+          active_asset_id: string | null;
+          updated_at: string;
+        },
+        never,
+        never
+      >;
       users: TableDefinition<
         {
           id: string;
@@ -440,6 +473,7 @@ export type Database = {
       >;
       proposal_delivery_snapshots: TableDefinition<
         {
+          branding_asset_id?: string | null;
           id: string;
           agency_id: string;
           proposal_id: string;
@@ -549,6 +583,14 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      set_agency_branding_asset: {
+        Args: {
+          p_agency_id: string;
+          p_user_id: string;
+          p_asset_id: string | null;
+        };
+        Returns: undefined;
+      };
       consume_agency_rate_limit: {
         Args: {
           p_agency_id: string;

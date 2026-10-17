@@ -70,6 +70,7 @@ export type ProposalDeliverySnapshotLineItem = {
 };
 
 export type ProposalDeliverySnapshot = {
+  brandingAssetId?: EntityId | null;
   id: EntityId;
   agencyId: EntityId;
   proposalId: EntityId;
@@ -102,6 +103,7 @@ export type DeliverySnapshotPublicView = {
   currency: CurrencyCode;
   agency: {
     displayName: string;
+    logoDataUrl?: string | null;
   };
   prospect: {
     displayName: string;

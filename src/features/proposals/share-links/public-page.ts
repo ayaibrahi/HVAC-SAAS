@@ -1,12 +1,13 @@
 import type { DeliverySnapshotPublicView } from "@/domain/proposals/types";
 import { formatSnapshotMoney } from "@/features/proposals/pdf/format";
+import { renderPublicAgencyLogo } from "./agency-logo";
 
 export const proposalUnavailableTitle = "Proposal unavailable";
 
 export const publicShareSecurityHeaders = {
   "Cache-Control": "private, no-store",
   "Content-Security-Policy":
-    "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src 'none'; font-src 'none'; script-src 'none'; connect-src 'none'; object-src 'none'; style-src 'unsafe-inline'",
+    "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; img-src data:; font-src 'none'; script-src 'none'; connect-src 'none'; object-src 'none'; style-src 'unsafe-inline'",
   "Referrer-Policy": "no-referrer",
   "X-Content-Type-Options": "nosniff",
   "X-Robots-Tag": "noindex, nofollow, noarchive",
@@ -17,6 +18,7 @@ export function renderPublicProposalHtml(view: DeliverySnapshotPublicView) {
     title: view.title,
     body: `
       <header class="header">
+        ${renderPublicAgencyLogo(view.agency.logoDataUrl)}
         <p class="agency">${escapeHtml(view.agency.displayName)}</p>
         <h1>${escapeHtml(view.title)}</h1>
         <p class="prepared">Prepared for ${escapeHtml(view.prospect.displayName)}</p>
@@ -94,6 +96,8 @@ function renderDocument(input: { title: string; body: string }) {
       * {
         box-sizing: border-box;
       }
+
+      .agency-logo { display: block; width: 160px; height: 64px; object-fit: contain; object-position: left center; margin-bottom: 16px; }
 
       body {
         margin: 0;
