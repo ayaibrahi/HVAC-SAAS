@@ -6,8 +6,10 @@ import type {
   OpportunityPriority,
 } from "@/domain/opportunities/types";
 import type { EntityId } from "@/domain/shared";
+import type { ApprovedServiceScope } from "@/lib/validation/service-scope";
 
 export type ProposalAiInput = {
+  mode?: "complete";
   agency: {
     id: EntityId;
     name: string;
@@ -52,6 +54,7 @@ export type ProposalAiSelectedItem = {
     name: string;
     description: string | null;
     approvedScope?: string | null;
+    contractScope?: ApprovedServiceScope;
   };
 };
 

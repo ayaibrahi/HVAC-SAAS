@@ -27,6 +27,18 @@ beforeEach(() => {
   } as Awaited<ReturnType<typeof requireCurrentAgency>>);
 });
 describe("proposal generation preserves saved copy before consuming provider resources", () => {
+  it("cannot start the legacy generation path while complete generation owns the draft", async () => {
+    const data = makeBuilderData();
+    data.proposal.content = {
+      proposalAiLease: { token: "active", startedAt: Date.now() },
+    };
+    vi.mocked(getProposalBuilderData).mockResolvedValue(data);
+    await expect(
+      generateProposalAiDraftForProposal(data.proposal.id),
+    ).rejects.toThrow("already generating");
+    expect(createProposalAiProvider).not.toHaveBeenCalled();
+    expect(enforceAgencyUsageLimit).not.toHaveBeenCalled();
+  });
   it.each([
     "summary",
     "scope",

@@ -4,6 +4,8 @@ import { useState } from "react";
 import type { Opportunity } from "@/domain/opportunities/types";
 import type { AgencyService } from "@/domain/services/types";
 import type { ProposalCopy } from "@/lib/i18n/proposals";
+import { getCompleteProposalCopy } from "@/lib/i18n/complete-proposal";
+import type { Locale } from "@/lib/ui/preferences";
 
 export function OpportunitySelection({
   opportunity,
@@ -15,6 +17,7 @@ export function OpportunitySelection({
   description,
   aiSummary,
   copy,
+  locale = "en",
 }: {
   opportunity: Opportunity;
   services: AgencyService[];
@@ -25,9 +28,14 @@ export function OpportunitySelection({
   description: string;
   aiSummary: string | null;
   copy: ProposalCopy;
+  locale?: Locale;
 }) {
   const [checked, setChecked] = useState(selected);
   const [serviceId, setServiceId] = useState(selectedServiceId);
+  const scopeCopy = getCompleteProposalCopy(locale);
+  const approvedScope = services.find(
+    (service) => service.id === serviceId,
+  )?.approvedScope;
   const recommended = services.find(
     (service) => service.id === opportunity.agencyServiceId,
   );
@@ -127,6 +135,34 @@ export function OpportunitySelection({
                 ? copy.selectedRecommendation
                 : copy.manualService}
             </p>
+          )}
+        </div>
+        <div className="md:col-span-3 text-sm">
+          {approvedScope ? (
+            <details>
+              <summary className="cursor-pointer py-2">
+                {scopeCopy.approved}
+              </summary>
+              <dl className="space-y-3">
+                {(
+                  [
+                    "deliverables",
+                    "exclusions",
+                    "clientInputs",
+                    "completionChecks",
+                  ] as const
+                ).map((field) => (
+                  <div key={field}>
+                    <dt className="font-medium">{scopeCopy[field]}</dt>
+                    <dd dir="auto" className="whitespace-pre-wrap text-muted">
+                      {approvedScope[field]}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          ) : (
+            scopeCopy.notApproved
           )}
         </div>
         <label>

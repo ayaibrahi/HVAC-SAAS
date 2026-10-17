@@ -11,6 +11,7 @@ import { ServiceForm } from "@/features/services/components/service-form";
 import { listAgencyServices } from "@/features/services/data";
 import { createServiceAction } from "@/features/services/actions";
 import { getCurrentUser } from "@/lib/auth/session";
+import { getUiPreferences } from "@/lib/ui/server-preferences";
 
 type ServicesPageProps = {
   searchParams: Promise<{
@@ -46,6 +47,7 @@ export default async function ServicesPage({
   }
 
   const services = await listAgencyServices(agency.id);
+  const { locale } = await getUiPreferences();
 
   return (
     <div className="space-y-8">
@@ -59,6 +61,7 @@ export default async function ServicesPage({
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
         <h2 className="mb-5 text-lg font-semibold text-ink">Add service</h2>
         <ServiceForm
+          locale={locale}
           action={createServiceAction}
           submitLabel="Add service"
           pendingLabel="Adding..."

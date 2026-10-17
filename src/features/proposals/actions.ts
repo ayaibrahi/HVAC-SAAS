@@ -6,7 +6,10 @@ import {
   createProposalDraft,
   updateProposalDraft,
 } from "@/features/proposals/data";
-import { generateProposalAiDraftForProposal } from "@/features/proposals/ai/data";
+import {
+  generateProposalAiDraftForProposal,
+  generateCompleteProposalForProposal,
+} from "@/features/proposals/ai/data";
 import {
   buildFeedbackUrl,
   getValidationErrorMessage,
@@ -138,6 +141,45 @@ export async function generateProposalAiDraftAction(proposalId: string) {
   redirect(
     buildFeedbackUrl(path, {
       success: "Proposal summary and scope generated.",
+    }),
+  );
+}
+
+export async function generateCompleteProposalAction(
+  proposalId: string,
+  formData: FormData,
+) {
+  const path = `${proposalsPath}/${proposalId}`;
+  try {
+    if (formData.get("confirmCompleteProposal") !== "on") {
+      throw new AppError(
+        "Confirm saved services, approved scope and prices before generating a complete draft.",
+        422,
+      );
+    }
+    const revision = formData.get("generationRevision");
+    if (typeof revision !== "string" || !/^[a-f0-9]{64}$/.test(revision)) {
+      throw new AppError(
+        "Reload the saved draft and confirm its scope and prices before generation.",
+        409,
+      );
+    }
+    await generateCompleteProposalForProposal(proposalId, undefined, revision);
+    revalidatePath(path);
+  } catch (error) {
+    redirect(
+      buildFeedbackUrl(path, {
+        error: getPublicErrorMessage(
+          error,
+          "The complete draft could not be generated. Existing work is preserved.",
+        ),
+      }),
+    );
+  }
+  redirect(
+    buildFeedbackUrl(path, {
+      success:
+        "Complete proposal draft generated. Review all content and prices before saving Ready.",
     }),
   );
 }

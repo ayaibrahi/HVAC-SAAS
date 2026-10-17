@@ -6,6 +6,7 @@ import {
   generateProposalAiDraftAction,
   updateProposalAction,
   saveProposalFormAction,
+  generateCompleteProposalAction,
 } from "@/features/proposals/actions";
 import { createDeliverySnapshotAction } from "@/features/proposals/delivery/actions";
 import { buildFeedbackUrl } from "@/lib/action-feedback";
@@ -16,6 +17,7 @@ const operations = vi.hoisted(() => ({
   createDraft: vi.fn(),
   saveDraft: vi.fn(),
   generateDraft: vi.fn(),
+  generateComplete: vi.fn(),
   createSnapshot: vi.fn(),
 }));
 
@@ -31,6 +33,7 @@ vi.mock("@/features/proposals/data", () => ({
 }));
 vi.mock("@/features/proposals/ai/data", () => ({
   generateProposalAiDraftForProposal: operations.generateDraft,
+  generateCompleteProposalForProposal: operations.generateComplete,
 }));
 vi.mock("@/features/proposals/delivery/data", () => ({
   createDeliverySnapshotForProposal: operations.createSnapshot,
@@ -52,6 +55,24 @@ beforeEach(() => {
 });
 
 const actionCases = [
+  {
+    name: "generate complete proposal",
+    invoke: () => {
+      const form = new FormData();
+      form.set("confirmCompleteProposal", "on");
+      form.set("generationRevision", "a".repeat(64));
+      return generateCompleteProposalAction(proposalId, form);
+    },
+    operation: operations.generateComplete,
+    expectedInput: proposalId,
+    expectedArgs: [proposalId, undefined, "a".repeat(64)],
+    success:
+      "Complete proposal draft generated. Review all content and prices before saving Ready.",
+    fallback:
+      "The complete draft could not be generated. Existing work is preserved.",
+    errorPath: proposalPath,
+    revalidatedPaths: [proposalPath],
+  },
   {
     name: "create proposal",
     invoke: () => createProposalAction(createForm()),
@@ -125,7 +146,9 @@ describe.each(actionCases)("$name redirect boundary", (action) => {
 
     expect(redirect).toHaveBeenCalledExactlyOnceWith(target);
     expect(action.operation).toHaveBeenCalledExactlyOnceWith(
-      action.expectedInput,
+      ...("expectedArgs" in action
+        ? action.expectedArgs!
+        : [action.expectedInput]),
     );
     expect(revalidatePath).toHaveBeenCalledTimes(
       action.revalidatedPaths.length,
@@ -174,6 +197,31 @@ describe.each(actionCases)("$name redirect boundary", (action) => {
 });
 
 describe("proposal validation and provider errors", () => {
+  it("requires confirmation and a valid rendered revision, ignoring client-supplied alternate prices and services", async () => {
+    const form = new FormData();
+    form.set("agencyId", "foreign");
+    form.set("unitPrice", "1");
+    form.set("approvedScope", "Forged scope");
+    await expect(
+      generateCompleteProposalAction(proposalId, form),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(operations.generateComplete).not.toHaveBeenCalled();
+    form.set("confirmCompleteProposal", "on");
+    form.set("generationRevision", "malformed");
+    await expect(
+      generateCompleteProposalAction(proposalId, form),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(operations.generateComplete).not.toHaveBeenCalled();
+    form.set("generationRevision", "a".repeat(64));
+    await expect(
+      generateCompleteProposalAction(proposalId, form),
+    ).rejects.toThrow("NEXT_REDIRECT");
+    expect(operations.generateComplete).toHaveBeenCalledExactlyOnceWith(
+      proposalId,
+      undefined,
+      "a".repeat(64),
+    );
+  });
   it.each(["", "not-a-service", "11111111-1111-4111-8111-11111111111"])(
     "keeps invalid service feedback in the editor without persistence: %s",
     async (value) => {

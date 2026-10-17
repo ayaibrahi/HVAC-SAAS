@@ -14,6 +14,10 @@ import { UiPreferencesProvider } from "@/components/ui-preferences";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { generateProposalAiDraftForProposal } from "./ai/data";
 import { getUiPreferences } from "@/lib/ui/server-preferences";
+import { makeBuilderData } from "./builder-test-fixtures";
+import { makeCompleteProposalBuilder } from "./ai/complete-test-fixtures";
+import { createCompleteProposalInput } from "./ai/complete-input";
+import { firstProposalCopy, buildProposalCopyOptions } from "./sales-content";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -341,7 +345,7 @@ describe("website findings to real proposal action and editor (mocked storage)",
           : "احفظ التعديلات لتحديث المعاينة",
       );
       expect(html).toMatch(
-        /disabled=""[^>]*>(?:Generate summary and scope|إعداد الملخص ونطاق العمل)/,
+        /disabled=""[^>]*>(?:Generate Complete Proposal|إنشاء عرض خدمات كامل)/,
       );
       expect(html).toMatch(
         /disabled=""[^>]*>(?:Prepare client-ready version|إعداد نسخة جاهزة للعميل)/,
@@ -669,6 +673,48 @@ it("does not turn catalog text or generic implementation support into an approve
   expect(rows.proposal_line_items[0].description).toBe("");
   expect(rows.proposal_line_items[0].unit_price).toBe(500);
   expect(inserts).toHaveBeenCalledTimes(1);
+});
+it("saves, reopens and manually edits a complete generated draft through the real save action without regenerating or changing its price", async () => {
+  await submit();
+  addCatalogService();
+  const source = makeBuilderData();
+  source.prospect.businessName = "Synthetic HVAC";
+  source.audit.websiteUrl = source.audit.finalUrl = "https://example.test/";
+  source.services[0].approvedScope = {
+    ...makeCompleteProposalBuilder().services[0].approvedScope!,
+    deliverables: "Add the agreed online booking link on the inspected page.",
+    exclusions: "Additional pages and subscription charges are excluded.",
+  };
+  [...source.lineItemsByOpportunityId.values()][0].description = "";
+  source.proposal.subtotal = source.proposal.total = 350;
+  const draft = firstProposalCopy(
+    buildProposalCopyOptions(createCompleteProposalInput(source)),
+  );
+  const form = manualForm();
+  for (const field of ["summary", "scope", "nextStep"] as const)
+    form.set(field, draft[field]);
+  expect(await saveProposalFormAction(proposalId, form)).toEqual({
+    saved: true,
+  });
+  let reopened = await getProposalBuilderData(proposalId);
+  expect(reopened.proposal).toMatchObject({
+    ...draft,
+    status: "draft",
+    total: 500,
+  });
+  expect(reopened.lineItemsByOpportunityId.get(opportunityId)?.unitPrice).toBe(
+    500,
+  );
+  form.set("summary", draft.summary + "\nAgency-reviewed final wording.");
+  expect(await saveProposalFormAction(proposalId, form)).toEqual({
+    saved: true,
+  });
+  reopened = await getProposalBuilderData(proposalId);
+  expect(reopened.proposal.summary).toContain("Agency-reviewed final wording.");
+  expect(reopened.proposal.scope).toBe(draft.scope);
+  expect(reopened.proposal.total).toBe(500);
+  expect(inserts).toHaveBeenCalledTimes(1);
+  expect(generateProposalAiDraftForProposal).not.toHaveBeenCalled();
 });
 it.each(["opportunities", "agency_services", "proposals"])(
   "blocks cross-tenant %s before a save RPC",

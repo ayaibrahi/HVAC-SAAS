@@ -4,6 +4,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { AppError } from "@/lib/errors";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { requireCurrentAgency } from "@/features/agencies/data";
+import { readApprovedServiceScope } from "@/lib/validation/service-scope";
 
 type ServiceRow = Database["public"]["Tables"]["agency_services"]["Row"];
 
@@ -13,6 +14,7 @@ function mapService(row: ServiceRow): AgencyService {
     agencyId: row.agency_id,
     name: row.name,
     description: row.description,
+    approvedScope: readApprovedServiceScope(row.approved_scope),
     price: Number(row.price),
     currency: row.currency,
     isActive: row.is_active,
@@ -60,6 +62,7 @@ export async function createAgencyService(input: AgencyServiceInput) {
       agency_id: agency.id,
       name: input.name,
       description: input.description ?? null,
+      approved_scope: input.approvedScope ?? null,
       price: input.price,
       currency: input.currency,
       is_active: input.isActive,
@@ -74,13 +77,17 @@ export async function createAgencyService(input: AgencyServiceInput) {
   return mapService(data);
 }
 
-export async function updateAgencyService(serviceId: string, input: AgencyServiceInput) {
+export async function updateAgencyService(
+  serviceId: string,
+  input: AgencyServiceInput,
+) {
   const { supabase, agency } = await requireCurrentAgency();
   const { data, error } = await supabase
     .from("agency_services")
     .update({
       name: input.name,
       description: input.description ?? null,
+      approved_scope: input.approvedScope ?? null,
       price: input.price,
       currency: input.currency,
       is_active: input.isActive,
@@ -97,7 +104,10 @@ export async function updateAgencyService(serviceId: string, input: AgencyServic
   return mapService(data);
 }
 
-export async function setAgencyServiceActive(serviceId: string, isActive: boolean) {
+export async function setAgencyServiceActive(
+  serviceId: string,
+  isActive: boolean,
+) {
   const { supabase, agency } = await requireCurrentAgency();
   const { error } = await supabase
     .from("agency_services")

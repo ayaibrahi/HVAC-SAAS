@@ -6,6 +6,7 @@ import {
   useState,
   useRef,
   useEffect,
+  useOptimistic,
   type ComponentProps,
   type ReactNode,
 } from "react";
@@ -15,25 +16,44 @@ import { FeedbackMessage } from "@/components/feedback-message";
 import type { ProposalAiDraftOutput } from "@/lib/validation/proposal-ai";
 import type { ProposalCopy } from "@/lib/i18n/proposals";
 import { fillEmptyProposalCopy } from "../sales-content";
+import { getCompleteProposalCopy } from "@/lib/i18n/complete-proposal";
+import type { Locale } from "@/lib/ui/preferences";
 
 const EditingContext = createContext<{
   dirty: boolean;
   markDirty: () => void;
   saving: boolean;
   setSaving: (value: boolean) => void;
+  generating: boolean;
+  setGenerating: (value: boolean) => void;
 }>({
   dirty: false,
   markDirty: () => {},
   saving: false,
   setSaving: () => {},
+  generating: false,
+  setGenerating: () => {},
 });
 
 export function ProposalEditingGuard({ children }: { children: ReactNode }) {
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Action state updates may suspend until the request finishes. Optimistic
+  // context locks sibling editor controls immediately, throughout the action.
+  const [generating, setGenerating] = useOptimistic(
+    false,
+    (_current, next: boolean) => next,
+  );
   return (
     <EditingContext.Provider
-      value={{ dirty, markDirty: () => setDirty(true), saving, setSaving }}
+      value={{
+        dirty,
+        markDirty: () => setDirty(true),
+        saving,
+        setSaving,
+        generating,
+        setGenerating,
+      }}
     >
       {children}
     </EditingContext.Provider>
@@ -55,7 +75,7 @@ export function ProposalEditForm({
   fallbackAction?: (form: FormData) => Promise<void>;
   successHref?: string;
 }) {
-  const { markDirty, setSaving } = useContext(EditingContext);
+  const { markDirty, setSaving, generating } = useContext(EditingContext);
   const router = useRouter();
   const busy = useRef(false);
   const [pending, setPending] = useState(false);
@@ -71,7 +91,7 @@ export function ProposalEditForm({
       onChangeCapture={markDirty}
       onSubmit={async (event) => {
         event.preventDefault();
-        if (busy.current) return;
+        if (busy.current || generating) return;
         const form = new FormData(event.currentTarget);
         markDirty();
         busy.current = true;
@@ -114,7 +134,10 @@ export function ProposalEditForm({
           {copy.saving}
         </p>
       )}
-      <fieldset disabled={pending} className={`min-w-0 ${className}`}>
+      <fieldset
+        disabled={pending || generating}
+        className={`min-w-0 ${className}`}
+      >
         {children}
       </fieldset>
     </form>
@@ -124,20 +147,20 @@ export function ProposalEditForm({
 export function ProposalActionFeedback(
   props: ComponentProps<typeof FeedbackMessage>,
 ) {
-  const { dirty, saving } = useContext(EditingContext);
-  return dirty || saving ? null : <FeedbackMessage {...props} />;
+  const { dirty, saving, generating } = useContext(EditingContext);
+  return dirty || saving || generating ? null : <FeedbackMessage {...props} />;
 }
 
 export function ProposalGuardedSubmitButton({
   saveFirstLabel,
   ...props
 }: ComponentProps<typeof PendingSubmitButton> & { saveFirstLabel: string }) {
-  const { dirty, saving } = useContext(EditingContext);
+  const { dirty, saving, generating } = useContext(EditingContext);
   return (
     <>
       <PendingSubmitButton
         {...props}
-        disabled={props.disabled || dirty || saving}
+        disabled={props.disabled || dirty || saving || generating}
       />
       {dirty && (
         <p role="status" className="mt-2 max-w-sm text-xs text-muted">
@@ -149,6 +172,62 @@ export function ProposalGuardedSubmitButton({
 }
 
 export const ProposalAiSubmitButton = ProposalGuardedSubmitButton;
+
+export function CompleteProposalForm({
+  action,
+  eligible,
+  locale,
+  saveFirstLabel,
+  revision,
+}: {
+  action: (formData: FormData) => Promise<void>;
+  eligible: boolean;
+  locale: Locale;
+  saveFirstLabel: string;
+  revision: string;
+}) {
+  const copy = getCompleteProposalCopy(locale);
+  const { dirty, saving, generating, setGenerating } =
+    useContext(EditingContext);
+  const busy = useRef(false);
+  return (
+    <form
+      action={async (formData) => {
+        if (busy.current || dirty || saving || !eligible) return;
+        busy.current = true;
+        setGenerating(true);
+        try {
+          await action(formData);
+        } finally {
+          busy.current = false;
+          setGenerating(false);
+        }
+      }}
+      className="max-w-sm space-y-3"
+    >
+      <input type="hidden" name="generationRevision" value={revision} />
+      <label className="flex items-start gap-2 text-xs text-muted">
+        <input
+          type="checkbox"
+          name="confirmCompleteProposal"
+          required
+          disabled={!eligible || dirty || saving || generating}
+          className="mt-1"
+        />
+        {copy.confirm}
+      </label>
+      <PendingSubmitButton
+        label={copy.generate}
+        pendingLabel={copy.generating}
+        disabled={!eligible || dirty || saving || generating}
+        className="button-primary"
+      />
+      <p role="status" className="text-xs text-muted">
+        {generating ? copy.generating : dirty ? saveFirstLabel : copy.review}
+      </p>
+    </form>
+  );
+}
 
 export function ProposalContentFields({
   initial,

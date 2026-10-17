@@ -1,12 +1,15 @@
 import type { AgencyService } from "@/domain/services/types";
 import { supportedCurrencies } from "@/config/currencies";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { getCompleteProposalCopy } from "@/lib/i18n/complete-proposal";
+import type { Locale } from "@/lib/ui/preferences";
 
 type ServiceFormProps = {
   action: (formData: FormData) => void | Promise<void>;
   service?: AgencyService | null;
   submitLabel?: string;
   pendingLabel?: string;
+  locale?: Locale;
 };
 
 export function ServiceForm({
@@ -14,7 +17,9 @@ export function ServiceForm({
   service,
   submitLabel = "Save service",
   pendingLabel = "Saving...",
+  locale = "en",
 }: ServiceFormProps) {
+  const copy = getCompleteProposalCopy(locale);
   return (
     <form action={action} className="space-y-5">
       <div className="grid gap-5 md:grid-cols-2">
@@ -81,6 +86,38 @@ export function ServiceForm({
         />
         Active
       </label>
+
+      <fieldset className="space-y-4 border-t border-border pt-4">
+        <legend className="text-base font-semibold">{copy.catalogScope}</legend>
+        <p className="text-sm text-muted">{copy.scopeHelp}</p>
+        <p className="text-sm">
+          {service?.approvedScope ? copy.approved : copy.notApproved}
+        </p>
+        {(
+          [
+            "deliverables",
+            "exclusions",
+            "clientInputs",
+            "completionChecks",
+          ] as const
+        ).map((field) => (
+          <label key={field} className="block space-y-2">
+            <span className="text-sm font-medium">{copy[field]}</span>
+            <textarea
+              name={field}
+              defaultValue={service?.approvedScope?.[field] ?? ""}
+              rows={3}
+              maxLength={800}
+              dir="auto"
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+            />
+          </label>
+        ))}
+        <label className="flex items-start gap-3 text-sm">
+          <input type="checkbox" name="approveScope" className="mt-1" />
+          {copy.approveScope}
+        </label>
+      </fieldset>
 
       <PendingSubmitButton
         label={submitLabel}

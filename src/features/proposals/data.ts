@@ -1,8 +1,12 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 
 import type { Audit } from "@/domain/audits/types";
 import type { Agency } from "@/domain/agencies/types";
-import type { Opportunity, OpportunityAiInsight } from "@/domain/opportunities/types";
+import type {
+  Opportunity,
+  OpportunityAiInsight,
+} from "@/domain/opportunities/types";
 import type {
   Proposal,
   ProposalLineItem,
@@ -83,7 +87,9 @@ export async function listProposalsForAgency(agencyId: string) {
 export async function createProposalDraft(input: CreateProposalInput) {
   const { supabase, agency } = await requireCurrentAgency();
   const audit = await getAuditForAgency(input.auditId, agency.id, supabase);
-  const prospect = audit ? await getProspect(audit.prospectId, agency.id) : null;
+  const prospect = audit
+    ? await getProspect(audit.prospectId, agency.id)
+    : null;
   const access = {
     agencyId: agency.id,
     audit,
@@ -129,7 +135,9 @@ export async function getProposalBuilderData(
 ): Promise<ProposalBuilderData> {
   const { supabase, agency } = await requireCurrentAgency();
   const proposal = await getProposalForAgency(proposalId, agency.id, supabase);
-  const prospect = proposal ? await getProspect(proposal.prospectId, agency.id) : null;
+  const prospect = proposal
+    ? await getProspect(proposal.prospectId, agency.id)
+    : null;
   const audit = proposal
     ? await getAuditForAgency(proposal.auditId, agency.id, supabase)
     : null;
@@ -181,8 +189,14 @@ export async function getProposalBuilderData(
 
 export async function updateProposalDraft(input: UpdateProposalInput) {
   const { supabase, agency, user } = await requireCurrentAgency();
-  const proposal = await getProposalForAgency(input.proposalId, agency.id, supabase);
-  const prospect = proposal ? await getProspect(proposal.prospectId, agency.id) : null;
+  const proposal = await getProposalForAgency(
+    input.proposalId,
+    agency.id,
+    supabase,
+  );
+  const prospect = proposal
+    ? await getProspect(proposal.prospectId, agency.id)
+    : null;
   const audit = proposal
     ? await getAuditForAgency(proposal.auditId, agency.id, supabase)
     : null;
@@ -196,14 +210,20 @@ export async function updateProposalDraft(input: UpdateProposalInput) {
   assertProposalAccess(access);
 
   if (input.status === "ready" && input.lineItems.length === 0) {
-    throw new AppError("Select at least one opportunity before marking ready.", 422);
+    throw new AppError(
+      "Select at least one opportunity before marking ready.",
+      422,
+    );
   }
 
   if (
     input.status === "ready" &&
     (input.summary.trim().length === 0 || input.scope.trim().length === 0)
   ) {
-    throw new AppError("Summary and scope are required before marking ready.", 422);
+    throw new AppError(
+      "Summary and scope are required before marking ready.",
+      422,
+    );
   }
 
   const preparedLines = await prepareProposalLines({
@@ -284,6 +304,7 @@ export async function applyProposalAiDraft(input: {
   scope: string;
   nextStep: string;
   metadata: Record<string, Json>;
+  generationToken?: string;
 }) {
   const { supabase, agency } = await requireCurrentAgency();
   const proposal = await getProposalForAgency(
@@ -299,6 +320,16 @@ export async function applyProposalAiDraft(input: {
   if (proposal.updatedAt !== input.expectedUpdatedAt) {
     throw new AppError(
       "The proposal changed during generation. Reload it before requesting new copy; existing text has not been overwritten.",
+      409,
+    );
+  }
+  if (
+    input.generationToken &&
+    (proposal.content?.proposalAiLease as { token?: unknown } | undefined)
+      ?.token !== input.generationToken
+  ) {
+    throw new AppError(
+      "This generation request is no longer current. Existing text is preserved.",
       409,
     );
   }
@@ -318,9 +349,10 @@ export async function applyProposalAiDraft(input: {
   const admin = createSupabaseAdminClient();
   const content = {
     ...(proposal.content ?? {}),
+    ...(input.generationToken ? { proposalAiLease: null } : {}),
     aiDraft: input.metadata,
   };
-  const { data, error } = await admin
+  let write = admin
     .from("proposals")
     .update({
       summary: input.summary,
@@ -330,9 +362,11 @@ export async function applyProposalAiDraft(input: {
     })
     .eq("id", proposal.id)
     .eq("agency_id", agency.id)
-    .eq("updated_at", proposal.updatedAt)
-    .select("*")
-    .single();
+    .eq("updated_at", proposal.updatedAt);
+  if (input.generationToken) {
+    write = write.eq("content->proposalAiLease->>token", input.generationToken);
+  }
+  const { data, error } = await write.select("*").single();
 
   if (error?.code === "PGRST116") {
     throw new AppError(
@@ -344,6 +378,89 @@ export async function applyProposalAiDraft(input: {
     throw new AppError("We could not store the generated proposal draft.", 500);
 
   return mapProposal(data);
+}
+
+// An optimistic, expiring lease uses existing server-owned proposal JSON. The
+// updated_at CAS works across processes; provider timeout/retries finish within 60s.
+export async function claimCompleteProposalGeneration(
+  proposalId: string,
+  expectedUpdatedAt: string,
+) {
+  const { supabase, agency } = await requireCurrentAgency();
+  const proposal = await getProposalForAgency(proposalId, agency.id, supabase);
+  if (
+    !proposal ||
+    proposal.updatedAt !== expectedUpdatedAt ||
+    proposal.status !== "draft" ||
+    proposal.summary.trim() ||
+    proposal.scope.trim() ||
+    proposal.nextStep.trim()
+  ) {
+    throw new AppError(
+      "The saved draft changed. Reload before generation; existing text is preserved.",
+      409,
+    );
+  }
+  const lease = proposal.content?.proposalAiLease as
+    { startedAt?: unknown } | undefined;
+  if (
+    typeof lease?.startedAt === "number" &&
+    Date.now() - lease.startedAt < 90_000
+  ) {
+    throw new AppError(
+      "This proposal is already generating. Wait before trying again.",
+      409,
+    );
+  }
+  const token = randomUUID();
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin
+    .from("proposals")
+    .update({
+      content: {
+        ...proposal.content,
+        proposalAiLease: { token, startedAt: Date.now() },
+      } as Json,
+    })
+    .eq("id", proposal.id)
+    .eq("agency_id", agency.id)
+    .eq("updated_at", expectedUpdatedAt)
+    .select("*")
+    .single();
+  if (error)
+    throw new AppError(
+      "The draft could not be reserved. Reload before trying again.",
+      409,
+    );
+  return { token, updatedAt: data.updated_at };
+}
+
+export async function releaseCompleteProposalGeneration(
+  proposalId: string,
+  token: string,
+) {
+  const { supabase, agency } = await requireCurrentAgency();
+  const proposal = await getProposalForAgency(proposalId, agency.id, supabase);
+  if (
+    !proposal ||
+    (proposal.content?.proposalAiLease as { token?: unknown } | undefined)
+      ?.token !== token
+  )
+    return;
+  const { error } = await createSupabaseAdminClient()
+    .from("proposals")
+    .update({
+      content: { ...proposal.content, proposalAiLease: null } as Json,
+    })
+    .eq("id", proposal.id)
+    .eq("agency_id", agency.id)
+    .eq("updated_at", proposal.updatedAt)
+    .eq("content->proposalAiLease->>token", token);
+  if (error)
+    throw new AppError(
+      "Generation stopped. Wait before requesting another draft.",
+      503,
+    );
 }
 
 export function mapProposal(row: ProposalRow): Proposal {
@@ -364,7 +481,9 @@ export function mapProposal(row: ProposalRow): Proposal {
     discountAmount: Number(row.discount_amount),
     total: Number(row.total_amount),
     content:
-      row.content && typeof row.content === "object" && !Array.isArray(row.content)
+      row.content &&
+      typeof row.content === "object" &&
+      !Array.isArray(row.content)
         ? (row.content as Record<string, unknown>)
         : null,
     createdAt: row.created_at,
@@ -391,7 +510,9 @@ export function mapProposalOpportunity(
   };
 }
 
-export function mapProposalLineItem(row: ProposalLineItemRow): ProposalLineItem {
+export function mapProposalLineItem(
+  row: ProposalLineItemRow,
+): ProposalLineItem {
   return {
     id: row.id,
     proposalId: row.proposal_id,
@@ -461,7 +582,10 @@ async function listOpportunitiesForAudit(
     .order("score", { ascending: false });
 
   if (error) {
-    throw new AppError("We could not load opportunities for this proposal.", 500);
+    throw new AppError(
+      "We could not load opportunities for this proposal.",
+      500,
+    );
   }
 
   return data.map(mapOpportunity);
@@ -472,7 +596,11 @@ async function listOpportunityAiInsightsForOpportunityIds(
   agencyId: string,
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
 ) {
-  const opportunities = await listOpportunitiesForAudit(auditId, agencyId, supabase);
+  const opportunities = await listOpportunitiesForAudit(
+    auditId,
+    agencyId,
+    supabase,
+  );
   const ids = opportunities.map((opportunity) => opportunity.id);
 
   if (ids.length === 0) {
@@ -536,17 +664,26 @@ async function prepareProposalLines(input: {
   input: UpdateProposalInput;
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
 }) {
-  const opportunityIds = input.input.lineItems.map((item) => item.opportunityId);
+  const opportunityIds = input.input.lineItems.map(
+    (item) => item.opportunityId,
+  );
   const serviceIds = input.input.lineItems.map((item) => item.agencyServiceId);
 
   if (new Set(opportunityIds).size !== opportunityIds.length) {
-    throw new AppError("Each opportunity can only appear once in a proposal.", 422);
+    throw new AppError(
+      "Each opportunity can only appear once in a proposal.",
+      422,
+    );
   }
 
   const [opportunities, services, aiInsights] = await Promise.all([
     loadOpportunitiesByIds(opportunityIds, input.agencyId, input.supabase),
     loadServicesByIds(serviceIds, input.agencyId),
-    loadAiInsightsByOpportunityIds(opportunityIds, input.agencyId, input.supabase),
+    loadAiInsightsByOpportunityIds(
+      opportunityIds,
+      input.agencyId,
+      input.supabase,
+    ),
   ]);
 
   if (opportunities.length !== opportunityIds.length) {

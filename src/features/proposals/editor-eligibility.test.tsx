@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import Page from "@/app/(dashboard)/dashboard/proposals/[proposalId]/page";
 import { makeControlledProposalBuilder } from "./sales-test-fixtures";
+import { makeCompleteProposalBuilder } from "./ai/complete-test-fixtures";
 import { getProposalBuilderData } from "./data";
 import { getUiPreferences } from "@/lib/ui/server-preferences";
 
@@ -12,6 +13,7 @@ vi.mock("./actions", () => ({
   saveProposalFormAction: vi.fn(),
   updateProposalAction: vi.fn(),
   generateProposalAiDraftAction: vi.fn(),
+  generateCompleteProposalAction: vi.fn(),
 }));
 vi.mock("./delivery/actions", () => ({
   createDeliverySnapshotAction: vi.fn(),
@@ -26,7 +28,7 @@ vi.mock("@/lib/ui/server-preferences", () => ({ getUiPreferences: vi.fn() }));
 
 let data: ReturnType<typeof makeControlledProposalBuilder>;
 beforeEach(() => {
-  data = makeControlledProposalBuilder();
+  data = makeCompleteProposalBuilder();
   for (const line of data.lineItemsByOpportunityId.values()) {
     const opportunity = data.opportunities.find(
       (item) => item.id === line.opportunityId,
@@ -64,27 +66,29 @@ function button(markup: string, label: string) {
   return markup.match(new RegExp(`<button[^>]*>${label}</button>`))?.[0];
 }
 describe("saved proposal action eligibility", () => {
-  it("enables optional generation only for saved relevant lines with verified evidence and empty Draft text", async () => {
-    expect(
-      button(await html(), "Generate summary and scope \\(optional\\)"),
-    ).toContain('aria-disabled="false"');
+  it("enables complete generation only for saved relevant lines with approved scope, verified evidence and empty Draft text", async () => {
+    expect(button(await html(), "Generate Complete Proposal")).toContain(
+      'aria-disabled="false"',
+    );
   });
   it("asks for a saved selection before generation", async () => {
     data.lineItemsByOpportunityId.clear();
     const markup = await html();
-    expect(
-      button(markup, "Generate summary and scope \\(optional\\)"),
-    ).toContain('disabled=""');
+    expect(button(markup, "Generate Complete Proposal")).toContain(
+      'disabled=""',
+    );
     expect(markup).toContain("Select services and save the draft");
   });
   it("explains blocked automatic copy for manual unrelated services instead of suggesting generation is available", async () => {
     data.services[0].name = "Logo Design";
     data.services[0].description = "Illustrative unrelated catalog scope";
     const markup = await html();
-    expect(
-      button(markup, "Generate summary and scope \\(optional\\)"),
-    ).toContain('disabled=""');
-    expect(markup).toContain("Saved selections cannot support automatic copy");
+    expect(button(markup, "Generate Complete Proposal")).toContain(
+      'disabled=""',
+    );
+    expect(markup).toContain(
+      "Complete generation needs approved catalog scope",
+    );
   });
   it.each(["summary", "scope", "nextStep"] as const)(
     "preserves existing %s by disabling AI replacement",
@@ -92,9 +96,9 @@ describe("saved proposal action eligibility", () => {
       data.proposal[field] = "Human-approved text";
       const markup = await html();
       expect(markup).toContain("Saved text is preserved.");
-      expect(
-        button(markup, "Generate summary and scope \\(optional\\)"),
-      ).toContain('disabled=""');
+      expect(button(markup, "Generate Complete Proposal")).toContain(
+        'disabled=""',
+      );
     },
   );
   it("requires saving Ready before delivery", async () => {

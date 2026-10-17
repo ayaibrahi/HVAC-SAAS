@@ -10,6 +10,10 @@ import type {
 import type { AgencyService } from "@/domain/services/types";
 import { getProposalBuilderData } from "@/features/proposals/data";
 import { getProposalContentSuggestion } from "@/features/proposals/content-suggestion";
+import { createCompleteProposalInput } from "@/features/proposals/ai/complete-input";
+import { buildProposalCopyOptions } from "@/features/proposals/sales-content";
+import { getCompleteProposalCopy } from "@/lib/i18n/complete-proposal";
+import { getCompleteProposalRevision } from "@/features/proposals/ai/complete-revision";
 import { OpportunitySelection } from "@/features/proposals/components/opportunity-selection";
 import { buildDeliverySnapshotPayload } from "@/features/proposals/delivery/snapshot";
 import { getPublicErrorMessage } from "@/lib/errors";
@@ -17,12 +21,12 @@ import {
   ProposalContentFields,
   ProposalEditingGuard,
   ProposalEditForm,
-  ProposalAiSubmitButton,
+  CompleteProposalForm,
   ProposalGuardedSubmitButton,
   ProposalActionFeedback,
 } from "@/features/proposals/components/content-fields";
 import {
-  generateProposalAiDraftAction,
+  generateCompleteProposalAction,
   saveProposalFormAction,
   updateProposalAction,
 } from "@/features/proposals/actions";
@@ -65,6 +69,13 @@ export default async function ProposalBuilderPage({
   );
   const activeServices = data.services.filter((service) => service.isActive);
   const suggestion = getProposalContentSuggestion(data);
+  const completeCopy = getCompleteProposalCopy(locale);
+  let completeProblem: string | null = null;
+  try {
+    buildProposalCopyOptions(createCompleteProposalInput(data));
+  } catch (error) {
+    completeProblem = getPublicErrorMessage(error, completeCopy.missing);
+  }
   const preserveCopy =
     data.proposal.status !== "draft" ||
     Boolean(
@@ -88,7 +99,7 @@ export default async function ProposalBuilderPage({
   } catch (error) {
     deliveryProblem = getPublicErrorMessage(error, copy.deliveryReview);
   }
-  const generateAction = generateProposalAiDraftAction.bind(
+  const generateAction = generateCompleteProposalAction.bind(
     null,
     data.proposal.id,
   );
@@ -117,28 +128,32 @@ export default async function ProposalBuilderPage({
               .
             </p>
           </div>
-          <form action={generateAction}>
-            <ProposalAiSubmitButton
+          <div>
+            <CompleteProposalForm
+              action={generateAction}
+              revision={getCompleteProposalRevision(data)}
+              locale={locale}
               saveFirstLabel={copy.saveBeforeAi}
-              label={copy.generate}
-              pendingLabel={copy.generating}
-              className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={
-                data.lineItemsByOpportunityId.size === 0 ||
-                preserveCopy ||
-                !suggestion
-              }
+              eligible={!preserveCopy && !completeProblem}
             />
             <p className="mt-2 max-w-sm text-xs text-muted">
               {preserveCopy
                 ? copy.aiPreserve
                 : data.lineItemsByOpportunityId.size === 0
                   ? copy.aiSaveFirst
-                  : !suggestion
-                    ? copy.aiEvidenceRequired
+                  : completeProblem
+                    ? `${completeCopy.missing} ${completeProblem}`
                     : copy.aiOptional}
             </p>
-          </form>
+            {completeProblem && (
+              <Link
+                href="/dashboard/services"
+                className="mt-2 inline-block text-sm text-accent underline"
+              >
+                {copy.manageServices}
+              </Link>
+            )}
+          </div>
         </div>
 
         <ProposalActionFeedback
@@ -330,6 +345,7 @@ export default async function ProposalBuilderPage({
                         ?.salesSummary ?? null
                     }
                     copy={copy}
+                    locale={locale}
                   />
                 ))}
               </div>

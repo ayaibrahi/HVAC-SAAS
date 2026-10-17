@@ -7,6 +7,7 @@ import { getAgencyForUser } from "@/features/agencies/data";
 import { updateServiceAction } from "@/features/services/actions";
 import { ServiceForm } from "@/features/services/components/service-form";
 import { getAgencyService } from "@/features/services/data";
+import { getUiPreferences } from "@/lib/ui/server-preferences";
 
 type EditServicePageProps = {
   params: Promise<{
@@ -21,7 +22,10 @@ export default async function EditServicePage({
   params,
   searchParams,
 }: EditServicePageProps) {
-  const [{ serviceId }, feedbackParams] = await Promise.all([params, searchParams]);
+  const [{ serviceId }, feedbackParams] = await Promise.all([
+    params,
+    searchParams,
+  ]);
   const user = await getCurrentUser();
   const agency = user ? await getAgencyForUser(user.id) : null;
 
@@ -40,11 +44,15 @@ export default async function EditServicePage({
   }
 
   const updateAction = updateServiceAction.bind(null, service.id);
+  const { locale } = await getUiPreferences();
 
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/dashboard/services" className="text-sm font-semibold text-accent">
+        <Link
+          href="/dashboard/services"
+          className="text-sm font-semibold text-accent"
+        >
           Back to services
         </Link>
         <h1 className="mt-3 text-2xl font-semibold text-ink">Edit service</h1>
@@ -53,7 +61,12 @@ export default async function EditServicePage({
       <FeedbackMessage error={feedbackParams.error} />
 
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
-        <ServiceForm action={updateAction} service={service} submitLabel="Update service" />
+        <ServiceForm
+          locale={locale}
+          action={updateAction}
+          service={service}
+          submitLabel="Update service"
+        />
       </section>
     </div>
   );

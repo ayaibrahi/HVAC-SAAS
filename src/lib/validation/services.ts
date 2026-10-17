@@ -1,10 +1,12 @@
 import { z } from "zod";
 import { defaultCurrency, supportedCurrencies } from "@/config/currencies";
 import { optionalTrimmedText } from "@/lib/validation/common";
+import { approvedServiceScopeSchema } from "./service-scope";
 
 export const agencyServiceInputSchema = z.object({
   name: z.string().trim().min(2, "Service name is required.").max(120),
   description: optionalTrimmedText(1000),
+  approvedScope: approvedServiceScopeSchema.nullable().optional(),
   price: z.coerce
     .number({
       error: "Enter a valid price.",

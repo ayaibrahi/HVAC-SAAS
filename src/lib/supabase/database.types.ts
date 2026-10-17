@@ -105,6 +105,7 @@ export type Database = {
           agency_id: string;
           name: string;
           description: string | null;
+          approved_scope: Json | null;
           price: number;
           currency: CurrencyCode;
           is_active: boolean;
@@ -116,6 +117,7 @@ export type Database = {
           agency_id: string;
           name: string;
           description?: string | null;
+          approved_scope?: Json | null;
           price: number;
           currency: CurrencyCode;
           is_active?: boolean;
@@ -125,6 +127,7 @@ export type Database = {
         {
           name?: string;
           description?: string | null;
+          approved_scope?: Json | null;
           price?: number;
           currency?: CurrencyCode;
           is_active?: boolean;

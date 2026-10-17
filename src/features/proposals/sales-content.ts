@@ -159,7 +159,7 @@ export function buildProposalCopyOptions(
     ...new Set(input.selectedItems.map((item) => item.service.name)),
   ].join(", ");
   const narrative = `Page reviewed\n${input.audit.analyzedUrl}\nThe observations below concern this inspected page only, not what the business offers elsewhere.\n\nWhat we observed\n${observations}\n\nWhy this matters\n${relevance}\n\nRecommended approach\n${solutions}`;
-  const scope =
+  let scope =
     "SCOPE DRAFT - AGENCY CONFIRMATION REQUIRED\n\n" +
     input.selectedItems
       .map((item) => {
@@ -188,6 +188,36 @@ export function buildProposalCopyOptions(
       "Discuss the proposed scope and investment with the agency. Confirm what is included, how completion will be checked and what the agency needs from you before agreeing to proceed.",
     ],
   };
+  if (input.mode === "complete") {
+    const seen = new Set<string>();
+    scope =
+      "Proposed work - agency-approved scope\n\n" +
+      input.selectedItems
+        .filter(
+          (item) =>
+            !seen.has(item.service.id) && Boolean(seen.add(item.service.id)),
+        )
+        .map((item) => {
+          const approved = item.service.contractScope;
+          if (!approved)
+            throw new AppError(
+              "Approved service scope is required for complete generation.",
+              422,
+            );
+          return `${item.service.name}\nIncluded deliverables\n${approved.deliverables}\nExclusions and qualifications\n${approved.exclusions}\nClient inputs and access\n${approved.clientInputs}\nCompletion checks\n${approved.completionChecks}`;
+        })
+        .join("\n\n") +
+      "\n\nThe selected-work pricing table states the quantities, agency-confirmed unit prices, discount and total investment. No performance outcome is promised. Scheduling and any work outside this scope require separate agreement.";
+    options.summary = [
+      `Dear ${input.prospect.businessName} team,\n\n${input.agency.name} proposes a focused project aimed at ${goals}. The aim is to make the next step clearer for visitors looking for HVAC help, within the work defined below.\n\nExecutive summary\nWe recommend ${selectedServices}. The proposed investment covers only the selected work and approved deliverables, with no work beyond that scope implied.\n\n${narrative}\n\nReview limits\nThis review inspected the returned HTML of the identified page. Other pages, interactive behavior and actual contact or booking functionality were not tested. Non-detection is not proof that a service or feature is unavailable.`,
+      `Prepared for ${input.prospect.businessName} by ${input.agency.name}\n\nExecutive summary\nA clearer customer journey starts with ${goals}. We propose ${selectedServices}, limited to the deliverables and qualifications below. The investment relates to that defined work, not a promised commercial result.\n\n${narrative}\n\nReview limits\nOnly the returned HTML of the identified page was inspected. Other pages and interactive contact or booking functionality were not tested. Non-detection does not establish an unavailable business service.`,
+    ];
+    options.scope = [scope];
+    options.nextStep = [
+      "Please review the proposed deliverables, exclusions and saved investment with the agency. Confirm the required inputs and completion checks, then agree the schedule and authorize the scope before work begins.",
+      "If this focused approach fits your priorities, confirm the scope and saved investment with the agency. Resolve any questions about access, exclusions or completion checks and agree the schedule before authorizing work.",
+    ];
+  }
   for (const field of Object.keys(options) as (keyof ProposalAiDraftOutput)[]) {
     for (const value of options[field]) {
       if (
@@ -209,12 +239,19 @@ export function buildProposalCopyOptions(
     }
   }
   // Reject excessive copy instead of silently dropping evidence or truncating scope.
-  for (const summary of options.summary)
-    proposalAiDraftOutputSchema.parse({
+  for (const summary of options.summary) {
+    const result = proposalAiDraftOutputSchema.safeParse({
       summary,
       scope,
       nextStep: options.nextStep[0],
     });
+    if (!result.success) {
+      throw new AppError(
+        "Selected findings and scope exceed proposal draft limits. Shorten approved scope or select fewer findings before generating.",
+        413,
+      );
+    }
+  }
   return options;
 }
 
