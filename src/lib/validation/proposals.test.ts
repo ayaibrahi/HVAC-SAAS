@@ -13,6 +13,28 @@ const validLineItem = {
 };
 
 describe("proposal validation", () => {
+  it("identifies the exact blank-service field without weakening UUID validation", () => {
+    const result = updateProposalInputSchema.safeParse({
+      proposalId: "44444444-4444-4444-8444-444444444444",
+      title: "TEST ONLY draft",
+      currency: "USD",
+      status: "draft",
+      discountType: "none",
+      discountValue: "0",
+      lineItems: [{ ...validLineItem, agencyServiceId: "" }],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0].path).toEqual([
+        "lineItems",
+        0,
+        "agencyServiceId",
+      ]);
+      expect(result.error.issues[0].message).toContain(
+        "Choose a catalog service",
+      );
+    }
+  });
   it("validates proposal creation input", () => {
     expect(
       createProposalInputSchema.parse({

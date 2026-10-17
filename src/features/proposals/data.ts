@@ -585,10 +585,8 @@ async function prepareProposalLines(input: {
       opportunity,
       service,
       position: index,
-      description:
-        line.description ??
-        service.description ??
-        `Implementation support for ${opportunity.title}.`,
+      // Catalog capabilities are not agency-approved implementation commitments.
+      description: line.description ?? "",
       quantity: line.quantity,
       unitPriceCents,
       lineTotalCents,

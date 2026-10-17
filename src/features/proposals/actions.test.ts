@@ -5,6 +5,7 @@ import {
   createProposalAction,
   generateProposalAiDraftAction,
   updateProposalAction,
+  saveProposalFormAction,
 } from "@/features/proposals/actions";
 import { createDeliverySnapshotAction } from "@/features/proposals/delivery/actions";
 import { buildFeedbackUrl } from "@/lib/action-feedback";
@@ -173,6 +174,97 @@ describe.each(actionCases)("$name redirect boundary", (action) => {
 });
 
 describe("proposal validation and provider errors", () => {
+  it.each(["", "not-a-service", "11111111-1111-4111-8111-11111111111"])(
+    "keeps invalid service feedback in the editor without persistence: %s",
+    async (value) => {
+      const form = updateForm();
+      form.set(`serviceId:${opportunityId}`, value);
+      const before = [...form.entries()];
+      const state = await saveProposalFormAction(proposalId, form);
+      expect(state.error).toContain("Choose a catalog service");
+      expect(state.saved).toBeUndefined();
+      expect([...form.entries()]).toEqual(before);
+      expect(operations.saveDraft).not.toHaveBeenCalled();
+      expect(redirect).not.toHaveBeenCalled();
+    },
+  );
+  it("rejects invalid finding and proposal IDs with field-specific guidance", async () => {
+    const form = updateForm();
+    form.set("opportunityId", "on");
+    form.set("serviceId:on", serviceId);
+    form.set("quantity:on", "1");
+    form.set("unitPrice:on", "500");
+    expect((await saveProposalFormAction(proposalId, form)).error).toContain(
+      "selected finding",
+    );
+    expect(
+      (await saveProposalFormAction("stale", updateForm())).error,
+    ).toContain("Saved proposals");
+    expect(operations.saveDraft).not.toHaveBeenCalled();
+  });
+  it.each(["draft", "ready"])(
+    "saves valid editor IDs/prices once without creating a second draft (%s)",
+    async (status) => {
+      const form = updateForm();
+      form.set("status", status);
+      expect(await saveProposalFormAction(proposalId, form)).toEqual({
+        saved: true,
+      });
+      expect(operations.saveDraft).toHaveBeenCalledTimes(1);
+      expect(operations.saveDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status,
+          lineItems: [
+            expect.objectContaining({
+              opportunityId,
+              agencyServiceId: serviceId,
+              unitPrice: "350.00",
+              quantity: 2,
+            }),
+          ],
+        }),
+      );
+      expect(operations.createDraft).not.toHaveBeenCalled();
+      expect(redirect).not.toHaveBeenCalled();
+    },
+  );
+  it("returns a controlled editor failure without echoing form content or losing submitted edits", async () => {
+    const form = updateForm();
+    operations.saveDraft.mockRejectedValueOnce(
+      new Error("internal secret detail"),
+    );
+    const before = [...form.entries()];
+    expect(await saveProposalFormAction(proposalId, form)).toEqual({
+      error: "We could not save that proposal.",
+    });
+    expect([...form.entries()]).toEqual(before);
+    expect(operations.saveDraft).toHaveBeenCalledTimes(1);
+    expect(operations.createDraft).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
+  });
+  it.each(["draft", "ready"])(
+    "explains a checked opportunity's empty service instead of Invalid UUID (%s)",
+    async (status) => {
+      const form = updateForm();
+      form.set("status", status);
+      form.set(`serviceId:${opportunityId}`, "");
+      await expect(
+        updateProposalAction(proposalId, form),
+      ).rejects.toMatchObject({
+        message: "NEXT_REDIRECT",
+      });
+      const target = new URL(
+        vi.mocked(redirect).mock.calls[0][0],
+        "https://example.test",
+      );
+      expect(target.searchParams.get("error")).toContain(
+        "Choose a catalog service for each selected opportunity",
+      );
+      expect(target.searchParams.get("error")).not.toContain("Invalid UUID");
+      expect(operations.saveDraft).not.toHaveBeenCalled();
+      expect(operations.createDraft).not.toHaveBeenCalled();
+    },
+  );
   it.each([
     {
       name: "invalid audit ID",

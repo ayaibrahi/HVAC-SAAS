@@ -2,6 +2,23 @@ import type { Locale } from "@/lib/ui/preferences";
 
 const english = {
   savedProposals: "Saved proposals",
+  saved: "Proposal saved. Refreshing the saved preview.",
+  editsPreserved: "Your edits are still in this form.",
+  saveUncertain:
+    "We could not confirm the save. Reopen this saved proposal in another tab to check before retrying; do not create another draft.",
+  recommended: "Automatically recommended catalog service",
+  manualService:
+    "Manually selected catalog service; relevance requires your review.",
+  selectedRecommendation: "Selected recommended service",
+  serviceHelp:
+    "Each checked finding needs a catalog service. Confirm its scope and enter your agreed price in the proposal currency; selecting a different service does not approve its relevance.",
+  technicalEvidence: "Technical evidence (diagnostics)",
+  aiEvidenceRequired:
+    "Saved selections cannot support automatic copy with the current verified evidence and service scope. Review the selections or write the proposal manually.",
+  deliverySaveFirst:
+    "Save your current edits before preparing a client-ready version. Delivery uses the saved proposal only.",
+  deliveryReview:
+    "Review saved selections, quantities, prices, Summary and Scope. Resolve the issue below, then save as Ready.",
   back: "Back to proposals",
   builder: "Proposal Builder",
   forBusiness: "Proposal for",
@@ -10,6 +27,9 @@ const english = {
   sourceNote:
     "This proposal keeps its original scan. Business results may show a newer scan.",
   workflow: "Prepare your proposal",
+  chooseWorkStep: "1. Choose work and prices; save Draft.",
+  editCopyStep: "2. Generate or edit copy; review and save Ready.",
+  approveStep: "3. Prepare a client-ready version.",
   draftGuidance:
     "Draft: your work stays private until you prepare a client-ready version and choose to share it.",
   readyGuidance:
@@ -129,6 +149,22 @@ export type ProposalCopy = Record<keyof typeof english, string>;
 
 const arabic: ProposalCopy = {
   savedProposals: "العروض المحفوظة",
+  saved: "تم حفظ العرض. جارٍ تحديث المعاينة المحفوظة.",
+  editsPreserved: "تعديلاتك ما زالت موجودة في هذا النموذج.",
+  saveUncertain:
+    "تعذّر تأكيد الحفظ. افتح العرض المحفوظ في علامة تبويب أخرى للتحقق قبل المحاولة مجددًا؛ لا تنشئ مسودة أخرى.",
+  recommended: "خدمة مقترحة تلقائيًا من دليل الخدمات",
+  manualService: "خدمة اخترتها يدويًا؛ يجب مراجعة ملاءمتها.",
+  selectedRecommendation: "الخدمة المقترحة المختارة",
+  serviceHelp:
+    "كل فرصة محددة تحتاج إلى خدمة من الدليل. أكّد نطاقها وأدخل السعر المتفق عليه بعملة العرض؛ اختيار خدمة مختلفة لا يعني اعتماد ملاءمتها.",
+  technicalEvidence: "أدلة تقنية للتشخيص",
+  aiEvidenceRequired:
+    "لا تدعم الاختيارات المحفوظة إنشاء النص تلقائيًا بالأدلة الموثّقة ونطاق الخدمة الحالي. راجع الاختيارات أو اكتب العرض يدويًا.",
+  deliverySaveFirst:
+    "احفظ تعديلاتك قبل إعداد نسخة العميل. يعتمد التسليم على العرض المحفوظ فقط.",
+  deliveryReview:
+    "راجع الاختيارات والكميات والأسعار والملخص والنطاق المحفوظة. عالج المشكلة أدناه ثم احفظ بالحالة جاهز.",
   back: "العودة إلى العروض",
   builder: "محرّر عرض الخدمات",
   forBusiness: "عرض خدمات لـ",
@@ -136,6 +172,9 @@ const arabic: ProposalCopy = {
   businessResults: "افتح نتائج النشاط",
   sourceNote: "يحتفظ هذا العرض بفحصه الأصلي. قد تعرض نتائج النشاط فحصًا أحدث.",
   workflow: "جهّز عرض الخدمات",
+  chooseWorkStep: "١. اختر العمل والأسعار واحفظ المسودة.",
+  editCopyStep: "٢. أنشئ النص أو حرّره وراجعه ثم احفظ بالحالة جاهز.",
+  approveStep: "٣. أعدّ نسخة جاهزة للعميل.",
   draftGuidance:
     "مسودة: يبقى عملك خاصًا حتى تُعدّ نسخة جاهزة للعميل وتختار مشاركتها.",
   readyGuidance:

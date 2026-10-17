@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { redirect } from "next/navigation";
-import { createProposalAction, updateProposalAction } from "./actions";
+import {
+  createProposalAction,
+  updateProposalAction,
+  saveProposalFormAction,
+} from "./actions";
 import { getProposalBuilderData } from "./data";
 import ProposalBuilderPage from "@/app/(dashboard)/dashboard/proposals/[proposalId]/page";
 import ProposalsPage from "@/app/(dashboard)/dashboard/proposals/page";
@@ -18,7 +22,11 @@ vi.mock("@/lib/ui/server-preferences", () => ({
 }));
 vi.mock("next/navigation", async (original) => {
   const actual = await original<typeof import("next/navigation")>();
-  return { ...actual, redirect: vi.fn(actual.redirect) };
+  return {
+    ...actual,
+    redirect: vi.fn(actual.redirect),
+    useRouter: () => ({ refresh: vi.fn() }),
+  };
 });
 vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: vi.fn(async () => client),
@@ -78,6 +86,11 @@ const saveRpc = vi.fn(async (_name: string, input: Row) => {
       agency_id: agencyId,
     }),
   );
+  rows.proposal_opportunities = (input.p_line_items as Row[]).map((line) => ({
+    ...line,
+    proposal_id: proposalId,
+    agency_id: agencyId,
+  }));
   return { error: null };
 });
 const queries: { table: string; filters: [string, unknown][] }[] = [];
@@ -455,6 +468,7 @@ describe("website findings to real proposal action and editor (mocked storage)",
         agency_id: agencyId,
         name: "Booking Integration",
         price: 99,
+        description: null,
         currency: "USD",
         is_active: true,
       },
@@ -599,3 +613,90 @@ it("preserves a saved inactive service and manual price visibly instead of silen
   expect(html).toContain('value="500.00"');
   expect(html).toContain("Saved scope");
 });
+
+function manualForm() {
+  const form = new FormData();
+  for (const [key, value] of Object.entries({
+    title: "TEST ONLY manual draft",
+    status: "draft",
+    summary: "",
+    scope: "",
+    nextStep: "",
+    currency: "USD",
+    discountType: "none",
+    discountValue: "0",
+    opportunityId,
+    [`serviceId:${opportunityId}`]: "66666666-6666-4666-8666-666666666666",
+    [`quantity:${opportunityId}`]: "1",
+    [`unitPrice:${opportunityId}`]: "500.00",
+    [`description:${opportunityId}`]: "",
+  }))
+    form.set(key, value);
+  return form;
+}
+function addCatalogService() {
+  rows.agency_services = [
+    {
+      id: "66666666-6666-4666-8666-666666666666",
+      agency_id: agencyId,
+      name: "Website Conversion Optimization",
+      description: "Catalog capabilities are not approved deliverables.",
+      price: 99,
+      currency: "USD",
+      is_active: true,
+    },
+  ];
+}
+it("reproduces unmatched blank-service save rejection before the RPC without deleting the already-created draft", async () => {
+  await submit();
+  addCatalogService();
+  const before = structuredClone(rows.proposals[0]);
+  const form = manualForm();
+  form.set(`serviceId:${opportunityId}`, "");
+  expect((await saveProposalFormAction(proposalId, form)).error).toContain(
+    "Choose a catalog service",
+  );
+  expect(saveRpc).not.toHaveBeenCalled();
+  expect(rows.proposals[0]).toEqual(before);
+  expect(inserts).toHaveBeenCalledTimes(1);
+});
+it("does not turn catalog text or generic implementation support into an approved line scope", async () => {
+  await submit();
+  addCatalogService();
+  expect(await saveProposalFormAction(proposalId, manualForm())).toEqual({
+    saved: true,
+  });
+  expect(rows.proposal_line_items[0].description).toBe("");
+  expect(rows.proposal_line_items[0].unit_price).toBe(500);
+  expect(inserts).toHaveBeenCalledTimes(1);
+});
+it.each(["opportunities", "agency_services", "proposals"])(
+  "blocks cross-tenant %s before a save RPC",
+  async (table) => {
+    await submit();
+    addCatalogService();
+    rows[table][0].agency_id = "foreign-agency";
+    expect(
+      (await saveProposalFormAction(proposalId, manualForm())).error,
+    ).toBeTruthy();
+    expect(saveRpc).not.toHaveBeenCalled();
+    expect(inserts).toHaveBeenCalledTimes(1);
+  },
+);
+it.each(["summary", "scope", "lines"])(
+  "rejects Ready with missing %s without overwriting the saved Draft",
+  async (missing) => {
+    await submit();
+    addCatalogService();
+    const before = structuredClone(rows.proposals[0]);
+    const form = manualForm();
+    form.set("status", "ready");
+    form.set("summary", "Manual summary");
+    form.set("scope", "Manual scope");
+    if (missing === "lines") form.delete("opportunityId");
+    else form.set(missing, "");
+    expect((await saveProposalFormAction(proposalId, form)).error).toBeTruthy();
+    expect(saveRpc).not.toHaveBeenCalled();
+    expect(rows.proposals[0]).toEqual(before);
+  },
+);

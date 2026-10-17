@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FeedbackMessage } from "@/components/feedback-message";
+import { buildFeedbackUrl } from "@/lib/action-feedback";
 import { PendingDownloadLink } from "@/components/pending-download-link";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import type { Opportunity } from "@/domain/opportunities/types";
@@ -10,14 +10,20 @@ import type {
 import type { AgencyService } from "@/domain/services/types";
 import { getProposalBuilderData } from "@/features/proposals/data";
 import { getProposalContentSuggestion } from "@/features/proposals/content-suggestion";
+import { OpportunitySelection } from "@/features/proposals/components/opportunity-selection";
+import { buildDeliverySnapshotPayload } from "@/features/proposals/delivery/snapshot";
+import { getPublicErrorMessage } from "@/lib/errors";
 import {
   ProposalContentFields,
   ProposalEditingGuard,
   ProposalEditForm,
   ProposalAiSubmitButton,
+  ProposalGuardedSubmitButton,
+  ProposalActionFeedback,
 } from "@/features/proposals/components/content-fields";
 import {
   generateProposalAiDraftAction,
+  saveProposalFormAction,
   updateProposalAction,
 } from "@/features/proposals/actions";
 import { createDeliverySnapshotAction } from "@/features/proposals/delivery/actions";
@@ -66,7 +72,22 @@ export default async function ProposalBuilderPage({
       data.proposal.scope.trim() ||
       data.proposal.nextStep.trim(),
     );
-  const updateAction = updateProposalAction.bind(null, data.proposal.id);
+  const updateAction = saveProposalFormAction.bind(null, data.proposal.id);
+  let deliveryProblem: string | null = null;
+  try {
+    buildDeliverySnapshotPayload({
+      agency: data.agency,
+      userId: data.agency.ownerUserId,
+      proposal: data.proposal,
+      prospect: data.prospect,
+      proposalOpportunities: [
+        ...data.proposalOpportunitiesByOpportunityId.values(),
+      ],
+      lineItems: [...data.lineItemsByOpportunityId.values()],
+    });
+  } catch (error) {
+    deliveryProblem = getPublicErrorMessage(error, copy.deliveryReview);
+  }
   const generateAction = generateProposalAiDraftAction.bind(
     null,
     data.proposal.id,
@@ -113,12 +134,17 @@ export default async function ProposalBuilderPage({
                 ? copy.aiPreserve
                 : data.lineItemsByOpportunityId.size === 0
                   ? copy.aiSaveFirst
-                  : copy.aiOptional}
+                  : !suggestion
+                    ? copy.aiEvidenceRequired
+                    : copy.aiOptional}
             </p>
           </form>
         </div>
 
-        <FeedbackMessage error={feedback.error} success={feedback.success} />
+        <ProposalActionFeedback
+          error={feedback.error}
+          success={feedback.success}
+        />
 
         <section
           aria-labelledby="proposal-workflow"
@@ -135,16 +161,22 @@ export default async function ProposalBuilderPage({
               ? copy.readyGuidance
               : copy.draftGuidance}
           </p>
-          <ol className="mt-3 list-decimal space-y-2 ps-5 text-sm text-muted">
-            {[
-              copy.reviewStep,
-              copy.selectStep,
-              copy.priceStep,
-              copy.copyStep,
-              copy.saveStep,
-            ].map((step) => (
-              <li key={step}>{step}</li>
-            ))}
+          <ol className="mt-3 grid gap-3 text-sm text-accent md:grid-cols-3">
+            <li>
+              <a href="#proposal-work" className="hover:underline">
+                {copy.chooseWorkStep}
+              </a>
+            </li>
+            <li>
+              <a href="#proposal-copy" className="hover:underline">
+                {copy.editCopyStep}
+              </a>
+            </li>
+            <li>
+              <a href="#proposal-delivery" className="hover:underline">
+                {copy.approveStep}
+              </a>
+            </li>
           </ol>
           <Link
             href={`/dashboard/prospects?prospect=${data.prospect.id}#website-results`}
@@ -164,6 +196,7 @@ export default async function ProposalBuilderPage({
           snapshots={deliverySnapshots}
           shareLinks={shareLinks}
           proposalStatus={data.proposal.status}
+          deliveryProblem={deliveryProblem}
           createSnapshotAction={createSnapshotAction}
           copy={copy}
           locale={locale}
@@ -183,10 +216,19 @@ export default async function ProposalBuilderPage({
 
         <ProposalEditForm
           action={updateAction}
+          fallbackAction={updateProposalAction.bind(null, data.proposal.id)}
+          successHref={buildFeedbackUrl(
+            `/dashboard/proposals/${data.proposal.id}`,
+            { success: "Proposal saved." },
+          )}
+          copy={copy}
           className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]"
         >
           <div className="space-y-6">
-            <section className="rounded-md border border-border bg-white p-6 shadow-sm">
+            <section
+              id="proposal-copy"
+              className="scroll-mt-5 rounded-md border border-border bg-white p-6 shadow-sm"
+            >
               <h2 className="text-lg font-semibold text-ink">{copy.details}</h2>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <label className="md:col-span-2">
@@ -242,10 +284,14 @@ export default async function ProposalBuilderPage({
               </div>
             </section>
 
-            <section className="rounded-md border border-border bg-white p-6 shadow-sm">
+            <section
+              id="proposal-work"
+              className="scroll-mt-5 rounded-md border border-border bg-white p-6 shadow-sm"
+            >
               <h2 className="text-lg font-semibold text-ink">
                 {copy.opportunities}
               </h2>
+              <p className="mt-2 text-xs text-muted">{copy.serviceHelp}</p>
               {data.opportunities.length === 0 && (
                 <p className="mt-3 text-sm text-muted">
                   {copy.noOpportunities}
@@ -339,6 +385,7 @@ function DeliverySnapshotPanel({
   snapshots,
   shareLinks,
   proposalStatus,
+  deliveryProblem,
   createSnapshotAction,
   copy,
   locale,
@@ -346,6 +393,7 @@ function DeliverySnapshotPanel({
   snapshots: ProposalDeliverySnapshot[];
   shareLinks: ProposalShareLinkMetadata[];
   proposalStatus: string;
+  deliveryProblem: string | null;
   createSnapshotAction: () => Promise<void>;
   copy: ProposalCopy;
   locale: Locale;
@@ -355,7 +403,10 @@ function DeliverySnapshotPanel({
   );
 
   return (
-    <section className="rounded-md border border-border bg-white p-6 shadow-sm">
+    <section
+      id="proposal-delivery"
+      className="scroll-mt-5 rounded-md border border-border bg-white p-6 shadow-sm"
+    >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-ink">{copy.delivery}</h2>
@@ -364,17 +415,22 @@ function DeliverySnapshotPanel({
           </p>
         </div>
         <form action={createSnapshotAction}>
-          <PendingSubmitButton
+          <ProposalGuardedSubmitButton
+            saveFirstLabel={copy.deliverySaveFirst}
             label={copy.prepare}
             pendingLabel={copy.preparing}
             className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={proposalStatus !== "ready"}
+            disabled={Boolean(deliveryProblem)}
           />
         </form>
       </div>
 
       {proposalStatus !== "ready" ? (
         <p className="mt-3 text-sm text-muted">{copy.readyRequired}</p>
+      ) : deliveryProblem ? (
+        <p className="mt-3 text-sm text-muted">
+          {copy.deliveryReview} {deliveryProblem}
+        </p>
       ) : null}
 
       {activeSnapshot ? (
@@ -501,136 +557,6 @@ function findUsableActiveShareLink(
         link.status === "active" &&
         (!link.expiresAt || Date.parse(link.expiresAt) > now),
     ) ?? null
-  );
-}
-
-function OpportunitySelection({
-  opportunity,
-  services,
-  selectedServiceId,
-  selected,
-  unitPrice,
-  quantity,
-  description,
-  aiSummary,
-  copy,
-}: {
-  opportunity: Opportunity;
-  services: AgencyService[];
-  selectedServiceId: string;
-  selected: boolean;
-  unitPrice: number;
-  quantity: number;
-  description: string;
-  aiSummary: string | null;
-  copy: ProposalCopy;
-}) {
-  return (
-    <div className="rounded-md border border-border p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            name="opportunityId"
-            value={opportunity.id}
-            defaultChecked={selected}
-            disabled={services.length === 0 && !selected}
-            className="mt-1"
-          />
-          <span>
-            <span className="block text-sm font-semibold text-ink">
-              <bdi>{opportunity.title}</bdi>
-            </span>
-            <span className="mt-1 block text-xs text-muted">
-              <bdi>{opportunity.shortDescription}</bdi>
-            </span>
-          </span>
-        </label>
-        <div className="flex gap-2 text-xs text-muted">
-          <span className="rounded-md border border-border px-2 py-1">
-            {opportunity.priority}
-          </span>
-          <span className="rounded-md border border-border px-2 py-1">
-            {opportunity.confidence}
-          </span>
-        </div>
-      </div>
-
-      <p className="mt-3 text-xs text-muted">{copy.evidenceScope}</p>
-      <ul className="mt-2 space-y-1 text-xs text-muted">
-        {opportunity.evidence.map((item, index) => (
-          <li key={`${opportunity.id}-${item.signal}-${index}`}>
-            <bdi>{item.details}</bdi>{" "}
-            <bdi dir="ltr">
-              ({item.signal}: {formatEvidenceValue(item.observed_value)};{" "}
-              {item.scope})
-            </bdi>
-          </li>
-        ))}
-      </ul>
-
-      {aiSummary ? (
-        <p className="mt-3 text-xs text-muted">
-          {copy.aiInsight}: <bdi>{aiSummary}</bdi>
-        </p>
-      ) : null}
-
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        <label className="md:col-span-3">
-          <span className="text-xs font-medium text-ink">{copy.service}</span>
-          <select
-            name={`serviceId:${opportunity.id}`}
-            defaultValue={selectedServiceId}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-          >
-            <option value="">{copy.chooseService}</option>
-            {selectedServiceId &&
-              !services.some((service) => service.id === selectedServiceId) && (
-                <option value={selectedServiceId} disabled>
-                  {copy.unavailableService}
-                </option>
-              )}
-            {services.map((service) => (
-              <option key={service.id} value={service.id}>
-                {service.name}
-              </option>
-            ))}
-          </select>
-          {!opportunity.agencyServiceId && !selected && (
-            <span className="mt-2 block text-xs text-muted">
-              {copy.unmatched}
-            </span>
-          )}
-        </label>
-        <label>
-          <span className="text-xs font-medium text-ink">{copy.quantity}</span>
-          <input
-            name={`quantity:${opportunity.id}`}
-            defaultValue={String(quantity)}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-          />
-        </label>
-        <label>
-          <span className="text-xs font-medium text-ink">{copy.unitPrice}</span>
-          <input
-            name={`unitPrice:${opportunity.id}`}
-            inputMode="decimal"
-            defaultValue={unitPrice.toFixed(2)}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-          />
-        </label>
-        <label className="md:col-span-3">
-          <span className="text-xs font-medium text-ink">{copy.lineNote}</span>
-          <textarea
-            name={`description:${opportunity.id}`}
-            defaultValue={description}
-            rows={3}
-            maxLength={1000}
-            className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
-          />
-        </label>
-      </div>
-    </div>
   );
 }
 
@@ -779,20 +705,4 @@ function getDefaultServicePrice(
   );
 
   return service?.price ?? 0;
-}
-
-function formatEvidenceValue(value: unknown) {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (value === null) {
-    return "null";
-  }
-
-  return "structured value";
 }

@@ -19,6 +19,9 @@ export function opportunityCountLabel(count: number, locale: Locale) {
 }
 
 export const prospectEnglish = {
+  pCoverageTitle: "What this scan does and does not verify",
+  pCoverageLimits:
+    "This scan reviews the fetched HTML of one page only. It does not inspect other website pages, verify JavaScript-rendered completeness, test button functionality, submit forms, confirm booking functionality, or assess overall site technical health. Zero supported findings does not mean the website is free of problems.",
   pOpenProposal: "Open saved proposal",
   pPrepareHelp:
     "Start an empty draft, then select opportunities, choose your services and confirm prices in the proposal editor.",
@@ -170,6 +173,9 @@ export const prospectEnglish = {
 };
 
 export const prospectArabic: Record<keyof typeof prospectEnglish, string> = {
+  pCoverageTitle: "ما الذي يتحقق منه هذا الفحص وما حدوده؟",
+  pCoverageLimits:
+    "يراجع الفحص HTML المسترجع لصفحة واحدة فقط. لا يفحص بقية صفحات الموقع، ولا يتحقق من اكتمال المحتوى المعروض بجافاسكريبت، ولا يختبر عمل الأزرار أو يرسل النماذج أو يؤكد عمل الحجز أو يقيّم السلامة التقنية للموقع كله. عدم وجود نتائج تدعمها الأدلة لا يعني خلو الموقع من المشكلات.",
   pOpenProposal: "افتح العرض المحفوظ",
   pPrepareHelp:
     "ابدأ مسودة فارغة، ثم حدّد الفرص واختر خدماتك وأكّد الأسعار في محرّر العرض.",

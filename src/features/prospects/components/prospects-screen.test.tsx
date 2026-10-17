@@ -66,6 +66,54 @@ function render(
 }
 describe("simplified prospects presentation", () => {
   it.each(["en", "ar"] as const)(
+    "explains completed single-page coverage without marking it unverified (%s)",
+    (locale) => {
+      const data = workspace();
+      data.opportunities = [];
+      const html = render(data, locale);
+      expect(html).toContain(
+        locale === "en"
+          ? "Zero supported findings does not mean the website is free of problems."
+          : "عدم وجود نتائج تدعمها الأدلة لا يعني خلو الموقع من المشكلات.",
+      );
+      if (locale === "en") {
+        for (const limit of [
+          "other website pages",
+          "JavaScript-rendered completeness",
+          "button functionality",
+          "submit forms",
+          "booking functionality",
+          "overall site technical health",
+        ])
+          expect(html).toContain(limit);
+        expect(html).toContain("Scan completed");
+        expect(html).not.toContain("Unable to verify page");
+      }
+    },
+  );
+  it("links failed saved scans to results instead of starting a scan from the list", () => {
+    const data = workspace();
+    data.scan!.status = "failed";
+    const html = renderToStaticMarkup(
+      <UiPreferencesProvider initial={{ locale: "en", theme: "light" }}>
+        <ProspectsScreen
+          data={{
+            items: [{ ...data.prospect, scan: data.scan }],
+            page: 1,
+            query: "",
+            hasNext: false,
+          }}
+          selected={null}
+          addProspect={async () => ({})}
+          createProposal={async () => {}}
+        />
+      </UiPreferencesProvider>,
+    );
+    expect(html).toContain("#website-results");
+    expect(html).toContain("View results");
+    expect(html).not.toContain("Scan website");
+  });
+  it.each(["en", "ar"] as const)(
     "shows localized unverified status and blocks new finding generation: %s",
     (locale) => {
       const data = workspace();
