@@ -3,16 +3,30 @@ import { supportedCurrencies } from "@/config/currencies";
 import { optionalTrimmedText } from "@/lib/validation/common";
 
 export const proposalStatusSchema = z.enum(["draft", "ready"]);
-export const proposalDiscountTypeSchema = z.enum(["none", "fixed", "percentage"]);
+export const proposalDiscountTypeSchema = z.enum([
+  "none",
+  "fixed",
+  "percentage",
+]);
 
 export const createProposalInputSchema = z.object({
-  auditId: z.string().uuid(),
+  auditId: z
+    .string()
+    .uuid("Open a completed audit before creating a proposal."),
   title: optionalTrimmedText(160),
 });
 
 export const proposalLineItemInputSchema = z.object({
-  opportunityId: z.string().uuid(),
-  agencyServiceId: z.string().uuid(),
+  opportunityId: z
+    .string()
+    .uuid(
+      "A selected finding is invalid. Reopen the saved proposal and review its findings.",
+    ),
+  agencyServiceId: z
+    .string()
+    .uuid(
+      "Choose a catalog service for each selected opportunity, or uncheck that opportunity.",
+    ),
   quantity: z.coerce
     .number({
       error: "Enter a valid quantity.",
@@ -25,7 +39,9 @@ export const proposalLineItemInputSchema = z.object({
 });
 
 export const updateProposalInputSchema = z.object({
-  proposalId: z.string().uuid(),
+  proposalId: z
+    .string()
+    .uuid("Reopen this proposal from Saved proposals before saving."),
   title: z.string().trim().min(2, "Proposal title is required.").max(160),
   summary: z.string().trim().max(4000).default(""),
   scope: z.string().trim().max(8000).default(""),

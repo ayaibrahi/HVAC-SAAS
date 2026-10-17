@@ -103,6 +103,12 @@ export function ProspectDetails({
       ) : (
         <section aria-label={t.pOpportunities}>
           <p className="text-sm text-muted">{t.pOnePageScanned}</p>
+          <details className="mt-2 text-xs text-muted">
+            <summary className="cursor-pointer py-2">
+              {t.pCoverageTitle}
+            </summary>
+            <p className="max-w-2xl leading-relaxed">{t.pCoverageLimits}</p>
+          </details>
           {(existingProposal || opportunities.length > 0) && (
             <div className="my-5 space-y-2">
               {existingProposal ? (

@@ -63,16 +63,28 @@ export async function updateProposalAction(
   formData: FormData,
 ) {
   const path = `${proposalsPath}/${proposalId}`;
+  const state = await saveProposalFormAction(proposalId, formData);
+  if (state.error) {
+    redirect(buildFeedbackUrl(path, { error: state.error }));
+  }
+  redirect(buildFeedbackUrl(path, { success: "Proposal saved." }));
+}
+
+// The interactive editor keeps its fields mounted when validation or persistence fails.
+// The original redirect action remains available for existing callers.
+export async function saveProposalFormAction(
+  proposalId: string,
+  formData: FormData,
+): Promise<{ error?: string; saved?: true }> {
+  const path = `${proposalsPath}/${proposalId}`;
   let lineItems: ReturnType<typeof parseLineItems>;
 
   try {
     lineItems = parseLineItems(formData);
   } catch (error) {
-    redirect(
-      buildFeedbackUrl(path, {
-        error: getPublicErrorMessage(error, "Please check the proposal form."),
-      }),
-    );
+    return {
+      error: getPublicErrorMessage(error, "Please check the proposal form."),
+    };
   }
 
   const result = updateProposalInputSchema.safeParse({
@@ -89,11 +101,7 @@ export async function updateProposalAction(
   });
 
   if (!result.success) {
-    redirect(
-      buildFeedbackUrl(path, {
-        error: getValidationErrorMessage(result.error),
-      }),
-    );
+    return { error: getValidationErrorMessage(result.error) };
   }
 
   try {
@@ -102,18 +110,11 @@ export async function updateProposalAction(
     revalidatePath(path);
     revalidatePath(proposalsPath);
   } catch (error) {
-    redirect(
-      buildFeedbackUrl(path, {
-        error: getPublicErrorMessage(error, "We could not save that proposal."),
-      }),
-    );
+    return {
+      error: getPublicErrorMessage(error, "We could not save that proposal."),
+    };
   }
-
-  redirect(
-    buildFeedbackUrl(path, {
-      success: "Proposal saved.",
-    }),
-  );
+  return { saved: true };
 }
 
 export async function generateProposalAiDraftAction(proposalId: string) {

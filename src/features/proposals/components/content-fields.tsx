@@ -4,20 +4,37 @@ import {
   createContext,
   useContext,
   useState,
+  useRef,
+  useEffect,
   type ComponentProps,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
+import { FeedbackMessage } from "@/components/feedback-message";
 import type { ProposalAiDraftOutput } from "@/lib/validation/proposal-ai";
 import type { ProposalCopy } from "@/lib/i18n/proposals";
 import { fillEmptyProposalCopy } from "../sales-content";
 
-const EditingContext = createContext({ dirty: false, markDirty: () => {} });
+const EditingContext = createContext<{
+  dirty: boolean;
+  markDirty: () => void;
+  saving: boolean;
+  setSaving: (value: boolean) => void;
+}>({
+  dirty: false,
+  markDirty: () => {},
+  saving: false,
+  setSaving: () => {},
+});
 
 export function ProposalEditingGuard({ children }: { children: ReactNode }) {
   const [dirty, setDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
   return (
-    <EditingContext.Provider value={{ dirty, markDirty: () => setDirty(true) }}>
+    <EditingContext.Provider
+      value={{ dirty, markDirty: () => setDirty(true), saving, setSaving }}
+    >
       {children}
     </EditingContext.Provider>
   );
@@ -27,27 +44,101 @@ export function ProposalEditForm({
   children,
   action,
   className,
+  copy,
+  fallbackAction,
+  successHref,
 }: {
   children: ReactNode;
-  action: (form: FormData) => Promise<void>;
+  action: (form: FormData) => Promise<{ error?: string; saved?: true }>;
   className: string;
+  copy: ProposalCopy;
+  fallbackAction?: (form: FormData) => Promise<void>;
+  successHref?: string;
 }) {
-  const { markDirty } = useContext(EditingContext);
+  const { markDirty, setSaving } = useContext(EditingContext);
+  const router = useRouter();
+  const busy = useRef(false);
+  const [pending, setPending] = useState(false);
+  const [notice, setNotice] = useState<{ error?: string; saved?: true }>({});
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (notice.error) errorRef.current?.focus();
+  }, [notice]);
   return (
-    <form action={action} className={className} onChangeCapture={markDirty}>
-      {children}
+    <form
+      action={fallbackAction}
+      method={fallbackAction ? undefined : "post"}
+      onChangeCapture={markDirty}
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (busy.current) return;
+        const form = new FormData(event.currentTarget);
+        markDirty();
+        busy.current = true;
+        setPending(true);
+        setSaving(true);
+        setNotice({});
+        try {
+          const result = await action(form);
+          setNotice(result);
+          if (result.saved) {
+            if (successHref) router.replace(successHref);
+            router.refresh();
+          }
+        } catch {
+          setNotice({ error: copy.saveUncertain });
+        } finally {
+          busy.current = false;
+          setPending(false);
+          setSaving(false);
+        }
+      }}
+    >
+      {notice.error && (
+        <p
+          ref={errorRef}
+          tabIndex={-1}
+          role="alert"
+          className="mb-4 text-sm text-muted"
+        >
+          {copy.editsPreserved} {notice.error}
+        </p>
+      )}
+      {notice.saved && (
+        <p role="status" className="mb-4 text-sm">
+          {copy.saved}
+        </p>
+      )}
+      {pending && (
+        <p role="status" className="mb-4 text-sm">
+          {copy.saving}
+        </p>
+      )}
+      <fieldset disabled={pending} className={`min-w-0 ${className}`}>
+        {children}
+      </fieldset>
     </form>
   );
 }
 
-export function ProposalAiSubmitButton({
+export function ProposalActionFeedback(
+  props: ComponentProps<typeof FeedbackMessage>,
+) {
+  const { dirty, saving } = useContext(EditingContext);
+  return dirty || saving ? null : <FeedbackMessage {...props} />;
+}
+
+export function ProposalGuardedSubmitButton({
   saveFirstLabel,
   ...props
 }: ComponentProps<typeof PendingSubmitButton> & { saveFirstLabel: string }) {
-  const { dirty } = useContext(EditingContext);
+  const { dirty, saving } = useContext(EditingContext);
   return (
     <>
-      <PendingSubmitButton {...props} disabled={props.disabled || dirty} />
+      <PendingSubmitButton
+        {...props}
+        disabled={props.disabled || dirty || saving}
+      />
       {dirty && (
         <p role="status" className="mt-2 max-w-sm text-xs text-muted">
           {saveFirstLabel}
@@ -56,6 +147,8 @@ export function ProposalAiSubmitButton({
     </>
   );
 }
+
+export const ProposalAiSubmitButton = ProposalGuardedSubmitButton;
 
 export function ProposalContentFields({
   initial,

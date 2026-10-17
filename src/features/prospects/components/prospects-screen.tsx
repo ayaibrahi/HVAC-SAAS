@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useRef, type MouseEvent } from "react";
+import { revealSavedResults } from "../results-focus";
 import { ArrowRight, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/workspace-ui";
 import { useInterface } from "@/components/ui-preferences";
@@ -58,6 +60,30 @@ export function ProspectsScreen({
   const { t, locale } = useInterface();
   const listHref = prospectsListHref(data?.page ?? 1, data?.query ?? "");
   const items = data?.items ?? [];
+  const resultsRef = useRef<HTMLElement>(null);
+  const requestedResult = useRef<string | null>(null);
+  useEffect(() => {
+    if (selected?.prospect.id === requestedResult.current) {
+      revealSavedResults(resultsRef.current);
+      requestedResult.current = null;
+    }
+  }, [selected?.prospect.id, selected?.scan?.id]);
+  function viewResults(event: MouseEvent<HTMLAnchorElement>, id: string) {
+    if (
+      event.button !== 0 ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.altKey
+    )
+      return;
+    if (id === selected?.prospect.id) {
+      event.preventDefault();
+      revealSavedResults(resultsRef.current);
+    } else {
+      requestedResult.current = id;
+    }
+  }
   const visible =
     selected && !items.some((item) => item.id === selected.prospect.id)
       ? [{ ...selected.prospect, scan: selected.scan }, ...items]
@@ -105,6 +131,7 @@ export function ProspectsScreen({
           {selected && (
             <section
               id="website-results"
+              ref={resultsRef}
               tabIndex={-1}
               aria-labelledby="results-name"
               className="scroll-mt-5 space-y-4 border-b border-border pb-7"
@@ -202,7 +229,10 @@ export function ProspectsScreen({
                   >
                     <div className="min-w-0 flex-1 basis-64">
                       <h3 className="text-sm font-semibold">
-                        <Link href={href(item.id)}>
+                        <Link
+                          href={href(item.id)}
+                          onClick={(event) => viewResults(event, item.id)}
+                        >
                           <bdi>{item.businessName}</bdi>
                         </Link>
                       </h3>
@@ -218,11 +248,10 @@ export function ProspectsScreen({
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
                       <ScanLabel scan={item.scan} />
-                      {item.scan?.status === "completed" ||
-                      scanIsActive(item.scan) ||
-                      selected?.prospect.id === item.id ? (
+                      {item.scan || selected?.prospect.id === item.id ? (
                         <Link
                           href={href(item.id)}
+                          onClick={(event) => viewResults(event, item.id)}
                           className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-accent"
                         >
                           {scanIsActive(item.scan) ? t.pViewStatus : t.pView}
@@ -234,7 +263,7 @@ export function ProspectsScreen({
                         </Link>
                       ) : (
                         <WorkspaceAction
-                          key={item.scan?.id}
+                          key={item.id}
                           path={`/api/prospects/${item.id}/audits`}
                           label={t.pScan}
                           pendingLabel={t.pScanning}
