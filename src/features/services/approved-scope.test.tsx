@@ -32,6 +32,18 @@ function form(approve: boolean) {
   return fields;
 }
 describe("explicit reusable catalog scope approval", () => {
+  it.each(["en", "ar"] as const)(
+    "does not offer unpersistable scope approval on the old schema in %s",
+    (locale) => {
+      const html = renderToStaticMarkup(
+        <ServiceForm action={vi.fn()} scopeAvailable={false} locale={locale} />,
+      );
+      expect(html).toContain(getCompleteProposalCopy(locale).scopeUnavailable);
+      expect(html).not.toContain('name="approveScope"');
+      expect(html).not.toContain('name="deliverables"');
+      expect(html).toContain('name="price"');
+    },
+  );
   it("saves real scope only after explicit approval and reuses it when editing", async () => {
     const service = makeCompleteProposalBuilder().services[0];
     await expect(createServiceAction(form(true))).rejects.toThrow(

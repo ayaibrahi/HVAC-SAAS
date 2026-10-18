@@ -8,7 +8,10 @@ import {
   toggleServiceActiveAction,
 } from "@/features/services/actions";
 import { ServiceForm } from "@/features/services/components/service-form";
-import { listAgencyServices } from "@/features/services/data";
+import {
+  listAgencyServices,
+  isApprovedServiceScopeAvailable,
+} from "@/features/services/data";
 import { createServiceAction } from "@/features/services/actions";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getUiPreferences } from "@/lib/ui/server-preferences";
@@ -47,6 +50,7 @@ export default async function ServicesPage({
   }
 
   const services = await listAgencyServices(agency.id);
+  const scopeAvailable = await isApprovedServiceScopeAvailable();
   const { locale } = await getUiPreferences();
 
   return (
@@ -61,6 +65,7 @@ export default async function ServicesPage({
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
         <h2 className="mb-5 text-lg font-semibold text-ink">Add service</h2>
         <ServiceForm
+          scopeAvailable={scopeAvailable}
           locale={locale}
           action={createServiceAction}
           submitLabel="Add service"

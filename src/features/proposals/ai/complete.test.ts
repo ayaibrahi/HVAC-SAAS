@@ -87,6 +87,10 @@ describe("complete proposal grounding and commercial integrity", () => {
     expect(draft.summary).toContain("analyzed page");
     expect(draft.summary).toContain("functionality were not tested");
     expect(draft.scope).toContain(data.services[0].approvedScope!.deliverables);
+    expect(draft.summary).toContain("Your proposed project");
+    expect(draft.summary).toContain(
+      data.services[0].approvedScope!.deliverables,
+    );
     expect(draft.scope).toContain("Exclusions and qualifications");
     expect(draft.scope).not.toContain("CONFIRMATION REQUIRED");
     expect(draft.nextStep).toContain("authorize");
@@ -94,6 +98,20 @@ describe("complete proposal grounding and commercial integrity", () => {
     expect(JSON.stringify(draft)).not.toMatch(/USD|\$|ROI|\d+%/);
     expect(data.proposal.total).toBe(500);
     expect(data).toEqual(before);
+  });
+  it("personalizes every summary variant from the prospect and exact approved project, without rewriting facts", () => {
+    const data = makeCompleteProposalBuilder();
+    data.prospect.businessName = "TEST ONLY - Distinct Climate Care";
+    data.services[0].approvedScope!.deliverables =
+      "Review the inspected homepage contact CTA wording with the client.";
+    const options = buildProposalCopyOptions(createCompleteProposalInput(data));
+    for (const summary of options.summary) {
+      expect(summary).toContain(data.prospect.businessName);
+      expect(summary).toContain(data.services[0].name);
+      expect(summary).toContain(data.services[0].approvedScope!.deliverables);
+      expect(summary).toContain(data.audit.finalUrl ?? data.audit.websiteUrl);
+      expect(summary).toContain("analyzed page");
+    }
   });
   it.each([
     "deliverables",

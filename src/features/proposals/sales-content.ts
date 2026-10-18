@@ -190,6 +190,16 @@ export function buildProposalCopyOptions(
   };
   if (input.mode === "complete") {
     const seen = new Set<string>();
+    const approvedOffer = [
+      ...new Map(
+        input.selectedItems.map((item) => [item.service.id, item.service]),
+      ).values(),
+    ]
+      .map(
+        (service) =>
+          `${service.name}: ${service.contractScope?.deliverables ?? ""}`,
+      )
+      .join("\n");
     scope =
       "Proposed work - agency-approved scope\n\n" +
       input.selectedItems
@@ -209,8 +219,8 @@ export function buildProposalCopyOptions(
         .join("\n\n") +
       "\n\nThe selected-work pricing table states the quantities, agency-confirmed unit prices, discount and total investment. No performance outcome is promised. Scheduling and any work outside this scope require separate agreement.";
     options.summary = [
-      `Dear ${input.prospect.businessName} team,\n\n${input.agency.name} proposes a focused project aimed at ${goals}. The aim is to make the next step clearer for visitors looking for HVAC help, within the work defined below.\n\nExecutive summary\nWe recommend ${selectedServices}. The proposed investment covers only the selected work and approved deliverables, with no work beyond that scope implied.\n\n${narrative}\n\nReview limits\nThis review inspected the returned HTML of the identified page. Other pages, interactive behavior and actual contact or booking functionality were not tested. Non-detection is not proof that a service or feature is unavailable.`,
-      `Prepared for ${input.prospect.businessName} by ${input.agency.name}\n\nExecutive summary\nA clearer customer journey starts with ${goals}. We propose ${selectedServices}, limited to the deliverables and qualifications below. The investment relates to that defined work, not a promised commercial result.\n\n${narrative}\n\nReview limits\nOnly the returned HTML of the identified page was inspected. Other pages and interactive contact or booking functionality were not tested. Non-detection does not establish an unavailable business service.`,
+      `Dear ${input.prospect.businessName} team,\n\n${input.agency.name} proposes a focused project aimed at ${goals}. The aim is to make the next step clearer for visitors looking for HVAC help, within the work defined below.\n\nExecutive summary\nWe recommend ${selectedServices}. The proposed investment covers only the selected work and approved deliverables, with no work beyond that scope implied.\n\nYour proposed project\n${approvedOffer}\n\n${narrative}\n\nReview limits\nThis review inspected the returned HTML of the identified page. Other pages, interactive behavior and actual contact or booking functionality were not tested. Non-detection is not proof that a service or feature is unavailable.`,
+      `Prepared for ${input.prospect.businessName} by ${input.agency.name}\n\nExecutive summary\nA clearer customer journey starts with ${goals}. We propose ${selectedServices}, limited to the deliverables and qualifications below. The investment relates to that defined work, not a promised commercial result.\n\nYour proposed project\n${approvedOffer}\n\n${narrative}\n\nReview limits\nOnly the returned HTML of the identified page was inspected. Other pages and interactive contact or booking functionality were not tested. Non-detection does not establish an unavailable business service.`,
     ];
     options.scope = [scope];
     options.nextStep = [

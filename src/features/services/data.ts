@@ -8,6 +8,35 @@ import { readApprovedServiceScope } from "@/lib/validation/service-scope";
 
 type ServiceRow = Database["public"]["Tables"]["agency_services"]["Row"];
 
+export async function isApprovedServiceScopeAvailable() {
+  const { supabase, agency } = await requireCurrentAgency();
+  const { error } = await supabase
+    .from("agency_services")
+    .select("approved_scope")
+    .eq("agency_id", agency.id)
+    .limit(0);
+  if (error && ["42703", "PGRST204"].includes(error.code)) return false;
+  if (error)
+    throw new AppError(
+      "We could not verify service scope availability. No changes were saved.",
+      503,
+    );
+  return true;
+}
+
+async function approvedScopeWrite(input: AgencyServiceInput) {
+  // Older API callers that do not supply scope preserve any existing approval.
+  if (input.approvedScope === undefined) return {};
+  const available = await isApprovedServiceScopeAvailable();
+  if (!available && input.approvedScope !== null) {
+    throw new AppError(
+      "Approved service scope requires the pending database migration. No service changes were saved.",
+      409,
+    );
+  }
+  return available ? { approved_scope: input.approvedScope } : {};
+}
+
 function mapService(row: ServiceRow): AgencyService {
   return {
     id: row.id,
@@ -56,13 +85,14 @@ export async function getAgencyService(serviceId: string, agencyId: string) {
 
 export async function createAgencyService(input: AgencyServiceInput) {
   const { supabase, agency } = await requireCurrentAgency();
+  const scopeWrite = await approvedScopeWrite(input);
   const { data, error } = await supabase
     .from("agency_services")
     .insert({
       agency_id: agency.id,
       name: input.name,
       description: input.description ?? null,
-      approved_scope: input.approvedScope ?? null,
+      ...scopeWrite,
       price: input.price,
       currency: input.currency,
       is_active: input.isActive,
@@ -82,12 +112,13 @@ export async function updateAgencyService(
   input: AgencyServiceInput,
 ) {
   const { supabase, agency } = await requireCurrentAgency();
+  const scopeWrite = await approvedScopeWrite(input);
   const { data, error } = await supabase
     .from("agency_services")
     .update({
       name: input.name,
       description: input.description ?? null,
-      approved_scope: input.approvedScope ?? null,
+      ...scopeWrite,
       price: input.price,
       currency: input.currency,
       is_active: input.isActive,

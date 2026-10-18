@@ -6,7 +6,10 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getAgencyForUser } from "@/features/agencies/data";
 import { updateServiceAction } from "@/features/services/actions";
 import { ServiceForm } from "@/features/services/components/service-form";
-import { getAgencyService } from "@/features/services/data";
+import {
+  getAgencyService,
+  isApprovedServiceScopeAvailable,
+} from "@/features/services/data";
 import { getUiPreferences } from "@/lib/ui/server-preferences";
 
 type EditServicePageProps = {
@@ -44,6 +47,7 @@ export default async function EditServicePage({
   }
 
   const updateAction = updateServiceAction.bind(null, service.id);
+  const scopeAvailable = await isApprovedServiceScopeAvailable();
   const { locale } = await getUiPreferences();
 
   return (
@@ -62,6 +66,7 @@ export default async function EditServicePage({
 
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
         <ServiceForm
+          scopeAvailable={scopeAvailable}
           locale={locale}
           action={updateAction}
           service={service}

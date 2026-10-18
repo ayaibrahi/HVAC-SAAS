@@ -20,6 +20,8 @@ const english = {
     "I approve this exact scope for proposal drafts. Reconfirm when saving changes.",
   approved: "Saved approved scope",
   notApproved: "No approved reusable scope",
+  scopeUnavailable:
+    "Reusable approved scope is not available in this database yet. Basic service editing remains available; complete proposal generation is blocked until the approved migration is applied.",
 };
 
 const arabic: Record<keyof typeof english, string> = {
@@ -42,6 +44,8 @@ const arabic: Record<keyof typeof english, string> = {
     "أعتمد هذا النطاق تحديدًا لمسودات العروض. أعد التأكيد عند حفظ التغييرات.",
   approved: "النطاق المعتمد المحفوظ",
   notApproved: "لا يوجد نطاق معتمد قابل لإعادة الاستخدام",
+  scopeUnavailable:
+    "النطاق المعتمد القابل لإعادة الاستخدام غير متاح في قاعدة البيانات بعد. يبقى تعديل الخدمة الأساسي متاحًا، ويتوقف إنشاء العرض الكامل حتى تطبيق الترحيل المعتمد.",
 };
 
 export function getCompleteProposalCopy(locale: Locale) {

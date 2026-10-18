@@ -75,7 +75,9 @@ Existing input bounds remain: 32,000 serialized input bytes, 24,000-byte Groq re
 Complete output is bounded to 3,500 tokens, Summary 4,000 characters, Scope 8,000 and
 Next Step 1,000. Oversized combinations fail with controlled guidance; no evidence
 or commitment is silently dropped. Existing legacy output token limits stay intact.
-Prompt metadata uses `v5-complete`, output schema remains `1.0.0`.
+Prompt metadata uses `v6-complete`, output schema remains `1.0.0`. Complete summaries
+also quote each selected service's exact approved deliverables in a prospect-specific
+project section. This improves offer specificity without allowing new commitments.
 
 ## Concurrency And Persistence
 
@@ -117,9 +119,18 @@ unsupported evidence/claims, bounded Groq requests, timeouts, duplicate reservat
 stale source changes, narrative preservation, save/reopen, Ready and PDF/share
 projections. Local browser QA is synthetic, not shared-database acceptance.
 
-Do not deploy this branch over an unmigrated shared database: service writes now
-reference the new column. Both the existing Phase 3B dependency and this migration
-need separately approved recovery-backed PostgreSQL rehearsal and release planning.
+Service pages now probe the approved-scope column with an authenticated, tenant-filtered
+zero-row query. On a known missing-column response they hide approval controls and
+allow basic catalog writes without that column; non-null approval is rejected before
+writing. Other database errors fail closed. Omitted scope preserves prior approval;
+an explicit null withdraws it on a supporting schema. No alternative approval store exists.
+
+The approved-scope migration is essential for complete generation, not for existing
+manual Draft/Ready editing. Persistent agency logos separately require Phase 3B.
+Name-only delivery/PDF can use the existing snapshot RPC and a null branding asset;
+missing branding tables are handled as unavailable. Do not bulk-apply both pending
+migrations merely to enable complete generation. The exact approved migration set
+needs recovery-backed PostgreSQL rehearsal and explicit release authorization.
 PostgREST health is still unresolved; no health claim follows from these local tests.
 Docker startup, real recovery data, remote migrations, live Groq, new scans, writes,
 pushes and deployments require separate authorization. The safe eventual route is
@@ -143,6 +154,10 @@ approval -> protected Preview with matching schema -> dedicated test-agency acce
   temp-path restrictions were resolved by permitted local execution, not weaker tests.
 - No live provider quality, PostgreSQL migration execution or shared-data persistence
   claim is made. No live AI, scan, upload, migration, push or deployment occurred.
+
+The component-only verification above describes the original 946e43f implementation,
+not proof of real-app acceptance. The follow-up real Next.js route verification and
+actual Aya read-only findings are recorded in `phase-3c-real-app-integration.md`.
 
 ## Changed Areas
 

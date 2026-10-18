@@ -2,7 +2,7 @@ import type { ProposalAiInput } from "@/features/proposals/ai/types";
 import { buildProposalCopyOptions } from "../sales-content";
 
 export const PROPOSAL_DRAFT_PROMPT_VERSION = "v4";
-export const PROPOSAL_COMPLETE_PROMPT_VERSION = "v5-complete";
+export const PROPOSAL_COMPLETE_PROMPT_VERSION = "v6-complete";
 
 export const PROPOSAL_DRAFT_SYSTEM_PROMPT = [
   "You are drafting internal proposal content for an HVAC agency.",

@@ -10,6 +10,7 @@ type ServiceFormProps = {
   submitLabel?: string;
   pendingLabel?: string;
   locale?: Locale;
+  scopeAvailable?: boolean;
 };
 
 export function ServiceForm({
@@ -18,6 +19,7 @@ export function ServiceForm({
   submitLabel = "Save service",
   pendingLabel = "Saving...",
   locale = "en",
+  scopeAvailable = true,
 }: ServiceFormProps) {
   const copy = getCompleteProposalCopy(locale);
   return (
@@ -87,37 +89,49 @@ export function ServiceForm({
         Active
       </label>
 
-      <fieldset className="space-y-4 border-t border-border pt-4">
-        <legend className="text-base font-semibold">{copy.catalogScope}</legend>
-        <p className="text-sm text-muted">{copy.scopeHelp}</p>
-        <p className="text-sm">
-          {service?.approvedScope ? copy.approved : copy.notApproved}
+      {!scopeAvailable && (
+        <p
+          role="status"
+          className="border-t border-border pt-4 text-sm text-muted"
+        >
+          {copy.scopeUnavailable}
         </p>
-        {(
-          [
-            "deliverables",
-            "exclusions",
-            "clientInputs",
-            "completionChecks",
-          ] as const
-        ).map((field) => (
-          <label key={field} className="block space-y-2">
-            <span className="text-sm font-medium">{copy[field]}</span>
-            <textarea
-              name={field}
-              defaultValue={service?.approvedScope?.[field] ?? ""}
-              rows={3}
-              maxLength={800}
-              dir="auto"
-              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
-            />
+      )}
+      {scopeAvailable && (
+        <fieldset className="space-y-4 border-t border-border pt-4">
+          <legend className="text-base font-semibold">
+            {copy.catalogScope}
+          </legend>
+          <p className="text-sm text-muted">{copy.scopeHelp}</p>
+          <p className="text-sm">
+            {service?.approvedScope ? copy.approved : copy.notApproved}
+          </p>
+          {(
+            [
+              "deliverables",
+              "exclusions",
+              "clientInputs",
+              "completionChecks",
+            ] as const
+          ).map((field) => (
+            <label key={field} className="block space-y-2">
+              <span className="text-sm font-medium">{copy[field]}</span>
+              <textarea
+                name={field}
+                defaultValue={service?.approvedScope?.[field] ?? ""}
+                rows={3}
+                maxLength={800}
+                dir="auto"
+                className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm"
+              />
+            </label>
+          ))}
+          <label className="flex items-start gap-3 text-sm">
+            <input type="checkbox" name="approveScope" className="mt-1" />
+            {copy.approveScope}
           </label>
-        ))}
-        <label className="flex items-start gap-3 text-sm">
-          <input type="checkbox" name="approveScope" className="mt-1" />
-          {copy.approveScope}
-        </label>
-      </fieldset>
+        </fieldset>
+      )}
 
       <PendingSubmitButton
         label={submitLabel}

@@ -36,7 +36,7 @@ describe("complete proposal bounded Groq transport (no live calls)", () => {
     const provider = createProposalAiProvider(true);
     expect(provider.metadata).toMatchObject({
       provider: "groq",
-      promptVersion: "v5-complete",
+      promptVersion: "v6-complete",
       schemaVersion: "1.0.0",
     });
     expect(await generateValidatedProposalAiDraft(input, provider)).toEqual(

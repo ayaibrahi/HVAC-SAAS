@@ -54,6 +54,7 @@ vi.mock("@/features/dashboard/data", () => ({
 }));
 vi.mock("@/features/services/data", () => ({
   listAgencyServices: async () => [],
+  isApprovedServiceScopeAvailable: async () => true,
 }));
 vi.mock("@/features/prospects/data", () => ({ listProspects: async () => [] }));
 vi.mock("@/features/audits/data", () => ({
