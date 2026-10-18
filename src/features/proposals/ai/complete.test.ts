@@ -20,6 +20,29 @@ const metadata = {
 };
 
 describe("complete proposal grounding and commercial integrity", () => {
+  it("does not sell broad catalog capabilities as included implementation work", () => {
+    const data = makeCompleteProposalBuilder();
+    const options = buildProposalCopyOptions(createCompleteProposalInput(data));
+    for (const summary of options.summary) {
+      expect(summary).toContain(data.services[0].name);
+      expect(summary).toContain(data.services[0].approvedScope!.deliverables);
+      expect(summary).not.toContain(data.services[0].description);
+      expect(summary).not.toContain("Executive summary");
+    }
+    expect(options.scope[0]).toContain(
+      data.services[0].approvedScope!.exclusions,
+    );
+    expect(options.scope[0]).toContain(
+      "A service title does not add unlisted work",
+    );
+    expect(options.scope[0]).not.toContain("agency-approved scope");
+    expect(options.summary[0]).toContain(
+      "service title does not imply additional features",
+    );
+    expect(
+      options.nextStep.every((text) => text.includes("quoted investment")),
+    ).toBe(true);
+  });
   it("rejects large combined approved scopes before provider invocation with actionable guidance", async () => {
     const input = createCompleteProposalInput(makeCompleteProposalBuilder());
     const original = input.selectedItems[0];
@@ -83,7 +106,7 @@ describe("complete proposal grounding and commercial integrity", () => {
     ).toEqual(draft);
     expect(generate).toHaveBeenCalledTimes(1);
     expect(draft.summary).toContain("Dear Synthetic Climate Care team");
-    expect(draft.summary).toContain("Executive summary");
+    expect(draft.summary).not.toContain("Executive summary");
     expect(draft.summary).toContain("analyzed page");
     expect(draft.summary).toContain("functionality were not tested");
     expect(draft.scope).toContain(data.services[0].approvedScope!.deliverables);
@@ -92,6 +115,10 @@ describe("complete proposal grounding and commercial integrity", () => {
       data.services[0].approvedScope!.deliverables,
     );
     expect(draft.scope).toContain("Exclusions and qualifications");
+    expect(draft.scope).toContain("A service title does not add unlisted work");
+    expect(draft.scope).not.toContain("agency-approved scope");
+    expect(draft.nextStep).toContain("quoted investment");
+    expect(draft.nextStep).not.toContain("saved investment");
     expect(draft.scope).not.toContain("CONFIRMATION REQUIRED");
     expect(draft.nextStep).toContain("authorize");
     expect(JSON.stringify(input)).not.toContain("unitPrice");

@@ -242,8 +242,11 @@ describe("agency-first snapshot layout", () => {
     const before = JSON.stringify(source);
     const pdf = renderProposalPdf(source).toString("latin1");
     expect(pdf).toContain("DRAFT / REVIEW CONTENT");
-    expect(pdf).toContain("Catalog capability - not agreed deliverables:");
-    expect(pdf).toContain("Line description: see the saved narrative above.");
+    expect(pdf).toContain("Service overview - see Scope for included work:");
+    expect(pdf).not.toContain(
+      "Line description: see the saved narrative above.",
+    );
+    expect(pdf).not.toContain("Catalog capability");
     expect(pdf).toContain("No performance or revenue commitments.");
     expect(pdf).toContain(encodePdfText("Website Conversion Optimization"));
     expect(JSON.stringify(source)).toBe(before);

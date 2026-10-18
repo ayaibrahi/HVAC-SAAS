@@ -5,8 +5,70 @@ import {
 } from "@/features/proposals/pdf/renderer";
 import type { ProposalPdfView } from "@/features/proposals/pdf/view-model";
 import { encodePdfText, measurePdfText, wrapPdfText } from "./text";
+import { makeCompleteProposalBuilder } from "../ai/complete-test-fixtures";
+import { createCompleteProposalInput } from "../ai/complete-input";
+import { buildProposalCopyOptions, firstProposalCopy } from "../sales-content";
+import { makeLocalContentSnapshot } from "../sales-test-fixtures";
+import { buildProposalPdfView } from "./view-model";
 
 describe("proposal PDF renderer", () => {
+  it("keeps the complete scope section with the first approved deliverable rather than orphaning its title", () => {
+    const data = makeCompleteProposalBuilder();
+    data.proposal.title = "TEST ONLY - Contact Clarity Project";
+    const draft = firstProposalCopy(
+      buildProposalCopyOptions(createCompleteProposalInput(data)),
+    );
+    const pdf = extractPdfInspectableText(
+      renderProposalPdf(
+        buildProposalPdfView(makeLocalContentSnapshot(data, draft)),
+      ),
+    );
+    const scopePage = [...pdf.matchAll(/\nstream\n([\s\S]*?)\nendstream/g)]
+      .map((match) => match[1])
+      .find((page) => page.includes("(Scope and deliverables)"));
+    expect(scopePage).toContain("(Included deliverables)");
+    expect(scopePage).toContain(
+      encodePdfText(data.services[0].approvedScope!.deliverables),
+    );
+  });
+  it("presents one section heading for legacy repeated headings without rewriting the frozen view", () => {
+    const view = makePdfView({
+      summary:
+        "Dear Example HVAC team.\nExecutive summary\nA uniquely approved homepage link project.",
+      scope:
+        "Scope and deliverables\nAdd the supplied booking link only.\nBooking software subscriptions are excluded.",
+      nextStep: "Next steps\nConfirm the quoted scope and investment.",
+    });
+    const before = structuredClone(view);
+    const text = extractPdfInspectableText(renderProposalPdf(view));
+    for (const heading of [
+      "Executive summary",
+      "Scope and deliverables",
+      "Next steps",
+    ])
+      expect(text.match(new RegExp(`\\(${heading}\\) Tj`, "g"))).toHaveLength(
+        1,
+      );
+    expect(text).toContain("A uniquely approved homepage link project.");
+    expect(text).toContain("Booking software subscriptions are excluded.");
+    expect(view).toEqual(before);
+  });
+  it("does not imply a catalog title buys a full implementation or promote capabilities to scope", () => {
+    const view = makePdfView({
+      scope:
+        "Add the supplied appointment link only. Booking platform configuration is excluded.",
+    });
+    const text = extractPdfInspectableText(renderProposalPdf(view));
+    expect(text).toContain("Online Booking Integration");
+    expect(text).toContain("A service title does not add unlisted work.");
+    expect(text).toContain("Service overview - see Scope for included work:");
+    expect(text).toContain("Additional details");
+    expect(text).not.toMatch(
+      /Agency-entered|Catalog capability|Line description:/,
+    );
+    expect(text).toContain("USD 500.00");
+    expect(text).toContain("Booking platform configuration is excluded.");
+  });
   it("preserves ordinary punctuation with explicitly encoded WinAnsi fonts", () => {
     const text = extractPdfInspectableText(
       renderProposalPdf(

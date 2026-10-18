@@ -75,9 +75,11 @@ Existing input bounds remain: 32,000 serialized input bytes, 24,000-byte Groq re
 Complete output is bounded to 3,500 tokens, Summary 4,000 characters, Scope 8,000 and
 Next Step 1,000. Oversized combinations fail with controlled guidance; no evidence
 or commitment is silently dropped. Existing legacy output token limits stay intact.
-Prompt metadata uses `v6-complete`, output schema remains `1.0.0`. Complete summaries
+Prompt metadata uses `v7-complete`, output schema remains `1.0.0`. Complete summaries
 also quote each selected service's exact approved deliverables in a prospect-specific
 project section. This improves offer specificity without allowing new commitments.
+Client copy does not embed a duplicate executive-summary heading or describe pricing
+as internal saved state. It distinguishes a service title from the exact included work.
 
 ## Concurrency And Persistence
 

@@ -139,19 +139,36 @@ class PdfLayout {
 
   section(title: string, body: string) {
     if (!body.trim()) return;
-    const firstParagraph =
-      body.split(/\n+/u).find((paragraph) => paragraph.trim()) ?? "";
+    const subheadings =
+      /^(Page reviewed|What we observed|What we found on your page|Why this matters|Why this matters to your customers|Your proposed project|Review limits|Included deliverables|Exclusions and qualifications|Client inputs and access|Completion checks|Recommended approach|Recommended solution|Scope to confirm together|Included work proposed for approval:)$/u;
+    const paragraphs = body
+      .split(/\n+/u)
+      .filter(
+        (paragraph) =>
+          paragraph.trim() &&
+          paragraph.trim().toLowerCase() !== title.toLowerCase(),
+      );
+    // Keep the section title with its opening service/heading and deliverable,
+    // including the same look-ahead used for a subheading below.
+    const openingHeight = paragraphs
+      .slice(0, 3)
+      .reduce(
+        (height, paragraph) =>
+          height + wrapPdfText(paragraph, contentWidth, 10).length * 14 + 5,
+        0,
+      );
     this.sectionTitle(
       title,
       Math.min(
-        84,
-        wrapPdfText(firstParagraph, contentWidth, 10).length * 14 + 5,
+        140,
+        openingHeight +
+          (paragraphs.slice(0, 3).some((p) => subheadings.test(p.trim()))
+            ? 56
+            : 0),
       ),
     );
-    const subheadings =
-      /^(Page reviewed|What we observed|Why this matters|Recommended approach|Recommended solution|Scope to confirm together|Included work proposed for approval:)$/u;
-    for (const paragraph of body.split(/\n+/u)) {
-      if (!paragraph.trim()) continue;
+    // Only redundant section labels are omitted; the frozen source is unchanged.
+    for (const paragraph of paragraphs) {
       const heading =
         subheadings.test(paragraph.trim()) ||
         /^[^\n]{1,80}:$/u.test(paragraph.trim());
@@ -171,6 +188,11 @@ class PdfLayout {
 
   lineItems() {
     this.sectionTitle("Selected services");
+    this.text(
+      "Included work and exclusions are defined in Scope and deliverables. A service title does not add unlisted work.",
+      { size: 9, color: pdfMuted },
+    );
+    this.spacer(5);
     for (const item of this.view.lineItems) {
       const nameHeight =
         wrapPdfText(item.serviceName, contentWidth - 150, 11, "bold").length *
@@ -195,36 +217,23 @@ class PdfLayout {
         { size: 9, color: pdfMuted },
       );
       const narrative = this.view.summary + "\n" + this.view.scope;
-      if (item.description.trim()) {
-        if (narrative.includes(item.description.trim())) {
-          this.text("Line description: see the saved narrative above.", {
-            size: 9,
-            color: pdfMuted,
-          });
-        } else {
-          this.text("Agency-entered line description:", {
-            size: 9,
-            font: "bold",
-          });
-          this.text(item.description, { size: 9 });
-        }
+      if (
+        item.description.trim() &&
+        !narrative.includes(item.description.trim())
+      ) {
+        this.text("Additional details", { size: 9, font: "bold" });
+        this.text(item.description, { size: 9 });
       }
-      if (item.serviceDescription?.trim()) {
-        if (
-          narrative.includes(item.serviceDescription.trim()) ||
-          item.description.includes(item.serviceDescription.trim())
-        ) {
-          this.text(
-            "Catalog capability: see the saved description above; not agreed deliverables.",
-            { size: 9, color: pdfMuted },
-          );
-        } else {
-          this.text("Catalog capability - not agreed deliverables:", {
-            size: 9,
-            font: "bold",
-          });
-          this.text(item.serviceDescription, { size: 9 });
-        }
+      if (
+        item.serviceDescription?.trim() &&
+        !narrative.includes(item.serviceDescription.trim()) &&
+        !item.description.includes(item.serviceDescription.trim())
+      ) {
+        this.text("Service overview - see Scope for included work:", {
+          size: 9,
+          font: "bold",
+        });
+        this.text(item.serviceDescription, { size: 9 });
       }
       this.spacer(8);
     }

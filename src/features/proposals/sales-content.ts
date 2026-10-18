@@ -201,7 +201,6 @@ export function buildProposalCopyOptions(
       )
       .join("\n");
     scope =
-      "Proposed work - agency-approved scope\n\n" +
       input.selectedItems
         .filter(
           (item) =>
@@ -217,15 +216,16 @@ export function buildProposalCopyOptions(
           return `${item.service.name}\nIncluded deliverables\n${approved.deliverables}\nExclusions and qualifications\n${approved.exclusions}\nClient inputs and access\n${approved.clientInputs}\nCompletion checks\n${approved.completionChecks}`;
         })
         .join("\n\n") +
-      "\n\nThe selected-work pricing table states the quantities, agency-confirmed unit prices, discount and total investment. No performance outcome is promised. Scheduling and any work outside this scope require separate agreement.";
+      "\n\nOnly the deliverables listed here are included. A service title does not add unlisted work. The investment table states the quoted quantities, unit prices, discount and total. Scheduling and any work outside this scope require separate agreement. No performance outcome is promised.";
+    const clientNarrative = `What we found on your page\n${observations}\n\nWhy this matters to your customers\n${relevance}\n\nPage reviewed\n${input.audit.analyzedUrl}\nThese observations concern this inspected page only, not what your business offers elsewhere.`;
     options.summary = [
-      `Dear ${input.prospect.businessName} team,\n\n${input.agency.name} proposes a focused project aimed at ${goals}. The aim is to make the next step clearer for visitors looking for HVAC help, within the work defined below.\n\nExecutive summary\nWe recommend ${selectedServices}. The proposed investment covers only the selected work and approved deliverables, with no work beyond that scope implied.\n\nYour proposed project\n${approvedOffer}\n\n${narrative}\n\nReview limits\nThis review inspected the returned HTML of the identified page. Other pages, interactive behavior and actual contact or booking functionality were not tested. Non-detection is not proof that a service or feature is unavailable.`,
-      `Prepared for ${input.prospect.businessName} by ${input.agency.name}\n\nExecutive summary\nA clearer customer journey starts with ${goals}. We propose ${selectedServices}, limited to the deliverables and qualifications below. The investment relates to that defined work, not a promised commercial result.\n\nYour proposed project\n${approvedOffer}\n\n${narrative}\n\nReview limits\nOnly the returned HTML of the identified page was inspected. Other pages and interactive contact or booking functionality were not tested. Non-detection does not establish an unavailable business service.`,
+      `Dear ${input.prospect.businessName} team,\n\n${input.agency.name} recommends a focused project to support ${goals}. For visitors looking for HVAC help, the aim is a clearer next step, guided by the page observations below and limited to the work you agree.\n\nYour proposed project\n${approvedOffer}\n\nThe quotation for ${selectedServices} is limited to the deliverables in Scope and is subject to its exclusions. The service title does not imply additional features, software or a wider implementation.\n\n${clientNarrative}\n\nReview limits\nThis review inspected the returned HTML of the identified page. Other pages, interactive behavior and actual contact or booking functionality were not tested. Non-detection is not proof that a service or feature is unavailable.`,
+      `Prepared for ${input.prospect.businessName} by ${input.agency.name}\n\nWe propose a defined piece of work to support ${goals}, based on the observations below. The investment pays for the agreed work, not a promised number of leads or a financial return.\n\nYour proposed project\n${approvedOffer}\n\n${selectedServices} identifies the proposed service. Only the deliverables and exclusions in Scope define what is included; the name does not imply a larger package.\n\n${clientNarrative}\n\nReview limits\nOnly the returned HTML of the identified page was inspected. Other pages and interactive contact or booking functionality were not tested. Non-detection does not establish an unavailable business service.`,
     ];
     options.scope = [scope];
     options.nextStep = [
-      "Please review the proposed deliverables, exclusions and saved investment with the agency. Confirm the required inputs and completion checks, then agree the schedule and authorize the scope before work begins.",
-      "If this focused approach fits your priorities, confirm the scope and saved investment with the agency. Resolve any questions about access, exclusions or completion checks and agree the schedule before authorizing work.",
+      "Please confirm whether this defined project fits your priorities. Review the deliverables, exclusions and quoted investment with the agency, confirm the required access and completion checks, then agree the schedule and authorize the scope before work begins.",
+      "Discuss the proposed project and quoted investment with the agency. Confirm what is included, provide the agreed inputs and resolve questions about exclusions or completion checks before agreeing the schedule and authorizing work.",
     ];
   }
   for (const field of Object.keys(options) as (keyof ProposalAiDraftOutput)[]) {
