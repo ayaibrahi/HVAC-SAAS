@@ -1,0 +1,14 @@
+{
+  "name": "scanvoro-trusted-rendering-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test --test-concurrency=1 --test-timeout=60000 dist/prototype.test.js"
+  },
+  "devDependencies": {
+    "playwright-core": "1.64.0",
+    "typescript": "6.0.3",
+    "@types/node": "26.6.2"
+  }
+}

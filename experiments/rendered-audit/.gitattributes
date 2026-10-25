@@ -1,0 +1,2 @@
+ci/*.sh text eol=lf
+ci/seccomp_profile.json -text

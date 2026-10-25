@@ -1,0 +1,12 @@
+**
+!package.json
+!package-lock.json
+!tsconfig.json
+!extract.ts
+!fixture-server.ts
+!renderer.ts
+!prototype.test.ts
+!ci
+!ci/Dockerfile
+!ci/container-entry.sh
+!ci/network-check.mjs
