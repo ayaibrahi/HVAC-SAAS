@@ -25,7 +25,7 @@ docker create --name "$container" --network none --ipc private --init \
   --memory 2g --memory-swap 2g --cpus 1 --pids-limit 256 --shm-size 256m \
   --ulimit nofile=1024:1024 --ulimit core=0 \
   --tmpfs /tmp:rw,nosuid,nodev,noexec,size=512m,mode=1777 \
-  --log-driver local --log-opt max-size=5m --log-opt max-file=1 \
+  --log-driver local --log-opt max-size=5m --log-opt max-file=1 --log-opt compress=false \
   "$image" >/dev/null
 created=true
 # Inspect before execution; never fall back to weaker settings.
@@ -39,6 +39,7 @@ assert not h.get("PortBindings") and not h.get("Devices")
 assert h["CapDrop"] == ["ALL"] and not h.get("CapAdd")
 assert h["Memory"] == 2147483648 and h["MemorySwap"] == 2147483648
 assert h["NanoCpus"] == 1000000000 and h["PidsLimit"] == 256
+assert h["LogConfig"] == {"Type": "local", "Config": {"max-size": "5m", "max-file": "1", "compress": "false"}}
 assert any(s.startswith("no-new-privileges") for s in h["SecurityOpt"])
 assert any(s.startswith("seccomp=") for s in h["SecurityOpt"])
 print("CONTAINER_CONFIG_PASS")

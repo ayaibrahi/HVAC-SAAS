@@ -2,7 +2,7 @@ name: One-shot isolated rendered audit fixtures
 on:
   push:
     branches: [codex/rendered-audit-feasibility]
-    paths: [experiments/rendered-audit/ci/run-20261025-9f8b1d7c.trigger]
+    paths: [experiments/rendered-audit/ci/run-20261026-c46a892e.trigger]
 permissions:
   contents: read
 concurrency:
@@ -26,10 +26,10 @@ jobs:
         shell: bash
         run: |
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
-          [[ "$(git show -s --format=%P HEAD)" == '48d707c483dfb87326a5cbd5ecf1c194cfffb07e' ]]
-          marker=experiments/rendered-audit/ci/run-20261025-9f8b1d7c.trigger
+          [[ "$(git show -s --format=%P HEAD)" == '75a49a86e7b99d2d002d9b8f36bb9d89d42bdc88' ]]
+          marker=experiments/rendered-audit/ci/run-20261026-c46a892e.trigger
           [[ "$(git diff-tree --no-commit-id --name-status -r HEAD -- "$marker")" == $'A\t'"$marker" ]]
-          [[ "$(cat "$marker")" == 'scanvoro-offline-fixtures-20261025-9f8b1d7c' ]]
+          [[ "$(cat "$marker")" == 'scanvoro-offline-fixtures-20261026-c46a892e' ]]
       - name: Build and run one offline container
         shell: bash
         run: bash experiments/rendered-audit/ci/run-linux.sh
