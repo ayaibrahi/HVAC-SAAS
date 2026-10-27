@@ -36,6 +36,27 @@ beforeEach(() => {
   >);
 });
 describe("audit verification lifecycle", () => {
+  it("denies a foreign prospect before pending writes or worker creation", async () => {
+    const createRenderedWorker = vi.fn();
+    await expect(runAuditForProspect({ agencyId: "other", prospect }, { createRenderedWorker })).rejects.toThrow();
+    expect(createPendingAudit).not.toHaveBeenCalled();
+    expect(createRenderedWorker).not.toHaveBeenCalled();
+    expect(safeFetchHtml).not.toHaveBeenCalled();
+  });
+  it("persists the rendered schema through the existing tenant-scoped lifecycle", async () => {
+    const capture = vi.fn(async ({ url, viewport }: { url: string; viewport: string }) => JSON.stringify({
+      requestedUrl: url, finalUrl: url, viewport, status: "observed", reasons: [], httpStatus: 200, elapsedMs: 1,
+      document: { title: "Heating and cooling", headings: [], links: [], buttons: [], forms: [], truncated: false,
+        text: "Our experienced technicians provide heating and cooling repair for homeowners. We explain the available options and help customers choose an appropriate repair or replacement. Explore the service information and contact our team to discuss your needs and arrange an appointment at a convenient time." },
+    }));
+    const close = vi.fn(async () => {});
+    await runAuditForProspect({ agencyId: "agency", prospect }, { createRenderedWorker: async () => ({ capture, close }) });
+    expect(capture).toHaveBeenCalledTimes(2);
+    expect(close).toHaveBeenCalledOnce();
+    expect(markAuditCompleted).toHaveBeenCalledWith(expect.objectContaining({ agencyId: "agency", auditId: "audit", signalSchemaVersion: "2.0.0", normalizedSignals: expect.objectContaining({ renderedAudit: expect.objectContaining({ completeSite: false }) }) }));
+    expect(safeFetchHtml).not.toHaveBeenCalled();
+    expect(markAuditFailed).not.toHaveBeenCalled();
+  });
   it.each(["shell", "challenge", "access-notice", "representative"])(
     "persists a safe %s result without any opportunity generation",
     async (name) => {

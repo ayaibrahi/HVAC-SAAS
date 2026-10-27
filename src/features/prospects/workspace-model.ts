@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Audit } from "@/domain/audits/types";
 import type { Prospect } from "@/domain/prospects/types";
+import type { describeRenderedCoverage } from "@/features/audits/rendered/pipeline";
 import type {
   Opportunity,
   OpportunityAiInsight,
@@ -11,7 +12,7 @@ export const prospectIdSchema = z.uuid();
 export type ScanSummary = Pick<
   Audit,
   "id" | "status" | "createdAt" | "completedAt"
-> & { verification?: "verified" | "unverified" };
+> & { verification?: "verified" | "unverified"; renderedCoverage?: ReturnType<typeof describeRenderedCoverage> };
 export type ProspectListItem = Pick<
   Prospect,
   "id" | "businessName" | "websiteUrl" | "createdAt"

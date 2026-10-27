@@ -1,5 +1,6 @@
 import "server-only";
 import { contentQualitySchema } from "@/features/audits/analyzer/content-quality";
+import { readRenderedAudit, describeRenderedCoverage, hasVerifiedRenderedContent } from "@/features/audits/rendered/pipeline";
 import { requireCurrentAgency } from "@/features/agencies/data";
 import { getProspect } from "@/features/prospects/data";
 import {
@@ -27,7 +28,7 @@ async function latestScan(
   const { data, error } = await supabase
     .from("audits")
     .select(
-      "id,status,created_at,completed_at,error_code,quality:normalized_signals->quality",
+      "id,status,created_at,completed_at,error_code,signal_schema_version,quality:normalized_signals->quality",
     )
     .eq("agency_id", agencyId)
     .eq("prospect_id", prospectId)
@@ -43,7 +44,7 @@ async function latestScan(
         status: data.status,
         createdAt: data.created_at,
         completedAt: data.completed_at,
-        verification:
+        verification: data.signal_schema_version === "2.0.0" ? undefined :
           data.status === "completed" ||
           data.error_code === "CONTENT_NOT_VERIFIABLE"
             ? quality.success &&
@@ -115,6 +116,19 @@ export async function getProspectWorkspace(
   const prospect = await getProspect(id, agency.id);
   if (!prospect) return null;
   const scan = await latestScan(supabase, agency.id, prospect.id);
+  // Load bounded engine-owned coverage for this selected scan only, never every
+  // agency-wide audit JSON payload in the prospect list.
+  if (scan) {
+    const coverage = await supabase.from("audits")
+      .select("rendered:normalized_signals->renderedAudit")
+      .eq("id", scan.id).eq("agency_id", agency.id).eq("prospect_id", prospect.id).maybeSingle();
+    if (coverage.error) throw new AppError("We could not load scan coverage.", 500);
+    if (coverage.data?.rendered != null) {
+      const rendered = readRenderedAudit({ renderedAudit: coverage.data.rendered });
+      scan.verification = hasVerifiedRenderedContent({ renderedAudit: coverage.data.rendered }, prospect.websiteUrl) ? "verified" : "unverified";
+      if (rendered) scan.renderedCoverage = describeRenderedCoverage(rendered);
+    }
+  }
   const proposals = await supabase
     .from("proposals")
     .select("id,title,status")

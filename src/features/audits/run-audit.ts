@@ -14,6 +14,9 @@ import {
   normalizeAnalyzerError,
 } from "@/features/audits/analyzer/errors";
 import { safeFetchHtml } from "@/features/audits/analyzer/safe-fetch";
+import { assertProspectBelongsToAgency } from "./authorization";
+import { inspectRenderedSite } from "./rendered/pipeline";
+import type { RenderedAuditWorker } from "./rendered/contract";
 import {
   createPendingAudit,
   markAuditCompleted,
@@ -32,7 +35,8 @@ export async function runAuditForProspect(input: {
   agencyId: string;
   prospect: Prospect;
   auditInput?: StartAuditInput;
-}) {
+}, dependencies?: { createRenderedWorker: () => Promise<RenderedAuditWorker> }) {
+  assertProspectBelongsToAgency(input.prospect, input.agencyId);
   const playbook = startAuditSchema.parse(input.auditInput ?? {});
   const verticalKey = playbook.verticalKey ?? defaultVerticalPlaybookKey;
   const playbookVersion = playbook.playbookVersion ?? defaultPlaybookVersion;
@@ -42,12 +46,30 @@ export async function runAuditForProspect(input: {
     websiteUrl: input.prospect.websiteUrl,
     verticalKey,
     playbookVersion,
-    signalSchemaVersion: auditSignalSchemaVersion,
+    signalSchemaVersion: dependencies ? "2.0.0" : auditSignalSchemaVersion,
   });
   let inspected: { finalUrl: string; normalizedSignals: Json } | undefined;
 
   try {
     await markAuditRunning(audit.id, input.agencyId);
+
+    // Server-only dependency, never selected from form/API input. Existing
+    // actions keep static behavior until isolated worker activation is reviewed.
+    if (dependencies) {
+      if (verticalKey !== "hvac" || playbookVersion !== "1.0.0")
+        throw new AppError("Rendered audits currently support HVAC playbook 1.0.0 only.");
+      const renderedAudit = await inspectRenderedSite({
+        url: input.prospect.websiteUrl,
+        worker: await dependencies.createRenderedWorker(),
+        staticFallback: safeFetchHtml,
+      });
+      const normalizedSignals = { renderedAudit } as unknown as Json;
+      inspected = { finalUrl: renderedAudit.entryUrl, normalizedSignals };
+      if (!renderedAudit.pages.some(page => page.status === "observed"))
+        throw new AnalyzerError("CONTENT_NOT_VERIFIABLE", "No sampled page could be reliably inspected.", 422);
+      return await markAuditCompleted({ auditId: audit.id, agencyId: input.agencyId,
+        finalUrl: renderedAudit.entryUrl, normalizedSignals, signalSchemaVersion: "2.0.0" });
+    }
 
     const fetchResult = await safeFetchHtml(input.prospect.websiteUrl);
     const normalizedSignals = extractNormalizedAuditSignals({

@@ -13,6 +13,7 @@ import {
 } from "./workspace-controls";
 import { CompactFinding } from "./compact-finding";
 import { opportunityCountLabel } from "@/lib/i18n/prospects";
+import { RenderedCoverage } from "./rendered-coverage";
 
 export function ProspectDetails({
   data,
@@ -102,6 +103,7 @@ export function ProspectDetails({
         </div>
       ) : (
         <section aria-label={t.pOpportunities}>
+          {scan.renderedCoverage ? <RenderedCoverage coverage={scan.renderedCoverage} locale={locale} /> : <>
           <p className="text-sm text-muted">{t.pOnePageScanned}</p>
           <details className="mt-2 text-xs text-muted">
             <summary className="cursor-pointer py-2">
@@ -109,6 +111,7 @@ export function ProspectDetails({
             </summary>
             <p className="max-w-2xl leading-relaxed">{t.pCoverageLimits}</p>
           </details>
+          </>}
           {(existingProposal || opportunities.length > 0) && (
             <div className="my-5 space-y-2">
               {existingProposal ? (
