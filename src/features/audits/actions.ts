@@ -10,6 +10,7 @@ import { getProspect } from "@/features/prospects/data";
 import { enforceAgencyUsageLimit } from "@/features/usage/limits";
 import { buildFeedbackUrl } from "@/lib/action-feedback";
 import { getPublicErrorMessage } from "@/lib/errors";
+import { assertRenderedAuditAvailable, renderedAuditsRequested } from "@/features/audits/jobs/availability";
 
 const prospectsPath = "/dashboard/prospects";
 
@@ -23,6 +24,8 @@ export async function startProspectAuditAction(prospectId: string) {
     const prospect = await getProspect(prospectId, agency.id);
 
     assertProspectBelongsToAgency(prospect, agency.id);
+
+    if (renderedAuditsRequested()) assertRenderedAuditAvailable();
 
     const activeAudit = prospect
       ? await getActiveAuditForProspect({

@@ -6,6 +6,11 @@ import { getProspect } from "@/features/prospects/data";
 import { enforceAgencyUsageLimit } from "@/features/usage/limits";
 import { jsonError, jsonValidationError, parseOptionalJsonBody } from "@/lib/api-response";
 import { startAuditSchema } from "@/lib/validation/audits";
+import { assertRenderedAuditAvailable, renderedAuditsRequested } from "@/features/audits/jobs/availability";
+import { createAuditJobStore } from "@/features/audits/jobs/repository";
+import { submitRenderedAuditJob } from "@/features/audits/jobs/submit";
+import { z } from "zod";
+import { AppError } from "@/lib/errors";
 
 type ProspectAuditRouteContext = {
   params: Promise<{
@@ -29,6 +34,16 @@ export async function POST(request: Request, context: ProspectAuditRouteContext)
     const prospect = await getProspect(prospectId, agency.id);
 
     assertProspectBelongsToAgency(prospect, agency.id);
+
+    if (renderedAuditsRequested()) {
+      // Fails closed until an isolated worker AND pinned egress are verified.
+      assertRenderedAuditAvailable();
+      const requestKey = z.uuid().safeParse(request.headers.get("idempotency-key"));
+      if (!requestKey.success) throw new AppError("A valid idempotency key is required.", 400);
+      await enforceAgencyUsageLimit({ agencyId: agency.id, userId: user.id, action: "website_analyzer" });
+      const job = await submitRenderedAuditJob({ agencyId: agency.id, userId: user.id, prospect, requestKey: requestKey.data, store: createAuditJobStore() });
+      return NextResponse.json({ data: job }, { status: 202 });
+    }
 
     await enforceAgencyUsageLimit({
       agencyId: agency.id,

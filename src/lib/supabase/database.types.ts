@@ -586,6 +586,18 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      enqueue_rendered_audit: {
+        Args: { p_agency: string; p_user: string; p_prospect: string; p_request: string };
+        Returns: { job_id: string; audit_id: string; status: string }[];
+      };
+      claim_rendered_audit: {
+        Args: { p_agency: string; p_job: string };
+        Returns: { job_id: string; audit_id: string; lease_token: string; website_url: string; attempts: number }[];
+      };
+      finish_rendered_audit: {
+        Args: { p_agency: string; p_job: string; p_lease: string; p_result: Json | null; p_retry: boolean };
+        Returns: boolean;
+      };
       set_agency_branding_asset: {
         Args: {
           p_agency_id: string;
