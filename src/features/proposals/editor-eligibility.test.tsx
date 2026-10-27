@@ -82,6 +82,7 @@ describe("saved proposal action eligibility", () => {
   it("explains blocked automatic copy for manual unrelated services instead of suggesting generation is available", async () => {
     data.services[0].name = "Logo Design";
     data.services[0].description = "Illustrative unrelated catalog scope";
+    data.services[0].approvedScope!.deliverables = "Design an approved agency logo.";
     const markup = await html();
     expect(button(markup, "Generate Complete Proposal")).toContain(
       'disabled=""',

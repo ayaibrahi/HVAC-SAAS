@@ -4,6 +4,35 @@ import { mapOpportunityToAgencyService } from "@/features/opportunities/engine/m
 import { makeService } from "@/features/opportunities/test-fixtures";
 
 describe("mapOpportunityToAgencyService", () => {
+  it("approved deliverables override a misleading name and preserve manual price", () => {
+    const service = makeService({ id: "approved", name: "Online Booking Integration", approvedScope: {
+      deliverables: "Contact form and call to action review.", exclusions: "Booking integration.",
+      clientInputs: "Approved content.", completionChecks: "Agency review.",
+    } });
+    const original = structuredClone(service);
+    expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBeNull();
+    expect(mapOpportunityToAgencyService({ ...makeBookingOpportunity(), ruleKey: "weak_lead_capture" }, [service])).toBe(service.id);
+    expect(service).toEqual(original);
+    expect(service.price).toBe(500);
+  });
+  it("requires approved capability and rejects explicit exclusions and malformed scope", () => {
+    const service = makeService({ id: "approved", name: "General service", approvedScope: {
+      deliverables: "Online booking integration.", exclusions: "Payment processing.",
+      clientInputs: "Approved account.", completionChecks: "Owner verifies booking link.",
+    } });
+    expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBe(service.id);
+    service.approvedScope!.exclusions = "Online booking is excluded.";
+    expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBeNull();
+    service.approvedScope!.exclusions = "";
+    expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBeNull();
+  });
+  it("does not match a negated approved appointment-link deliverable", () => {
+    const service = makeService({ id: "no-booking", name: "Online Booking Integration", approvedScope: {
+      deliverables: "Do not add an appointment link.", exclusions: "Extra pages.",
+      clientInputs: "Approved content.", completionChecks: "Owner review.",
+    } });
+    expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBeNull();
+  });
   it("does not assign a booking-only service to financing visibility", () => {
     const financing: OpportunityDraft = {
       ...makeBookingOpportunity(),

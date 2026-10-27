@@ -1,4 +1,5 @@
 import type { AgencyService } from "@/domain/services/types";
+import { readApprovedServiceScope } from "@/lib/validation/service-scope";
 import type {
   MappedOpportunityDraft,
   OpportunityDraft,
@@ -7,6 +8,7 @@ import type {
 
 type ServiceMatchProfile = {
   phrases: string[];
+  scopePhrases?: string[];
   exclusionTopics: string[];
   exactNames?: string[];
 };
@@ -15,6 +17,7 @@ type ServiceMatchProfile = {
 // to lead capture; specialized findings need an explicit corresponding scope.
 const serviceMatchProfiles: Record<OpportunityRuleKey, ServiceMatchProfile> = {
   missing_online_booking: {
+    scopePhrases: ["appointment link", "booking link"],
     phrases: [
       "online booking",
       "booking integration",
@@ -104,6 +107,7 @@ const serviceMatchProfiles: Record<OpportunityRuleKey, ServiceMatchProfile> = {
     exclusionTopics: ["service page", "service pages", "service links"],
   },
   weak_lead_capture: {
+    scopePhrases: ["contact action", "phone link", "contact cta", "cta wording"],
     phrases: [
       "website conversion optimization",
       "mobile conversion optimization",
@@ -176,6 +180,18 @@ function scoreServiceMatch(
   service: AgencyService,
 ) {
   const profile = serviceMatchProfiles[opportunity.ruleKey];
+  if (service.approvedScope != null) {
+    const scope = readApprovedServiceScope(service.approvedScope);
+    if (!scope) return 0;
+    const deliverables = normalizeSearchText(scope.deliverables);
+    const exclusions = normalizeSearchText(scope.exclusions);
+    const approvedProfile = { ...profile, exclusionTopics: [...profile.exclusionTopics, ...(profile.scopePhrases ?? [])] };
+    // Explicit approved scope overrides marketing labels. Conservatively leave
+    // ambiguous/excluded capabilities unmatched; never rewrite scope or prices.
+    if (approvedProfile.exclusionTopics.some(topic => hasPhrase(exclusions, topic)) ||
+        hasScopeExclusion(deliverables, approvedProfile)) return 0;
+    return [...profile.phrases, ...(profile.scopePhrases ?? [])].some(phrase => hasPhrase(deliverables, phrase)) ? 100 : 0;
+  }
   const name = normalizeSearchText(service.name);
   const description = normalizeSearchText(service.description ?? "");
   if (

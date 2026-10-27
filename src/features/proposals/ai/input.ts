@@ -21,6 +21,7 @@ import {
 import { assertAuditReadyForOpportunityGeneration } from "@/features/opportunities/authorization";
 import { evaluateHvacOpportunityRules } from "@/features/opportunities/rules/hvac";
 import { mapOpportunityToAgencyService } from "@/features/opportunities/engine/map-services";
+import { readApprovedServiceScope } from "@/lib/validation/service-scope";
 
 export function createProposalAiInput(input: {
   agency: Agency;
@@ -78,9 +79,14 @@ export function createProposalAiInput(input: {
           409,
         );
       canonicalEvidence.set(opportunity.id, rule.evidence);
+      if (service.approvedScope != null && !readApprovedServiceScope(service.approvedScope)) {
+        throw new AppError("Approve deliverables, exclusions, client inputs and completion checks for every selected service in the catalog first.", 422);
+      }
       if (mapOpportunityToAgencyService(rule, [service]) !== service.id) {
         throw new AppError(
-          "The selected service scope does not support this finding. Review the service and proposal manually.",
+          service.approvedScope != null
+            ? "Approved deliverables or exclusions do not support this selected finding. Reconcile the catalog scope or review the proposal manually."
+            : "The selected service scope does not support this finding. Review the service and proposal manually.",
           422,
         );
       }
