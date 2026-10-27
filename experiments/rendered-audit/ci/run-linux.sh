@@ -6,6 +6,7 @@ root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 image="scanvoro-fixtures:${GITHUB_RUN_ID}"
 container="scanvoro-fixtures-${GITHUB_RUN_ID}"
 created=false
+profile_created=false
 cleanup() {
   if [[ "$created" == true ]]; then
     docker rm -f "$container" >/dev/null
@@ -14,14 +15,24 @@ cleanup() {
     fi
     echo 'CONTAINER_CLEANUP_PASS'
   fi
+  if [[ "$profile_created" == true ]]; then
+    rm -- "$profile"
+  fi
 }
 trap cleanup EXIT
 printf '%s  %s\n' 'cc3e61cabda6bbc1e53e54d27ba4d55a9d3be829b6dd1a596f4a7b31b1cc7849' "$root/ci/seccomp_profile.json" | sha256sum --check --strict
+# Derive the runtime profile from the verified upstream bytes. Chromium's
+# user-namespace sandbox needs chroot even though the container has no initial
+# CAP_SYS_CHROOT. This permits only that syscall; kernel capability checks still
+# apply in the caller's user namespace. Never add a container capability.
+profile="${RUNNER_TEMP:?}/scanvoro-seccomp-${GITHUB_RUN_ID}.json"
+python3 "$root/ci/derive-seccomp.py" "$root/ci/seccomp_profile.json" "$profile"
+profile_created=true
 # Prep only: pinned official image and npm packages, bounded by job/build deadlines.
 timeout --signal=TERM --kill-after=10s 360s docker build --platform=linux/amd64 --tag "$image" --file "$root/ci/Dockerfile" "$root"
 docker create --name "$container" --network none --ipc private --init \
   --user 1000:1000 --read-only --cap-drop ALL \
-  --security-opt no-new-privileges=true --security-opt "seccomp=$root/ci/seccomp_profile.json" \
+  --security-opt no-new-privileges=true --security-opt "seccomp=$profile" \
   --memory 2g --memory-swap 2g --cpus 1 --pids-limit 256 --shm-size 256m \
   --ulimit nofile=1024:1024 --ulimit core=0 \
   --tmpfs /tmp:rw,nosuid,nodev,noexec,size=512m,mode=1777 \

@@ -110,11 +110,21 @@ child environment is allowlisted. TypeScript, test logic, redirect rejection and
 last cleanup changes are compiled directly from the checked-out approved source.
 Temporary output is copied into container tmpfs, never a host bind mount.
 
+## Follow-up after failed Linux startup
+
+The first isolated run failed in Chromium's sandbox at `sys_chroot`. The local
+follow-up derives a profile from the checksum-verified upstream bytes, changing
+only the capability-conditioned `chroot` syscall rule. Docker still drops every
+initial capability; Linux checks the caller's user-namespace capabilities. The
+derived profile is not a blanket seccomp bypass. Static tests compare the whole
+derived profile with the original and assert the retained container controls.
+The adjusted profile has not yet been run in CI. A new run requires separate
+owner authorization and does not establish safe access to external websites.
+
 ## Not yet established
 
-Container build, Linux sandbox/user-namespace compatibility, actual 13/13 final
-browser results, kernel network denial and cleanup measurements require the first
-authorized CI run. If AppArmor/user namespaces/seccomp prevent startup, fail and
+Linux sandbox/user-namespace compatibility and actual 13/13 final browser results
+require an authorized follow-up CI run. If AppArmor/user namespaces/seccomp prevent startup, fail and
 report; do not add privileges, unconfined modes, host IPC, or `--no-sandbox`.
 
 These trusted offline tests do not establish hostile-site isolation, safe egress,
