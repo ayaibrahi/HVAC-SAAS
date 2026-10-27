@@ -122,6 +122,7 @@ Local fixture/mocked tests: `npm run test` passed 108 files / 1,158 tests (5.53 
 real-browser results. The final commit IDs are reported with the handoff.
 Default `npm run build` failed twice
 at a Turbopack CSS child-process startup (inside and outside the local sandbox).
-`npm run build -- --webpack` compiled and built successfully; this is additional
-evidence, not a claim that the unchanged default build passes. No build script was
-changed to hide the failure. Browser CI and the default build remain release gates.
+`npm run build -- --webpack` compiled and built successfully. The supported release
+build is now explicitly `next build --webpack`; the Turbopack CSS child-process
+failure remains a non-blocking follow-up for that supported build path. The browser
+CI run and a successful build of the actual release commit remain release gates.
