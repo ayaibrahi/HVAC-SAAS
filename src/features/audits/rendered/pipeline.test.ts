@@ -109,6 +109,20 @@ describe("rendered audit integration (no browser or external network)", () => {
     expect(result.pages[0]).toMatchObject({ source: "static_html", reason: "static_fallback", status: "observed" });
     expect(describeRenderedCoverage(result).staticFallback).toBe(true);
   });
+  it("distinguishes worker failure from deadlines and accounts for unattempted mobile capture", async () => {
+    const renderer = worker((url, viewport) => {
+      const value = capture({ requestedUrl: url, finalUrl: url, viewport });
+      value.document.links = [{ href: "/contact", text: "Contact" }, { href: "/services", text: "Services" }];
+      return value;
+    });
+    const original = renderer.capture.getMockImplementation()!;
+    renderer.capture.mockImplementationOnce(original).mockImplementationOnce(original).mockRejectedValueOnce(new Error("worker unavailable"));
+    const result = await inspectRenderedSite({ url, worker: renderer, staticFallback: vi.fn().mockRejectedValue(new Error("no fallback")) });
+    expect(result.pages).toHaveLength(3);
+    expect(result.pages[2].reason).toBe("worker_error");
+    expect(result.skipped).toEqual([{ url: "https://example.com/contact", reason: "worker_error" }]);
+    expect(describeRenderedCoverage(result).unattemptedViewports).toBe(1);
+  });
   it("rejects malformed, oversized and foreign worker responses before generating findings", async () => {
     expect(() => parseRenderedCapture("x".repeat(131073))).toThrow();
     expect(() => parseRenderedCapture('{"password":"secret"}')).toThrow();

@@ -49,9 +49,11 @@ export async function runAuditForProspect(input: {
     signalSchemaVersion: dependencies ? "2.0.0" : auditSignalSchemaVersion,
   });
   let inspected: { finalUrl: string; normalizedSignals: Json } | undefined;
+  let claimed = false;
 
   try {
     await markAuditRunning(audit.id, input.agencyId);
+    claimed = true;
 
     // Server-only dependency, never selected from form/API input. Existing
     // actions keep static behavior until isolated worker activation is reviewed.
@@ -99,19 +101,21 @@ export async function runAuditForProspect(input: {
   } catch (error) {
     const analyzerError = normalizeAnalyzerError(error);
 
-    try {
-      await markAuditFailed({
-        auditId: audit.id,
-        agencyId: input.agencyId,
-        errorCode: analyzerError.code,
-        errorMessage: analyzerError.publicMessage,
-        ...inspected,
-      });
-    } catch (failureUpdateError) {
-      logger.error("Could not persist audit failure state.", {
-        auditId: audit.id,
-        error: getPublicErrorMessage(failureUpdateError),
-      });
+    if (claimed) {
+      try {
+        await markAuditFailed({
+          auditId: audit.id,
+          agencyId: input.agencyId,
+          errorCode: analyzerError.code,
+          errorMessage: analyzerError.publicMessage,
+          ...inspected,
+        });
+      } catch (failureUpdateError) {
+        logger.error("Could not persist audit failure state.", {
+          auditId: audit.id,
+          error: getPublicErrorMessage(failureUpdateError),
+        });
+      }
     }
 
     throw new AppError(analyzerError.publicMessage, analyzerError.statusCode);

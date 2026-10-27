@@ -122,6 +122,7 @@ export async function markAuditRunning(auditId: string, agencyId: string) {
     })
     .eq("id", auditId)
     .eq("agency_id", agencyId)
+    .eq("status", "pending")
     .select("*")
     .single();
 
@@ -153,6 +154,7 @@ export async function markAuditCompleted(input: {
     })
     .eq("id", input.auditId)
     .eq("agency_id", input.agencyId)
+    .eq("status", "running")
     .select("*")
     .single();
 
@@ -186,6 +188,7 @@ export async function markAuditFailed(input: {
     })
     .eq("id", input.auditId)
     .eq("agency_id", input.agencyId)
+    .eq("status", "running")
     .select("*")
     .single();
 

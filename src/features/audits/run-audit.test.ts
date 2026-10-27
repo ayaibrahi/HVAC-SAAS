@@ -36,6 +36,14 @@ beforeEach(() => {
   >);
 });
 describe("audit verification lifecycle", () => {
+  it("does not overwrite another worker when the pending claim fails", async () => {
+    vi.mocked(markAuditRunning).mockRejectedValueOnce(new Error("claim lost"));
+    const createRenderedWorker = vi.fn();
+    await expect(runAuditForProspect({ agencyId: "agency", prospect }, { createRenderedWorker })).rejects.toThrow();
+    expect(markAuditFailed).not.toHaveBeenCalled();
+    expect(markAuditCompleted).not.toHaveBeenCalled();
+    expect(createRenderedWorker).not.toHaveBeenCalled();
+  });
   it("denies a foreign prospect before pending writes or worker creation", async () => {
     const createRenderedWorker = vi.fn();
     await expect(runAuditForProspect({ agencyId: "other", prospect }, { createRenderedWorker })).rejects.toThrow();

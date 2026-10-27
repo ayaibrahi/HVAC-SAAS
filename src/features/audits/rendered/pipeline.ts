@@ -20,7 +20,7 @@ export const renderedAuditSchema = z.object({
     signals: z.record(z.string(), z.unknown()).nullable(),
   }).strict()).max(10),
   discovered: z.array(z.string().max(2048).url()).max(200),
-  skipped: z.array(z.object({ url: z.string().max(2048).url(), reason: z.enum(["page_limit", "deadline"]) }).strict()).max(200),
+  skipped: z.array(z.object({ url: z.string().max(2048).url(), reason: z.enum(["page_limit", "deadline", "worker_error"]) }).strict()).max(200),
   discoveryTruncated: z.boolean(),
 }).strict();
 export type RenderedAudit = z.infer<typeof renderedAuditSchema>;
@@ -77,6 +77,7 @@ export async function inspectRenderedSite(input: {
   const visited = new Set<string>();
   const started = Date.now();
   let stopped = false;
+  let stopReason: "deadline" | "worker_error" = "deadline";
   const addLinks = (links: { href: string; text: string }[], base: string) => {
     for (const candidate of discoverPages(links, base)) {
       if (candidates.has(candidate.url)) continue;
@@ -140,6 +141,7 @@ export async function inspectRenderedSite(input: {
             reason: abort.signal.aborted ? "deadline" : "worker_error", signals: null });
           // A worker failure cannot be retried safely in a possibly live browser.
           stopped = true;
+          stopReason = abort.signal.aborted ? "deadline" : "worker_error";
           break;
         }
       }
@@ -150,7 +152,7 @@ export async function inspectRenderedSite(input: {
     await bounded(input.worker.close(), 5000, new AbortController());
   }
   result.skipped = [...candidates.keys()].filter(url => !visited.has(url))
-    .map(url => ({ url, reason: stopped ? "deadline" : "page_limit" }));
+    .map(url => ({ url, reason: stopped ? stopReason : "page_limit" }));
   // One homepage-only static fallback; never call unknown/failed rendering absence.
   if (!result.pages.some(p => p.status === "observed")) {
     try {
@@ -177,6 +179,7 @@ export function describeRenderedCoverage(result: RenderedAudit) {
     fullSiteCoverage: false as const,
     staticFallback: result.pages.some(p => p.source === "static_html"),
     observedViewports: result.pages.filter(p => p.status === "observed").length,
+    unattemptedViewports: new Set(result.pages.map(p => p.url)).size * 2 - result.pages.length,
     discoveryTruncated: result.discoveryTruncated,
   };
 }
