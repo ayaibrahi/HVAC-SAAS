@@ -51,7 +51,7 @@ describe("rendered audit application orchestration (local contract fixtures)", (
     expect(await submitRenderedAuditJob(submit)).toBe(await submitRenderedAuditJob(submit));
     const createWorker = vi.fn(async () => worker);
     expect(await executeRenderedAuditJob({ agencyId: "agency", jobId: "job", store: db.store, createWorker, staticFallback: vi.fn() })).toBe("completed");
-    expect(createWorker).toHaveBeenCalledWith({ entryUrl: prospect.websiteUrl, egress: expect.objectContaining({ get: expect.any(Function) }) });
+    expect(createWorker).toHaveBeenCalledWith({ entryUrl: prospect.websiteUrl, egress: expect.objectContaining({ get: expect.any(Function) }), deadlineAt: expect.any(Number) });
     expect(worker.capture).toHaveBeenCalledTimes(10);
     const rendered = readRenderedAudit(db.result() as Record<string, unknown>);
     expect(rendered).not.toBeNull();

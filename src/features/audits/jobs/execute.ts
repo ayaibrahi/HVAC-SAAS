@@ -13,9 +13,10 @@ export class WorkerUnavailableBeforeStart extends Error {}
 // provided by a reviewed isolated backend with independently enforced egress.
 export async function executeRenderedAuditJob(input: {
   agencyId: string; jobId: string; store: AuditJobStore;
-  createWorker: (input: { entryUrl: string; egress: ReturnType<typeof createPinnedEgressBroker> }) => Promise<RenderedAuditWorker>;
+  createWorker: (input: { entryUrl: string; egress: ReturnType<typeof createPinnedEgressBroker>; deadlineAt: number }) => Promise<RenderedAuditWorker>;
   staticFallback: (url: string) => Promise<SafeFetchResult>;
 }): Promise<"not_claimed" | "completed" | "retry_or_failed" | "lease_lost"> {
+  const claimedAt = Date.now();
   const lease = await input.store.claim({ agencyId: input.agencyId, jobId: input.jobId });
   if (!lease) return "not_claimed";
   let result: Json | null = null;
@@ -25,7 +26,7 @@ export async function executeRenderedAuditJob(input: {
     // This contract supplies a restricted broker but does not itself enforce
     // network isolation. Production still requires an independently verified
     // worker environment that prevents direct egress.
-    const worker = await input.createWorker({ entryUrl: lease.website_url, egress: createPinnedEgressBroker({ origin: lease.website_url }) });
+    const worker = await input.createWorker({ entryUrl: lease.website_url, egress: createPinnedEgressBroker({ origin: lease.website_url }), deadlineAt: claimedAt + 110_000 });
     allocated = true;
     // Once allocated, an exception may mean cleanup/termination failed. Never
     // start another sandbox unless the prior worker has closed successfully.
