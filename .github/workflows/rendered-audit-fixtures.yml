@@ -1,7 +1,7 @@
 name: One-shot isolated rendered audit fixtures
 on:
   push:
-    branches: [codex/rendered-audit-integration]
+    branches: [codex/rendered-audit-feasibility]
     paths: [experiments/rendered-audit/ci/run-20261027-seccomp.trigger]
 permissions:
   contents: read
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   fixtures:
-    if: github.event_name == 'push' && github.repository == 'ayaibrahi/HVAC-SAAS' && github.ref == 'refs/heads/codex/rendered-audit-integration' && github.event.repository.private == false && github.event.forced == false && github.event.deleted == false && github.run_attempt == 1
+    if: github.event_name == 'push' && github.repository == 'ayaibrahi/HVAC-SAAS' && github.ref == 'refs/heads/codex/rendered-audit-feasibility' && github.event.repository.private == false && github.event.forced == false && github.event.deleted == false && github.run_attempt == 1
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
