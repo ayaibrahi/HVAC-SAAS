@@ -1,0 +1,33 @@
+name: One-shot rendered audit PostgreSQL rehearsal
+on:
+  push:
+    branches: [codex/rendered-audit-integration]
+    paths: [experiments/rendered-audit-db/run-20261029-postgres.trigger]
+permissions:
+  contents: read
+jobs:
+  postgres:
+    if: github.event_name == 'push' && github.repository == 'ayaibrahi/HVAC-SAAS' && github.ref == 'refs/heads/codex/rendered-audit-integration' && github.event.repository.private == false && github.event.forced == false && github.event.deleted == false && github.run_attempt == 1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout test sources
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 2
+          sparse-checkout: |
+            experiments/rendered-audit-db
+            supabase/migrations
+      - name: Require the reviewed baseline and new trigger
+        shell: bash
+        run: |
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          [[ "$(git show -s --format=%P HEAD)" == '81675ae8d7c2884de10bcb732015ac6d950e363b' ]]
+          marker=experiments/rendered-audit-db/run-20261029-postgres.trigger
+          [[ "$(git diff-tree --no-commit-id --name-status -r HEAD -- "$marker")" == $'A\t'"$marker" ]]
+          [[ "$(cat "$marker")" == 'scanvoro-postgres-rehearsal-20261029' ]]
+      - name: Run disposable PostgreSQL rehearsal
+        shell: bash
+        run: bash experiments/rendered-audit-db/run.sh

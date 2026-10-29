@@ -11,6 +11,8 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RenderedCoverage } from "@/features/prospects/components/rendered-coverage";
 
+vi.mock("server-only", () => ({}));
+
 // Deterministic store models the contract only; it does not substitute for a
 // concurrent PostgreSQL/RLS test of the unapplied migration.
 function fixtureStore() {
@@ -47,7 +49,9 @@ describe("rendered audit application orchestration (local contract fixtures)", (
     const db = fixtureStore(), worker = fixtureWorker();
     const submit = { agencyId: "agency", userId: "owner", prospect, requestKey: "request", store: db.store };
     expect(await submitRenderedAuditJob(submit)).toBe(await submitRenderedAuditJob(submit));
-    expect(await executeRenderedAuditJob({ agencyId: "agency", jobId: "job", store: db.store, createWorker: async () => worker, staticFallback: vi.fn() })).toBe("completed");
+    const createWorker = vi.fn(async () => worker);
+    expect(await executeRenderedAuditJob({ agencyId: "agency", jobId: "job", store: db.store, createWorker, staticFallback: vi.fn() })).toBe("completed");
+    expect(createWorker).toHaveBeenCalledWith({ entryUrl: prospect.websiteUrl, egress: expect.objectContaining({ get: expect.any(Function) }) });
     expect(worker.capture).toHaveBeenCalledTimes(10);
     const rendered = readRenderedAudit(db.result() as Record<string, unknown>);
     expect(rendered).not.toBeNull();
