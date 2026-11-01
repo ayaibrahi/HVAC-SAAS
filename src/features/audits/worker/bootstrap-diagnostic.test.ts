@@ -22,7 +22,10 @@ describe("bootstrap isolation", () => {
   });
   it.each(["playwright_fs_api", "playwright_resolution", "playwright_file_access", "playwright_import"] as const)("executes the actual fixed %s probe against locked local dependencies", stage => {
     const probe = bootstrapArgs(config, name, dir, 1001, 1001, stage);
-    expect(execFileSync(process.execPath, ["-e", probe.at(-1)!], { cwd: "experiments/rendered-audit", timeout: 5000, encoding: "utf8" })).toBe("OK\n");
+    // Tests can point at a fresh lockfile-only install rather than a developer's
+    // existing node_modules. This setting is used only by this host-side test.
+    const cwd = process.env.SCANVORO_TEST_PACKAGE_DIR ?? "experiments/rendered-audit";
+    expect(execFileSync(process.execPath, ["-e", probe.at(-1)!], { cwd, timeout: 5000, encoding: "utf8" })).toBe("OK\n");
   });
   it.each(bootstrapStages)("preserves every production Docker isolation argument: %s", stage => {
     const normal = workerContainerArgs(config, name, dir, 1001, 1001, 30);
