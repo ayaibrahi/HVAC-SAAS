@@ -25,6 +25,10 @@ timeout --signal=TERM --kill-after=5s 240s docker build --platform linux/amd64 -
 export SCANVORO_WORKER_IMAGE
 SCANVORO_WORKER_IMAGE=$(docker image inspect --format '{{.Id}}' "$image")
 export SCANVORO_WORKER_SECCOMP="$PWD/workers/rendered-audit/seccomp.json"
+# Stop on the first bootstrap failure, before creating PostgreSQL.
+export SCANVORO_BOOTSTRAP=1
+timeout --signal=TERM --kill-after=5s 180s node node_modules/vitest/vitest.mjs run src/features/audits/worker/bootstrap-diagnostic.test.ts --maxWorkers=1
+unset SCANVORO_BOOTSTRAP
 timeout 120s docker pull postgres:17.11-bookworm@sha256:2cd2c0f809604aaeff6f0ec8f40aecbd025613107561015c69369a1a7f1d3416 >/dev/null
 docker create --name "$database" --network none --memory 512m --cpus 1 --pids-limit 128 \
   -e POSTGRES_PASSWORD=synthetic-fixture-only postgres:17.11-bookworm@sha256:2cd2c0f809604aaeff6f0ec8f40aecbd025613107561015c69369a1a7f1d3416 >/dev/null
