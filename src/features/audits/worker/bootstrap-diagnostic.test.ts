@@ -6,13 +6,20 @@ import { createServer } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { Script } from "node:vm";
-import { bootstrapArgs, bootstrapStages } from "./bootstrap-diagnostic";
+import { bootstrapArgs, bootstrapStages, bootstrapFailureCategory } from "./bootstrap-diagnostic";
 import { workerContainerArgs } from "./linux-worker";
 
 vi.mock("server-only", () => ({}));
 const config = { imageId: `sha256:${"a".repeat(64)}`, seccompPath: "/tmp/policy" };
 const name = "scanvoro-render-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", dir = "/tmp/scanvoro-render-fixture";
 describe("bootstrap isolation", () => {
+  it("only reports fixed import error categories and redacts arbitrary output", () => {
+    for (const code of ["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "FILE_NOT_FOUND", "PERMISSION_DENIED", "OPERATION_NOT_PERMITTED", "SYNTAX_ERROR", "MISSING_EXPORT", "OTHER"])
+      expect(bootstrapFailureCategory(`ERR:${code}\n`, false, 1)).toBe(code);
+    expect(bootstrapFailureCategory("ERR:SECRET_TOKEN\n", false, 1)).toBe("exit_or_protocol");
+    expect(bootstrapFailureCategory("ERR:PERMISSION_DENIED\nprivate-url", false, 1)).toBe("exit_or_protocol");
+    expect(bootstrapFailureCategory("ERR:MODULE_NOT_FOUND\n", true, 1)).toBe("output_limit");
+  });
   it.each(bootstrapStages)("preserves every production Docker isolation argument: %s", stage => {
     const normal = workerContainerArgs(config, name, dir, 1001, 1001, 30);
     const probe = bootstrapArgs(config, name, dir, 1001, 1001, stage);
@@ -49,7 +56,8 @@ describe.skipIf(!enabled)("offline bootstrap diagnostic", () => {
           });
           if (result.code !== 0 || result.overflow || result.output !== (stage === "container_process" ? "" : "OK\n")) {
             const code = Number.isInteger(result.code) && result.code! >= 0 && result.code! <= 255 ? result.code : "unknown";
-            throw new Error(`BOOTSTRAP_FAIL stage=${stage} category=${result.overflow ? "output_limit" : result.code === null ? "start_or_timeout" : "exit_or_protocol"} exit=${code}`);
+            const category = bootstrapFailureCategory(result.output, result.overflow, result.code);
+            throw new Error(`BOOTSTRAP_FAIL stage=${stage} category=${category} exit=${code}`);
           }
           console.log(`BOOTSTRAP_PASS stage=${stage}`);
         } finally {
