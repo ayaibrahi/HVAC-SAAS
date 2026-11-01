@@ -1,24 +1,36 @@
-import { chromium } from 'playwright-core';
 import { request } from 'node:http';
 import { connect } from 'node:net';
 import { readFileSync } from 'node:fs';
-import { collectRenderedDocument } from './dom.mjs';
 
 // This process has AF_UNIX only. No proxy, remote debugging listener, database,
 // application env or direct fetch API is used. Every response is broker supplied.
 const socketPath = '/run/scanvoro/broker.sock';
-let browser, token, entry, busy = false, captures = 0, input = '';
-let phase = 'configuration';
+let browser, chromium, collectRenderedDocument, token, entry, busy = false, captures = 0, input = '';
+let terminating = false;
+let phase = 'module_initialization';
 const pages = new Set(), viewports = new Set();
 const output = value => {
   const line = JSON.stringify(value);
   if (Buffer.byteLength(line) > 132000) throw new Error('IPC limit');
   process.stdout.write(line + '\n');
 };
-const fatal = () => { process.exitCode = 1; process.stdout.write(JSON.stringify({ failure: phase }) + '\n'); process.stdin.destroy(); if (!browser) process.exit(1); void browser.close().then(() => process.exit(1), () => process.exit(1)); };
+const fatal = () => {
+  if (terminating) return;
+  terminating = true;
+  process.exitCode = 1;
+  process.stdin.destroy();
+  // Flush the fixed-size allowlisted frame before exiting; never wait forever.
+  const deadline = setTimeout(() => process.exit(1), 1000);
+  const frame = new Promise(resolve => process.stdout.write(JSON.stringify({ failure: phase }) + '\n', resolve));
+  const shutdown = browser ? browser.close().catch(() => {}) : Promise.resolve();
+  void Promise.all([frame, shutdown]).finally(() => { clearTimeout(deadline); process.exit(1); });
+};
 process.on('uncaughtException', fatal);
 process.on('unhandledRejection', fatal);
 process.on('SIGTERM', fatal);
+try { ({ chromium } = await import('playwright-core')); ({ collectRenderedDocument } = await import('./dom.mjs')); }
+catch { fatal(); }
+phase = 'configuration';
 
 async function assertNetworkDenied() {
   for (const host of ['93.184.216.34', '10.0.0.1', '169.254.169.254', '127.0.0.1', '::1']) {

@@ -1,6 +1,6 @@
 // Diagnostics cross an untrusted process boundary. Never retain the original
 // error/cause, stderr, command arguments, socket token or arbitrary strings.
-export const startupStages = ["host_configuration", "broker_setup", "container_creation", "container_inspection", "boundary_validation", "watchdog_initialization", "container_startup", "network_probe", "chromium_launch", "sandbox_verification", "ready_handshake", "capture", "cleanup"] as const;
+export const startupStages = ["host_configuration", "broker_setup", "container_creation", "container_inspection", "boundary_validation", "watchdog_initialization", "container_startup", "module_initialization", "network_probe", "chromium_launch", "sandbox_verification", "ready_handshake", "capture", "cleanup"] as const;
 export const startupCategories = ["configuration_invalid", "io_failed", "process_start_failed", "command_failed", "timeout", "unexpected_exit", "boundary_mismatch", "invalid_output", "probe_failed", "chromium_launch_failed", "sandbox_verification_failed", "runtime_failed", "termination_unverified", "unknown"] as const;
 export const boundaryChecks = ["network", "privileged", "readonly_root", "added_capabilities", "dropped_capabilities", "ipc", "memory", "swap", "cpu", "pids", "ports", "logging", "no_new_privileges", "seccomp", "devices", "mount_types", "broker_mount", "user", "none"] as const;
 export type StartupStage = typeof startupStages[number];
@@ -30,6 +30,7 @@ export function processStartupError(stage: StartupStage, error: unknown): Worker
 }
 export function runtimeStartupError(phase: unknown): WorkerStartupError {
   switch (phase) {
+    case "module_initialization": return new WorkerStartupError("module_initialization", "runtime_failed");
     case "configuration": return new WorkerStartupError("host_configuration", "configuration_invalid");
     case "network_probe": return new WorkerStartupError("network_probe", "probe_failed");
     case "browser_launch": return new WorkerStartupError("chromium_launch", "chromium_launch_failed");

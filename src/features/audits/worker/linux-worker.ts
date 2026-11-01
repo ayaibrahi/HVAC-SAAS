@@ -7,7 +7,8 @@ import { join, resolve } from "node:path";
 import { isDeepStrictEqual, promisify } from "node:util";
 import type { RenderedAuditWorker } from "../rendered/contract";
 import { openWorkerBroker } from "./socket-broker";
-import { WorkerStartupError, processStartupError, runtimeStartupError, type StartupStage, type StartupCategory, type boundaryChecks } from "./startup-diagnostics";
+import { WorkerStartupError, processStartupError, type StartupStage, type StartupCategory, type boundaryChecks } from "./startup-diagnostics";
+import { createWorkerFrameReader } from "./worker-ipc";
 import type { createPinnedEgressBroker } from "./pinned-egress";
 
 const exec = promisify(execFile);
@@ -54,7 +55,7 @@ export function linuxWorkerFactory(config: LinuxWorkerConfig) {
     let broker: Awaited<ReturnType<typeof openWorkerBroker>> | undefined;
     let child: ChildProcessWithoutNullStreams | undefined, reaper: ReturnType<typeof spawn> | undefined, created = false, closed: Promise<void> | undefined;
     let pending: { resolve: (value: unknown) => void; reject: (error: Error) => void } | undefined;
-    let sequence = 0, buffer = "", stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
+    let sequence = 0, stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
     const fail = (error = new WorkerStartupError(stage, "unexpected_exit")) => { stopped = true; pending?.reject(error); pending = undefined; };
     const close = () => closed ??= (async () => {
       if (timer) clearTimeout(timer);
@@ -113,30 +114,28 @@ export function linuxWorkerFactory(config: LinuxWorkerConfig) {
       child = spawn(docker, [...daemon, "start", "--attach", "--interactive", name], { env: childEnv, stdio: "pipe" });
       child.stderr.resume(); // Never propagate browser diagnostics or page content.
       child.on("error", error => fail(processStartupError("container_startup", error)));
-      child.on("exit", code => fail(new WorkerStartupError(stage, "unexpected_exit", code)));
-      child.stdin.on("error", () => fail(new WorkerStartupError(stage, "io_failed")));
+      // exit may precede stdout; only close means all stdio has drained.
+      const reader = createWorkerFrameReader({
+        stage: () => stage,
+        failure: error => { fail(error); },
+        frame: value => {
+          const response = value as { ready?: unknown; networkDenied?: unknown; sandboxEnabled?: unknown; id?: unknown; result?: unknown };
+          if (!pending || (sequence === 0 ? response.ready !== true || response.networkDenied !== true || response.sandboxEnabled !== true : response.id !== sequence || typeof response.result !== "string")) throw new Error();
+          const waiter = pending; pending = undefined; waiter.resolve(sequence === 0 ? undefined : response.result);
+        },
+      });
+      child.on("close", code => reader.close(code));
+      // A broken stdin can race a structured startup failure on stdout.
+      child.stdin.on("error", () => { if (sequence !== 0) fail(new WorkerStartupError(stage, "io_failed")); });
       child.stdout.on("error", () => fail(new WorkerStartupError(stage, "io_failed")));
       child.stdout.setEncoding("utf8");
-      child.stdout.on("data", (chunk: string) => {
-        buffer += chunk;
-        if (Buffer.byteLength(buffer) > 132000 || buffer.indexOf("\n") !== buffer.lastIndexOf("\n")) { fail(new WorkerStartupError(stage, "invalid_output")); void close().catch(() => {}); return; }
-        const newline = buffer.indexOf("\n");
-        if (newline < 0) return;
-        try {
-          const response = JSON.parse(buffer.slice(0, newline)); buffer = buffer.slice(newline + 1);
-          if (Object.hasOwn(response, "failure")) {
-            pending?.reject(runtimeStartupError(response.failure)); pending = undefined; stopped = true; return;
-          }
-          if (!pending || (sequence === 0 ? response.ready !== true || response.networkDenied !== true || response.sandboxEnabled !== true : response.id !== sequence || typeof response.result !== "string")) throw new Error("Bad worker output");
-          const waiter = pending; pending = undefined; waiter.resolve(sequence === 0 ? undefined : response.result);
-        } catch { fail(new WorkerStartupError(stage, "invalid_output")); void close().catch(() => {}); }
-      });
+      child.stdout.on("data", (chunk: string) => reader.data(chunk));
       timer = setTimeout(() => { fail(); void close().catch(() => {}); }, Math.max(1, input.deadlineAt - Date.now() - 5000));
       stage = "ready_handshake"; category = "invalid_output";
       const ready = new Promise<void>((resolveReady, reject) => { pending = { resolve: () => resolveReady(), reject }; });
       child.stdin.write(JSON.stringify({ entryUrl: input.entryUrl, token: broker.token }) + "\n");
       let startup: ReturnType<typeof setTimeout> | undefined;
-      try { await Promise.race([ready, new Promise<never>((_, reject) => { startup = setTimeout(() => reject(new WorkerStartupError("ready_handshake", "timeout")), 15000); })]); }
+      try { await Promise.race([ready, new Promise<never>((_, reject) => { startup = setTimeout(() => { reader.timeout(); reject(new WorkerStartupError("ready_handshake", "timeout")); }, 15000); })]); }
       finally { if (startup) clearTimeout(startup); }
       return { close, async capture(request) {
         stage = "capture";
