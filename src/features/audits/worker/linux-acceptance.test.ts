@@ -6,6 +6,8 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { Readable } from "node:stream";
 import { join } from "node:path";
 import { linuxWorkerFactory } from "./linux-worker";
+import { WorkerStartupError } from "./startup-diagnostics";
+import { parseRenderedCapture } from "../rendered/contract";
 import { createPinnedEgressBroker } from "./pinned-egress";
 import { openWorkerBroker } from "./socket-broker";
 import { createPinnedRequestOptions, type SafeFetchTransport } from "../analyzer/safe-fetch";
@@ -44,7 +46,21 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
   let transport: SafeFetchTransport;
   const factory = () => linuxWorkerFactory({ imageId: process.env.SCANVORO_WORKER_IMAGE!, seccompPath: process.env.SCANVORO_WORKER_SECCOMP! });
   const broker = () => createPinnedEgressBroker({ origin, resolveHostname: dns, transport });
-  const worker = () => factory()({ entryUrl: origin, egress: broker(), deadlineAt: Date.now() + 110000 });
+  // A resolved factory has validated the runtime's ready/networkDenied/sandboxEnabled
+  // handshake. Also require a running container and an actual Chromium process.
+  const verifiedWorker = async (deadlineAt: number) => {
+    const live = await factory()({ entryUrl: origin, egress: broker(), deadlineAt });
+    try {
+      const ids = execFileSync("/usr/bin/docker", ["ps", "-q", "--filter", "name=scanvoro-render-"]).toString().trim().split("\n");
+      expect(ids).toHaveLength(1); expect(ids[0]).toMatch(/^[a-f0-9]{12,64}$/);
+      expect(execFileSync("/usr/bin/docker", ["inspect", "--format", "{{.State.Running}}", ids[0]]).toString().trim()).toBe("true");
+      const processes = execFileSync("/usr/bin/docker", ["top", ids[0], "-eo", "comm"]).toString();
+      expect(/chrome|chromium/i.test(processes)).toBe(true);
+      return { live, id: ids[0] };
+    } catch (error) { await live.close(); throw error; }
+  };
+  const worker = async () => (await verifiedWorker(Date.now() + 110000)).live;
+  const safeStartupFailure = (error: unknown) => error instanceof WorkerStartupError ? error : new WorkerStartupError("ready_handshake", "unknown");
   beforeAll(async () => {
     directory = mkdtempSync("/tmp/scanvoro-fixture-");
     execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=fixture.scanvoro.test",
@@ -77,6 +93,9 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
       connection.on("error", reject); connection.end();
     });
     sql(readFileSync("supabase/migrations/202610180001_approved_service_scope.sql", "utf8"));
+    // Vanilla PostgreSQL lacks Supabase's provisioned table grants. Grant only
+    // the ID column needed by this assertion; the real ownership RLS stays on.
+    sql("grant select(id) on public.prospects to authenticated;");
     sql(`update public.prospects set website_url=${esc(origin)} where id=${esc(prospectId)};`);
   }, 15000);
   afterAll(async () => {
@@ -89,16 +108,20 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
   it("authenticates fixture tenant, persists a real five-page rendered job, and matches approved service scope", async () => {
     const auth = sql(`set role authenticated; select set_config('request.jwt.claim.sub',${esc(user)},false); select id from public.prospects where id=${esc(prospectId)};`);
     expect(auth.split("\n").at(-1)).toBe(prospectId);
+    const denied = sql(`set role authenticated; select set_config('request.jwt.claim.sub','22222222-2222-4222-8222-222222222222',false); select count(id) from public.prospects where id=${esc(prospectId)};`);
+    expect(denied.split("\n").at(-1)).toBe("0");
+    expect(sql("select relrowsecurity from pg_class where oid='public.prospects'::regclass;")).toBe("t");
     const prospect = { id: prospectId, agencyId: agency, businessName: "Controlled fixture", websiteUrl: origin, contactName: null, contactEmail: null, notes: null, createdAt: "", updatedAt: "" };
     const job = await submitRenderedAuditJob({ agencyId: agency, userId: user, prospect, requestKey: "55555555-5555-4555-8555-555555555555", store });
     const fallback = vi.fn(async () => { throw new Error("Static fallback must not mask rendering failure"); });
-    let startupFailure = "";
+    let startupFailure: WorkerStartupError | undefined;
     const outcome = await executeRenderedAuditJob({ agencyId: agency, jobId: job.job_id, store,
       createWorker: async input => {
-        try { return await factory()({ ...input, egress: broker() }); }
-        catch (error) { startupFailure = error instanceof Error && /^Worker [a-z_ ]+failed$/.test(error.message) ? error.message : "worker_start_failed"; throw error; }
+        try { return (await verifiedWorker(input.deadlineAt)).live; }
+        catch (error) { startupFailure = safeStartupFailure(error); throw startupFailure; }
       }, staticFallback: fallback });
-    expect(outcome, startupFailure).toBe("completed");
+    if (startupFailure) throw startupFailure;
+    expect(outcome).toBe("completed");
     expect(fallback).not.toHaveBeenCalled();
     const row = JSON.parse(sql(`select row_to_json(a) from public.audits a where id=${esc(job.audit_id)};`));
     expect(row.status).toBe("completed");
@@ -161,15 +184,34 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
 
   it("handles an actual worker crash without committing a completed audit", async () => {
     const job = await store.enqueue({ agencyId: agency, userId: user, prospectId, requestKey: "77777777-7777-4777-8777-777777777777" });
-    await executeRenderedAuditJob({ agencyId: agency, jobId: job.job_id, store, staticFallback: async () => { throw new Error("No fallback fixture"); },
+    let startupFailure: WorkerStartupError | undefined, crashInduced = false, ready = false, leaseToken = "";
+    const observedStore: AuditJobStore = { ...store, async claim(input) {
+      const lease = await store.claim(input); leaseToken = lease?.lease_token ?? ""; return lease;
+    } };
+    const outcome = await executeRenderedAuditJob({ agencyId: agency, jobId: job.job_id, store: observedStore, staticFallback: async () => { throw new Error("No fallback fixture"); },
       createWorker: async input => {
-        const live = await factory()({ ...input, egress: broker() });
-        const id = execFileSync("/usr/bin/docker", ["ps", "-q", "--filter", "name=scanvoro-render-"]).toString().trim();
-        execFileSync("/usr/bin/docker", ["kill", id]);
-        return live;
+        let started;
+        try { started = await verifiedWorker(input.deadlineAt); }
+        catch (error) { startupFailure = safeStartupFailure(error); throw startupFailure; }
+        ready = true;
+        try {
+          const killed = execFileSync("/usr/bin/docker", ["kill", started.id]).toString().trim();
+          expect(killed).toBe(started.id);
+          const state = JSON.parse(execFileSync("/usr/bin/docker", ["inspect", "--format", "{{json .State}}", started.id]).toString());
+          expect(state.Running).toBe(false); expect(state.ExitCode).toBe(137);
+          crashInduced = true;
+          return started.live;
+        } catch (error) { await started.live.close(); throw error; }
       } });
-    expect(sql(`select status from public.audits where id=${esc(job.audit_id)};`)).not.toBe("completed");
+    if (startupFailure) throw startupFailure;
+    expect(ready).toBe(true); expect(crashInduced).toBe(true);
+    expect(outcome).toBe("retry_or_failed");
+    // Confirmed termination permits the existing bounded retry, not completion.
+    expect(sql(`select status from public.audits where id=${esc(job.audit_id)};`)).toBe("pending");
+    expect(sql(`select status || '|' || attempts || '|' || (lease_token is null)::text from public.rendered_audit_jobs where id=${esc(job.job_id)};`)).toBe("pending|1|true");
     expect(sql(`select normalized_signals::text from public.audits where id=${esc(job.audit_id)};`)).toBe("{}");
+    expect(await store.finish({ agencyId: agency, jobId: job.job_id, leaseToken, result: {}, retry: false })).toBe(false);
+    expect(execFileSync("/usr/bin/docker", ["ps", "-aq", "--filter", "name=scanvoro-render-"]).toString().trim()).toBe("");
   }, 25000);
 
   it("enforces automatic capture timeout and cleans up without a caller abort", async () => {
@@ -182,13 +224,31 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
     const otherProspect = "88888888-8888-4888-8888-888888888888";
     sql(`insert into public.prospects(id,agency_id,business_name,website_url) values(${esc(otherProspect)},${esc(agency)},'Lease fixture',${esc(origin)});`);
     const job = await store.enqueue({ agencyId: agency, userId: user, prospectId: otherProspect, requestKey: "99999999-9999-4999-8999-999999999999" });
+    let startupFailure: WorkerStartupError | undefined, captures = 0, fencedResult = false;
     const fenced: AuditJobStore = { ...store, async finish(input) {
-      expect(input.result).not.toBeNull();
+      // An error path must never count as a successful lease-fencing rehearsal.
+      if (input.result === null) return store.finish(input);
+      const rendered = readRenderedAudit(input.result as Record<string, unknown>);
+      expect(rendered?.pages.some(page => page.status === "observed" && page.source === "rendered_dom")).toBe(true);
+      expect(captures).toBeGreaterThan(0);
       sql(`update public.rendered_audit_jobs set lease_expires_at=clock_timestamp()-interval '1 second' where id=${esc(job.job_id)};`);
+      fencedResult = true;
       return store.finish(input);
     } };
-    expect(await executeRenderedAuditJob({ agencyId: agency, jobId: job.job_id, store: fenced,
-      createWorker: input => factory()({ ...input, egress: broker() }), staticFallback: async () => { throw new Error("No fallback fixture"); } })).toBe("lease_lost");
+    const outcome = await executeRenderedAuditJob({ agencyId: agency, jobId: job.job_id, store: fenced,
+      createWorker: async input => {
+        let live;
+        try { live = (await verifiedWorker(input.deadlineAt)).live; }
+        catch (error) { startupFailure = safeStartupFailure(error); throw startupFailure; }
+        return { close: () => live.close(), async capture(request) {
+          const raw = await live.capture(request), actual = parseRenderedCapture(raw);
+          expect(actual.status).toBe("observed"); expect(actual.document.text.length).toBeGreaterThan(0);
+          captures++; return raw;
+        } };
+      }, staticFallback: async () => { throw new Error("No fallback fixture"); } });
+    if (startupFailure) throw startupFailure;
+    expect(captures).toBeGreaterThan(0); expect(fencedResult).toBe(true);
+    expect(outcome).toBe("lease_lost");
     expect(sql(`select normalized_signals::text from public.audits where id=${esc(job.audit_id)};`)).toBe("{}");
   }, 90000);
 });

@@ -35,6 +35,6 @@ describe("isolated worker security configuration", () => {
     expect(() => workerContainerArgs(config, name, "/home/customer", 1001, 1001, 90)).toThrow();
   });
   it.skipIf(process.platform === "linux")("does not start a worker on an unsupported host", async () => {
-    await expect(linuxWorkerFactory(config)({ entryUrl: "https://example.com/", egress: { get: vi.fn() }, deadlineAt: Date.now() + 110000 })).rejects.toThrow("Linux isolated host required");
+    await expect(linuxWorkerFactory(config)({ entryUrl: "https://example.com/", egress: { get: vi.fn() }, deadlineAt: Date.now() + 110000 })).rejects.toThrow('"stage":"host_configuration"');
   });
 });

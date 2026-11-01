@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { isDeepStrictEqual, promisify } from "node:util";
 import type { RenderedAuditWorker } from "../rendered/contract";
 import { openWorkerBroker } from "./socket-broker";
+import { WorkerStartupError, processStartupError, runtimeStartupError, type StartupStage, type StartupCategory, type boundaryChecks } from "./startup-diagnostics";
 import type { createPinnedEgressBroker } from "./pinned-egress";
 
 const exec = promisify(execFile);
@@ -30,32 +31,39 @@ export function workerContainerArgs(config: LinuxWorkerConfig, name: string, dir
     "timeout", "--signal=TERM", "--kill-after=2s", `${seconds}s`, "node", "/opt/worker/runtime.mjs"];
 }
 
-async function command(args: string[], timeout = 4000) {
+async function command(args: string[], timeout = 4000, stage: StartupStage = "cleanup") {
   try { return (await exec(docker, [...daemon, ...args], { env: childEnv, encoding: "utf8", timeout, maxBuffer: 65536 })).stdout.trim(); }
-  catch { throw new Error("Worker control failed"); }
+  catch (error) { throw processStartupError(stage, error); }
 }
 
 export function linuxWorkerFactory(config: LinuxWorkerConfig) {
   return async (input: { entryUrl: string; egress: ReturnType<typeof createPinnedEgressBroker>; deadlineAt: number }): Promise<RenderedAuditWorker> => {
-    if (process.platform !== "linux" || !process.getuid || process.getuid() < 1000 || tmpdir() !== "/tmp") throw new Error("Linux isolated host required");
-    const policy = (await readFile(config.seccompPath, "utf8")).replace(/\r\n/g, "\n");
-    if (createHash("sha256").update(policy).digest("hex") !== workerPolicyHash) throw new Error("Worker policy mismatch");
-    const directory = await mkdtemp("/tmp/scanvoro-render-");
-    await chmod(directory, 0o700);
+    let stage: StartupStage = "host_configuration";
+    let category: StartupCategory = "configuration_invalid";
+    let policy: string;
+    let directory: string;
+    try {
+      if (process.platform !== "linux" || !process.getuid || process.getuid() < 1000 || tmpdir() !== "/tmp") throw new Error();
+      policy = (await readFile(config.seccompPath, "utf8")).replace(/\r\n/g, "\n");
+      if (createHash("sha256").update(policy).digest("hex") !== workerPolicyHash) throw new Error();
+      stage = "broker_setup"; category = "io_failed";
+      directory = await mkdtemp("/tmp/scanvoro-render-");
+      await chmod(directory, 0o700);
+    } catch { throw new WorkerStartupError(stage, category); }
     const name = `scanvoro-render-${randomUUID()}`;
     let broker: Awaited<ReturnType<typeof openWorkerBroker>> | undefined;
     let child: ChildProcessWithoutNullStreams | undefined, reaper: ReturnType<typeof spawn> | undefined, created = false, closed: Promise<void> | undefined;
     let pending: { resolve: (value: unknown) => void; reject: (error: Error) => void } | undefined;
     let sequence = 0, buffer = "", stopped = false, timer: ReturnType<typeof setTimeout> | undefined;
-    const fail = () => { stopped = true; pending?.reject(new Error("Worker stopped")); pending = undefined; };
+    const fail = (error = new WorkerStartupError(stage, "unexpected_exit")) => { stopped = true; pending?.reject(error); pending = undefined; };
     const close = () => closed ??= (async () => {
       if (timer) clearTimeout(timer);
       fail();
       // Do not remove the socket or report success if process termination is uncertain.
       if (created) {
         try { await command(["rm", "-f", "-v", name], 2000); }
-        catch { if (await command(["ps", "-aq", "--filter", `name=^/${name}$`], 1000)) throw new Error("Worker termination unverified"); }
-        if (await command(["ps", "-aq", "--filter", `name=^/${name}$`], 1000)) throw new Error("Worker termination unverified");
+        catch { if (await command(["ps", "-aq", "--filter", `name=^/${name}$`], 1000)) throw new WorkerStartupError("cleanup", "termination_unverified"); }
+        if (await command(["ps", "-aq", "--filter", `name=^/${name}$`], 1000)) throw new WorkerStartupError("cleanup", "termination_unverified");
       }
       child?.kill("SIGKILL");
       reaper?.kill("SIGTERM");
@@ -64,58 +72,74 @@ export function linuxWorkerFactory(config: LinuxWorkerConfig) {
     })();
     try {
       broker = await openWorkerBroker(join(directory, "broker.sock"), input.egress);
+      stage = "host_configuration"; category = "configuration_invalid";
       const seconds = Math.min(100, Math.floor((input.deadlineAt - Date.now() - 10000) / 1000));
       const args = workerContainerArgs(config, name, directory, process.getuid(), process.getgid!(), seconds);
       // Mark before create: an ambiguous CLI failure must still attempt termination.
       created = true;
-      await command(args);
+      stage = "container_creation";
+      await command(args, 4000, stage);
       // Independent trusted-host watchdog survives a controller crash. Neither
       // its PID namespace nor the Docker socket is exposed to Chromium.
+      stage = "watchdog_initialization"; category = "process_start_failed";
       reaper = spawn(process.execPath, ["-e", `const {execFile}=require('node:child_process'); setTimeout(()=>execFile('/usr/bin/docker',['--host','unix:///var/run/docker.sock','rm','-f','-v',process.argv[1]],{timeout:4000,env:{PATH:'/usr/bin:/bin'}},()=>{}),Math.max(1,Number(process.argv[2])-Date.now()));`, name, String(input.deadlineAt - 5000)],
         { detached: true, stdio: "ignore", env: childEnv });
-      await new Promise<void>((resolveReaper, reject) => { reaper!.once("spawn", resolveReaper); reaper!.once("error", () => reject(new Error("Worker watchdog unavailable"))); });
+      await new Promise<void>((resolveReaper, reject) => { reaper!.once("spawn", resolveReaper); reaper!.once("error", error => reject(processStartupError("watchdog_initialization", error))); });
       reaper.unref();
-      const [inspection] = JSON.parse(await command(["inspect", name]));
+      stage = "container_inspection"; category = "invalid_output";
+      const [inspection] = JSON.parse(await command(["inspect", name], 4000, stage));
+      stage = "boundary_validation"; category = "boundary_mismatch";
       const host = inspection.HostConfig;
       // Docker sends/stores the policy JSON, not necessarily the source pathname.
       const installedPolicy = host.SecurityOpt.find((value: string) => value.startsWith("seccomp="))?.slice(8);
       const policyMatches = installedPolicy === config.seccompPath ||
         (installedPolicy?.startsWith("{") && isDeepStrictEqual(JSON.parse(installedPolicy), JSON.parse(policy)));
       const binds = inspection.Mounts.filter((mount: { Type: string }) => mount.Type === "bind");
-      if (host.NetworkMode !== "none" || host.Privileged || !host.ReadonlyRootfs || host.CapAdd?.length ||
-          host.CapDrop?.join() !== "ALL" || host.IpcMode !== "private" || host.Memory !== 2147483648 ||
-          host.MemorySwap !== 2147483648 || host.NanoCpus !== 1000000000 || host.PidsLimit !== 256 || host.PortBindings && Object.keys(host.PortBindings).length ||
-          host.LogConfig.Type !== "none" || !host.SecurityOpt.some((s: string) => s === "no-new-privileges=true" || s === "no-new-privileges") ||
-          !policyMatches || host.Devices?.length ||
-          inspection.Mounts.some((m: { Type: string; Destination: string }) => m.Type !== "bind" && !(m.Type === "tmpfs" && m.Destination === "/tmp")) ||
-          binds.length !== 1 || binds[0].Source !== directory || binds[0].Destination !== "/run/scanvoro" || binds[0].RW ||
-          inspection.Config.User !== `${process.getuid()}:${process.getgid!()}`) throw new Error("Worker boundary mismatch");
+      // Same fail-closed predicates as before, now with fixed field identifiers.
+      const checks: [typeof boundaryChecks[number], boolean][] = [
+        ["network", host.NetworkMode === "none"], ["privileged", !host.Privileged], ["readonly_root", !!host.ReadonlyRootfs],
+        ["added_capabilities", !host.CapAdd?.length], ["dropped_capabilities", host.CapDrop?.join() === "ALL"],
+        ["ipc", host.IpcMode === "private"], ["memory", host.Memory === 2147483648], ["swap", host.MemorySwap === 2147483648],
+        ["cpu", host.NanoCpus === 1000000000], ["pids", host.PidsLimit === 256],
+        ["ports", !host.PortBindings || Object.keys(host.PortBindings).length === 0], ["logging", host.LogConfig.Type === "none"],
+        ["no_new_privileges", host.SecurityOpt.some((s: string) => s === "no-new-privileges=true" || s === "no-new-privileges")],
+        ["seccomp", !!policyMatches], ["devices", !host.Devices?.length],
+        ["mount_types", !inspection.Mounts.some((m: { Type: string; Destination: string }) => m.Type !== "bind" && !(m.Type === "tmpfs" && m.Destination === "/tmp"))],
+        ["broker_mount", binds.length === 1 && binds[0].Source === directory && binds[0].Destination === "/run/scanvoro" && !binds[0].RW],
+        ["user", inspection.Config.User === `${process.getuid!()}:${process.getgid!()}`],
+      ];
+      for (const [check, pass] of checks) if (!pass) throw new WorkerStartupError(stage, category, null, check);
+      stage = "container_startup"; category = "process_start_failed";
       child = spawn(docker, [...daemon, "start", "--attach", "--interactive", name], { env: childEnv, stdio: "pipe" });
       child.stderr.resume(); // Never propagate browser diagnostics or page content.
-      child.on("error", fail); child.on("exit", fail);
-      child.stdin.on("error", fail); child.stdout.on("error", fail);
+      child.on("error", error => fail(processStartupError("container_startup", error)));
+      child.on("exit", code => fail(new WorkerStartupError(stage, "unexpected_exit", code)));
+      child.stdin.on("error", () => fail(new WorkerStartupError(stage, "io_failed")));
+      child.stdout.on("error", () => fail(new WorkerStartupError(stage, "io_failed")));
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
         buffer += chunk;
-        if (Buffer.byteLength(buffer) > 132000 || buffer.indexOf("\n") !== buffer.lastIndexOf("\n")) { fail(); void close().catch(() => {}); return; }
+        if (Buffer.byteLength(buffer) > 132000 || buffer.indexOf("\n") !== buffer.lastIndexOf("\n")) { fail(new WorkerStartupError(stage, "invalid_output")); void close().catch(() => {}); return; }
         const newline = buffer.indexOf("\n");
         if (newline < 0) return;
         try {
           const response = JSON.parse(buffer.slice(0, newline)); buffer = buffer.slice(newline + 1);
-          if (["configuration", "network_probe", "browser_launch", "browser_boundary", "capture", "extraction"].includes(response.failure)) {
-            pending?.reject(new Error(`Worker ${response.failure} failed`)); pending = undefined; stopped = true; return;
+          if (Object.hasOwn(response, "failure")) {
+            pending?.reject(runtimeStartupError(response.failure)); pending = undefined; stopped = true; return;
           }
           if (!pending || (sequence === 0 ? response.ready !== true || response.networkDenied !== true || response.sandboxEnabled !== true : response.id !== sequence || typeof response.result !== "string")) throw new Error("Bad worker output");
           const waiter = pending; pending = undefined; waiter.resolve(sequence === 0 ? undefined : response.result);
-        } catch { fail(); void close().catch(() => {}); }
+        } catch { fail(new WorkerStartupError(stage, "invalid_output")); void close().catch(() => {}); }
       });
       timer = setTimeout(() => { fail(); void close().catch(() => {}); }, Math.max(1, input.deadlineAt - Date.now() - 5000));
+      stage = "ready_handshake"; category = "invalid_output";
       const ready = new Promise<void>((resolveReady, reject) => { pending = { resolve: () => resolveReady(), reject }; });
       child.stdin.write(JSON.stringify({ entryUrl: input.entryUrl, token: broker.token }) + "\n");
       let startup: ReturnType<typeof setTimeout> | undefined;
-      try { await Promise.race([ready, new Promise<never>((_, reject) => { startup = setTimeout(() => reject(new Error("Worker startup timeout")), 15000); })]); }
+      try { await Promise.race([ready, new Promise<never>((_, reject) => { startup = setTimeout(() => reject(new WorkerStartupError("ready_handshake", "timeout")), 15000); })]); }
       finally { if (startup) clearTimeout(startup); }
       return { close, async capture(request) {
+        stage = "capture";
         if (closed || stopped || pending || request.signal.aborted || sequence >= 10) throw new Error("Worker unavailable");
         const abort = () => { fail(); void close().catch(() => {}); };
         request.signal.addEventListener("abort", abort, { once: true });
@@ -127,9 +151,10 @@ export function linuxWorkerFactory(config: LinuxWorkerConfig) {
         } finally { clearTimeout(captureTimer); request.signal.removeEventListener("abort", abort); }
       } };
     } catch (error) {
-      await close();
-      if (error instanceof Error && /^Worker (configuration|network_probe|browser_launch|browser_boundary|capture|extraction) failed$/.test(error.message)) throw error;
-      throw new Error("Worker startup failed");
+      const failure = error instanceof WorkerStartupError ? error : new WorkerStartupError(stage, category);
+      try { await close(); }
+      catch { throw new WorkerStartupError("cleanup", "termination_unverified"); }
+      throw failure;
     }
   };
 }
