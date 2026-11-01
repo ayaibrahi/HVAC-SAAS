@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { execFile, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { chmod, mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -14,11 +14,15 @@ const config = { imageId: `sha256:${"a".repeat(64)}`, seccompPath: "/tmp/policy"
 const name = "scanvoro-render-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", dir = "/tmp/scanvoro-render-fixture";
 describe("bootstrap isolation", () => {
   it("only reports fixed import error categories and redacts arbitrary output", () => {
-    for (const code of ["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "FILE_NOT_FOUND", "PERMISSION_DENIED", "OPERATION_NOT_PERMITTED", "SYNTAX_ERROR", "MISSING_EXPORT", "OTHER"])
+    for (const code of ["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "FILE_NOT_FOUND", "PERMISSION_DENIED", "OPERATION_NOT_PERMITTED", "SYNTAX_ERROR", "REFERENCE_ERROR", "TYPE_ERROR", "WORKDIR_MISMATCH", "INVALID_FS_API", "ERR_INVALID_ARG_TYPE", "ERR_PACKAGE_PATH_NOT_EXPORTED", "ERR_REQUIRE_ESM", "MISSING_EXPORT", "OTHER"])
       expect(bootstrapFailureCategory(`ERR:${code}\n`, false, 1)).toBe(code);
     expect(bootstrapFailureCategory("ERR:SECRET_TOKEN\n", false, 1)).toBe("exit_or_protocol");
     expect(bootstrapFailureCategory("ERR:PERMISSION_DENIED\nprivate-url", false, 1)).toBe("exit_or_protocol");
     expect(bootstrapFailureCategory("ERR:MODULE_NOT_FOUND\n", true, 1)).toBe("output_limit");
+  });
+  it.each(["playwright_fs_api", "playwright_resolution", "playwright_file_access", "playwright_import"] as const)("executes the actual fixed %s probe against locked local dependencies", stage => {
+    const probe = bootstrapArgs(config, name, dir, 1001, 1001, stage);
+    expect(execFileSync(process.execPath, ["-e", probe.at(-1)!], { cwd: "experiments/rendered-audit", timeout: 5000, encoding: "utf8" })).toBe("OK\n");
   });
   it.each(bootstrapStages)("preserves every production Docker isolation argument: %s", stage => {
     const normal = workerContainerArgs(config, name, dir, 1001, 1001, 30);

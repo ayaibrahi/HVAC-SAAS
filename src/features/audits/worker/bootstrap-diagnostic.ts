@@ -2,19 +2,22 @@ import { workerContainerArgs, type LinuxWorkerConfig } from "./linux-worker";
 
 // Trusted, fixed offline probes only. Each stage runs in a fresh container with
 // precisely the production image, UID, mounts, sandbox and resource arguments.
-export const bootstrapStages = ["container_process", "node_execution", "attach_stdio", "playwright_resolution", "playwright_import", "dom_access", "dom_import", "broker_socket", "network_denial", "chromium_sandbox"] as const;
+export const bootstrapStages = ["container_process", "node_execution", "attach_stdio", "runtime_workdir", "playwright_fs_api", "playwright_resolution", "playwright_file_access", "playwright_import", "dom_access", "dom_import", "broker_socket", "network_denial", "chromium_sandbox"] as const;
 export type BootstrapStage = typeof bootstrapStages[number];
 export function bootstrapFailureCategory(output: string, overflow: boolean, code: number | null): string {
-  const allowed = new Set(["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "FILE_NOT_FOUND", "PERMISSION_DENIED", "OPERATION_NOT_PERMITTED", "SYNTAX_ERROR", "MISSING_EXPORT", "OTHER"]);
+  const allowed = new Set(["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "FILE_NOT_FOUND", "PERMISSION_DENIED", "OPERATION_NOT_PERMITTED", "SYNTAX_ERROR", "REFERENCE_ERROR", "TYPE_ERROR", "WORKDIR_MISMATCH", "INVALID_FS_API", "ERR_INVALID_ARG_TYPE", "ERR_PACKAGE_PATH_NOT_EXPORTED", "ERR_REQUIRE_ESM", "MISSING_EXPORT", "OTHER"]);
   const match = /^ERR:([A-Z_]+)\n$/.exec(output);
   return overflow ? "output_limit" : code === null ? "start_or_timeout" : match && allowed.has(match[1]) ? match[1] : "exit_or_protocol";
 }
 // Only finite error codes leave the container; never output messages or paths.
-const safeError = `const fail=e=>{const c=e?.code;const x=c==='ERR_MODULE_NOT_FOUND'?'ERR_MODULE_NOT_FOUND':c==='MODULE_NOT_FOUND'?'MODULE_NOT_FOUND':c==='ENOENT'?'FILE_NOT_FOUND':c==='EACCES'?'PERMISSION_DENIED':c==='EPERM'?'OPERATION_NOT_PERMITTED':e?.name==='SyntaxError'?'SYNTAX_ERROR':'OTHER';process.stdout.write('ERR:'+x+'\\n');process.exitCode=1};`;
+const safeError = `const fail=e=>{const c=e?.code;const x=c==='ERR_MODULE_NOT_FOUND'?'ERR_MODULE_NOT_FOUND':c==='MODULE_NOT_FOUND'?'MODULE_NOT_FOUND':c==='ENOENT'?'FILE_NOT_FOUND':c==='EACCES'?'PERMISSION_DENIED':c==='EPERM'?'OPERATION_NOT_PERMITTED':c==='ERR_INVALID_ARG_TYPE'?'ERR_INVALID_ARG_TYPE':c==='ERR_PACKAGE_PATH_NOT_EXPORTED'?'ERR_PACKAGE_PATH_NOT_EXPORTED':c==='ERR_REQUIRE_ESM'?'ERR_REQUIRE_ESM':e?.name==='SyntaxError'?'SYNTAX_ERROR':e?.name==='ReferenceError'?'REFERENCE_ERROR':e?.name==='TypeError'?'TYPE_ERROR':'OTHER';process.stdout.write('ERR:'+x+'\\n');process.exitCode=1};`;
 const scripts: Record<Exclude<BootstrapStage, "container_process">, string> = {
   node_execution: `process.stdout.write('OK\\n')`,
   attach_stdio: `process.stdin.setEncoding('utf8');process.stdin.once('data',s=>{if(s==='PING\\n')process.stdout.write('OK\\n');else process.exitCode=1})`,
-  playwright_resolution: `${safeError}try{const f=require('node:fs');const p=require.resolve('playwright-core');f.accessSync(p,f.constants.R_OK);process.stdout.write('OK\\n')}catch(e){fail(e)}`,
+  runtime_workdir: `${safeError}try{if(process.cwd()!=='/opt/worker'){process.stdout.write('ERR:WORKDIR_MISMATCH\\n');process.exitCode=1}else process.stdout.write('OK\\n')}catch(e){fail(e)}`,
+  playwright_fs_api: `${safeError}try{const f=require('node:fs');if(typeof f.accessSync!=='function'||typeof f.constants?.R_OK!=='number'){process.stdout.write('ERR:INVALID_FS_API\\n');process.exitCode=1}else process.stdout.write('OK\\n')}catch(e){fail(e)}`,
+  playwright_resolution: `${safeError}try{require.resolve('playwright-core');process.stdout.write('OK\\n')}catch(e){fail(e)}`,
+  playwright_file_access: `${safeError}try{const f=require('node:fs');const p=require.resolve('playwright-core');f.accessSync(p,f.constants.R_OK);process.stdout.write('OK\\n')}catch(e){fail(e)}`,
   playwright_import: `${safeError}import('playwright-core').then(m=>{if(!m.chromium||typeof m.chromium.launch!=='function'){process.stdout.write('ERR:MISSING_EXPORT\\n');process.exitCode=1;return}process.stdout.write('OK\\n')},fail)`,
   dom_access: `${safeError}try{const f=require('node:fs');const p='/opt/worker/dom.mjs';f.accessSync(p,f.constants.R_OK);if(!f.statSync(p).isFile())throw Error();process.stdout.write('OK\\n')}catch(e){fail(e)}`,
   dom_import: `${safeError}import('/opt/worker/dom.mjs').then(m=>{if(typeof m.collectRenderedDocument!=='function'){process.stdout.write('ERR:MISSING_EXPORT\\n');process.exitCode=1;return}process.stdout.write('OK\\n')},fail)`,
