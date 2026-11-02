@@ -16,8 +16,9 @@ const scripts: Record<Exclude<BootstrapStage, "container_process">, string> = {
   attach_stdio: `process.stdin.setEncoding('utf8');process.stdin.once('data',s=>{if(s==='PING\\n')process.stdout.write('OK\\n');else process.exitCode=1})`,
   runtime_workdir: `${safeError}try{if(process.cwd()!=='/opt/worker'){process.stdout.write('ERR:WORKDIR_MISMATCH\\n');process.exitCode=1}else process.stdout.write('OK\\n')}catch(e){fail(e)}`,
   playwright_fs_api: `${safeError}try{const f=require('node:fs');if(typeof f.accessSync!=='function'||typeof f.constants?.R_OK!=='number'){process.stdout.write('ERR:INVALID_FS_API\\n');process.exitCode=1}else process.stdout.write('OK\\n')}catch(e){fail(e)}`,
-  playwright_resolution: `${safeError}try{require.resolve('playwright-core');process.stdout.write('OK\\n')}catch(e){fail(e)}`,
-  playwright_file_access: `${safeError}try{const f=require('node:fs');const p=require.resolve('playwright-core');f.accessSync(p,f.constants.R_OK);process.stdout.write('OK\\n')}catch(e){fail(e)}`,
+  // Match runtime.mjs's package boundary and work in either Node eval mode.
+  playwright_resolution: `${safeError}import('node:module').then(({createRequire})=>{createRequire(process.cwd()+'/package.json').resolve('playwright-core');process.stdout.write('OK\\n')},fail)`,
+  playwright_file_access: `${safeError}Promise.all([import('node:module'),import('node:fs')]).then(([{createRequire},{accessSync,constants}])=>{const p=createRequire(process.cwd()+'/package.json').resolve('playwright-core');accessSync(p,constants.R_OK);process.stdout.write('OK\\n')},fail)`,
   playwright_import: `${safeError}import('playwright-core').then(m=>{if(!m.chromium||typeof m.chromium.launch!=='function'){process.stdout.write('ERR:MISSING_EXPORT\\n');process.exitCode=1;return}process.stdout.write('OK\\n')},fail)`,
   dom_access: `${safeError}try{const f=require('node:fs');const p='/opt/worker/dom.mjs';f.accessSync(p,f.constants.R_OK);if(!f.statSync(p).isFile())throw Error();process.stdout.write('OK\\n')}catch(e){fail(e)}`,
   dom_import: `${safeError}import('/opt/worker/dom.mjs').then(m=>{if(typeof m.collectRenderedDocument!=='function'){process.stdout.write('ERR:MISSING_EXPORT\\n');process.exitCode=1;return}process.stdout.write('OK\\n')},fail)`,

@@ -27,6 +27,11 @@ describe("bootstrap isolation", () => {
     const cwd = process.env.SCANVORO_TEST_PACKAGE_DIR ?? "experiments/rendered-audit";
     expect(execFileSync(process.execPath, ["-e", probe.at(-1)!], { cwd, timeout: 5000, encoding: "utf8" })).toBe("OK\n");
   });
+  it("resolves Playwright through the ESM-compatible package boundary", () => {
+    const probe = bootstrapArgs(config, name, dir, 1001, 1001, "playwright_resolution");
+    const cwd = process.env.SCANVORO_TEST_PACKAGE_DIR ?? "experiments/rendered-audit";
+    expect(execFileSync(process.execPath, ["--input-type=module", "-e", probe.at(-1)!], { cwd, timeout: 5000, encoding: "utf8" })).toBe("OK\n");
+  });
   it.each(bootstrapStages)("preserves every production Docker isolation argument: %s", stage => {
     const normal = workerContainerArgs(config, name, dir, 1001, 1001, 30);
     const probe = bootstrapArgs(config, name, dir, 1001, 1001, stage);
