@@ -7,7 +7,7 @@ import { createServer } from "node:net";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { Script } from "node:vm";
-import { bootstrapArgs, bootstrapStages, bootstrapFailureCategory, bootstrapFailureDetail } from "./bootstrap-diagnostic";
+import { bootstrapArgs, bootstrapStages, bootstrapFailureCategory, bootstrapFailureDetail, chromiumFailureHint } from "./bootstrap-diagnostic";
 import { workerContainerArgs } from "./linux-worker";
 
 vi.mock("server-only", () => ({}));
@@ -76,6 +76,91 @@ describe("bootstrap isolation", () => {
   });
 });
 
+
+describe("Chromium bootstrap sub-stages (offline subprocess fixtures)", () => {
+  // Execute the generated diagnostic itself; substitute only the browser and
+  // filesystem interfaces. These tests never start Chromium or make a request.
+  function fixture(failure: string, message = "fixture failure", cleanupFails = false, realRegistry = false) {
+    let script = bootstrapArgs(config, name, dir, 1001, 1001, "chromium_sandbox").at(-1)!;
+    const setup = `
+      const failure=${JSON.stringify(failure)}, message=${JSON.stringify(message)};
+      const hit=s=>{if(failure===s)throw Object.assign(new Error(message),{code:message.startsWith('ENOENT')?'ENOENT':message.startsWith('EACCES')?'EACCES':undefined})};
+      const closed=[];
+      const cleanup=s=>{closed.push(s);if(${cleanupFails}||failure==='cleanup')throw Error('cleanup fixture')};
+      const fixtureChromium={launch:async options=>{
+        hit('browser_launch');
+        if(!options.chromiumSandbox||options.env.HOME!=='/tmp'||options.args.some(a=>/no-sandbox|disable-setuid/.test(a)))throw Error('launch options changed');
+        return {newContext:async()=>{hit('context_page');return {
+          newPage:async()=>({}),newCDPSession:async()=>({send:async()=>{hit('sandbox_verify');return {arguments:failure==='sandbox_flags'?['--no-sandbox']:['--remote-debugging-pipe']}}}),
+          close:async()=>cleanup('context')
+        }},close:async()=>cleanup('browser')};
+      }};
+      const fixtureFs={constants:{R_OK:4,X_OK:1},accessSync:(p,flags)=>{if(typeof p!=='string'||flags!==5)throw Error('bad executable check');hit('executable_check')},mkdtempSync:()=>{hit('writable_tmp');return '/fixture'},writeFileSync:()=>{},unlinkSync:()=>{},rmdirSync:()=>{}};
+      const fixtureModule={createRequire:()=>()=>({registry:{registry:{findExecutable:n=>{if(n!=='chromium-headless-shell')throw Error('wrong binary');return {executablePath:()=>'/fixture/shell'}}}}})};
+      process.on('beforeExit',()=>{
+        if((failure==='sandbox_verify'||failure==='sandbox_flags'||failure==='cleanup'||failure==='success')&&closed.join(',')!=='context,browser')process.exitCode=9;
+        if(failure==='context_page'&&closed.join(',')!=='browser')process.exitCode=9;
+      });
+    `;
+    script = script.replace("import('playwright-core')", "Promise.resolve().then(()=>{hit('module_import');return {chromium:fixtureChromium}})")
+      .replace("import('node:fs')", "Promise.resolve(fixtureFs)");
+    if (!realRegistry) script = script.replace("import('node:module')", "Promise.resolve(fixtureModule)");
+    return spawnSync(process.execPath, ["-e", setup + script], {
+      cwd: process.env.SCANVORO_TEST_PACKAGE_DIR ?? "experiments/rendered-audit",
+      encoding: "utf8", timeout: 5000, maxBuffer: 8192,
+    });
+  }
+  it.each(["module_import", "executable_check", "writable_tmp", "browser_launch", "context_page", "sandbox_verify", "cleanup"])("reports the first %s failure without replacing it during cleanup", stage => {
+    const result = fixture(stage, "EACCES Bearer private-token https://customer.invalid secret=database-password", true);
+    expect(result.status).toBe(1);
+    expect(result.stdout.match(/ERR:/g)).toHaveLength(1);
+    expect(result.stdout.length).toBeLessThanOrEqual(256);
+    expect(bootstrapFailureCategory(result.stdout, false, result.status)).not.toBe("exit_or_protocol");
+    expect(bootstrapFailureDetail(result.stdout, result.stderr, false, result.status)).toContain(`substage=${stage}`);
+    expect(result.stdout + result.stderr).not.toMatch(/private-token|customer|database-password|Bearer/);
+  });
+  it("checks the exact locked headless-shell registry API without launching a host browser", () => {
+    const result = fixture("success", "", false, true);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("OK\n");
+  });
+  it("only reports success after both browser and context cleanup", () => {
+    const result = fixture("success");
+    expect(result.status).toBe(0);
+    expect(result.stdout).toBe("OK\n");
+    expect(result.stderr).toContain("CHROMIUM_STAGE:cleanup");
+    expect(fixture("cleanup").stdout).not.toContain("OK");
+  });
+  it("fails sandbox validation rather than allowing a no-sandbox browser", () => {
+    const result = fixture("sandbox_flags");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("SUBSTAGE:sandbox_verify");
+  });
+  it.each([
+    ["sys_chroot failed", "chroot"], ["sandbox_host_linux.cc", "sandbox_host_linux"],
+    ["Failed to move to new namespace", "namespace"], ["SIGSYS seccomp", "seccomp"],
+    ["crashpad_handler", "crashpad"], ["/dev/shm no space", "shm"],
+    ["zygote_host_impl_linux", "zygote"], ["ENOENT", "executable_missing"],
+    ["EACCES", "permission"], ["EPERM", "operation_not_permitted"],
+    ["EROFS", "readonly_filesystem"], ["ENOSPC", "storage_exhausted"],
+    ["TargetClosedError", "target_closed"], ["TimeoutError", "timeout"],
+  ])("classifies %s in the bounded tail without exposing the launch log", (token, hint) => {
+    const result = fixture("browser_launch", "TargetClosedError " + "sensitive ".repeat(1000) + token + " https://customer.invalid token=private");
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(`HINT:${hint}\n`);
+    expect(result.stdout + result.stderr).not.toMatch(/sensitive|customer|token=private/);
+    expect(bootstrapFailureDetail(result.stdout, result.stderr, false, 1)).toContain(`chromium_hint=${hint}`);
+  });
+  it("bounds inspection and never passes through arbitrary error text", () => {
+    expect(chromiumFailureHint("private".repeat(3000))).toBe("unclassified");
+    expect(chromiumFailureHint("a".repeat(4096) + "seccomp" + "b".repeat(8192))).toBe("unclassified");
+    expect(bootstrapFailureCategory("ERR:OTHER\nSUBSTAGE:https://private\nHINT:token\n", false, 1)).toBe("exit_or_protocol");
+    const detail = bootstrapFailureDetail("", "CHROMIUM_STAGE:browser_launch\ncrashpad private-token https://customer.invalid", false, null);
+    expect(detail).toContain("substage=browser_launch chromium_hint=crashpad");
+    expect(detail).not.toMatch(/private-token|customer/);
+  });
+});
+
 const enabled = process.platform === "linux" && process.env.GITHUB_ACTIONS === "true" && process.env.SCANVORO_BOOTSTRAP === "1";
 const exec = promisify(execFile);
 describe.skipIf(!enabled)("offline bootstrap diagnostic", () => {
@@ -97,7 +182,7 @@ describe.skipIf(!enabled)("offline bootstrap diagnostic", () => {
             let output = "", stderr = "", overflow = false, stderrOverflow = false, settled = false;
             const timer = setTimeout(() => { child.kill("SIGKILL"); finish(null); }, 20000);
             const finish = (code: number | null) => { if (settled) return; settled = true; clearTimeout(timer); resolve({ code, output, overflow, stderr, stderrOverflow }); };
-            child.stdout.setEncoding("utf8"); child.stdout.on("data", (s: string) => { if (output.length + s.length > 128) { overflow = true; child.kill("SIGKILL"); } else output += s; });
+            child.stdout.setEncoding("utf8"); child.stdout.on("data", (s: string) => { if (output.length + s.length > 256) { overflow = true; child.kill("SIGKILL"); } else output += s; });
             child.stderr.setEncoding("utf8"); child.stderr.on("data", (s: string) => { if (stderr.length + s.length > 4096) { stderr += s.slice(0, 4096 - stderr.length); stderrOverflow = true; } else stderr += s; });
             child.on("error", () => finish(null)); child.on("close", finish);
             child.stdin.on("error", () => {}); child.stdin.end("PING\n");

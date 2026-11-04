@@ -2,7 +2,7 @@ name: One-shot isolated worker application acceptance
 on:
   push:
     branches: [codex/rendered-audit-integration]
-    paths: [workers/rendered-audit/run-20261103-worker-diagnostics.trigger]
+    paths: [workers/rendered-audit/run-20261104-chromium-stages.trigger]
 permissions:
   contents: read
 jobs:
@@ -20,10 +20,10 @@ jobs:
         shell: bash
         run: |
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
-          [[ "$(git show -s --format=%P HEAD)" == '2f66d780957ced2140aa72c5d85ccebfcdb688ec' ]]
-          marker=workers/rendered-audit/run-20261103-worker-diagnostics.trigger
+          [[ "$(git show -s --format=%P HEAD)" == '58cb89e3892703b5a935f34f59a613fe09c21b70' ]]
+          marker=workers/rendered-audit/run-20261104-chromium-stages.trigger
           [[ "$(git diff-tree --no-commit-id --name-status -r HEAD -- "$marker")" == $'A\t'"$marker" ]]
-          [[ "$(cat "$marker")" == 'scanvoro-broker-only-worker-diagnostics-20261103' ]]
+          [[ "$(cat "$marker")" == 'scanvoro-broker-only-chromium-stages-20261104' ]]
       - name: Install locked test dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=30000
       - name: Install locked experimental host-test dependencies without lifecycle scripts
