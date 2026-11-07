@@ -2,7 +2,7 @@ name: One-shot isolated worker application acceptance
 on:
   push:
     branches: [codex/rendered-audit-integration]
-    paths: [workers/rendered-audit/run-20261107-sandbox-verification.trigger]
+    paths: [workers/rendered-audit/run-20261107-process-inspection.trigger]
 permissions:
   contents: read
 jobs:
@@ -20,15 +20,15 @@ jobs:
         shell: bash
         run: |
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
-          [[ "$(git show -s --format=%P HEAD)" == '703df9d0c438adb28a9c99bb8110fc57125d6496' ]]
-          marker=workers/rendered-audit/run-20261107-sandbox-verification.trigger
+          [[ "$(git show -s --format=%P HEAD)" == '346797bf963f85621feabd398251daec7027735e' ]]
+          marker=workers/rendered-audit/run-20261107-process-inspection.trigger
           [[ "$(git diff-tree --no-commit-id --name-status -r HEAD -- "$marker")" == $'A\t'"$marker" ]]
-          [[ "$(cat "$marker")" == 'scanvoro-broker-only-sandbox-verification-20261107' ]]
+          [[ "$(cat "$marker")" == 'scanvoro-broker-only-process-inspection-20261107' ]]
       - name: Install locked test dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=30000
       - name: Install locked experimental host-test dependencies without lifecycle scripts
         run: npm ci --prefix experiments/rendered-audit --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=30000
       - name: Verify immutable policy and adapter security assertions
-        run: node node_modules/vitest/vitest.mjs run src/features/audits/worker/linux-worker.test.ts src/features/audits/worker/startup-diagnostics.test.ts src/features/audits/worker/worker-ipc.test.ts src/features/audits/worker/bootstrap-diagnostic.test.ts src/features/audits/worker/sandbox-verification.test.ts --maxWorkers=1
+        run: node node_modules/vitest/vitest.mjs run src/features/audits/worker/acceptance-inspection.test.ts src/features/audits/worker/linux-worker.test.ts src/features/audits/worker/startup-diagnostics.test.ts src/features/audits/worker/worker-ipc.test.ts src/features/audits/worker/bootstrap-diagnostic.test.ts src/features/audits/worker/sandbox-verification.test.ts --maxWorkers=1
       - name: Real isolated worker through application and PostgreSQL
         run: bash workers/rendered-audit/run-linux-acceptance.sh

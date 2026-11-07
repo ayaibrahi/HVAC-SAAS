@@ -6,7 +6,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { Readable } from "node:stream";
 import { join } from "node:path";
 import { linuxWorkerFactory } from "./linux-worker";
-import { WorkerStartupError } from "./startup-diagnostics";
+import { classifyAcceptanceFailure, inspectReadyWorker } from "./acceptance-inspection.test-helpers";
 import { parseRenderedCapture } from "../rendered/contract";
 import { createPinnedEgressBroker } from "./pinned-egress";
 import { openWorkerBroker } from "./socket-broker";
@@ -51,16 +51,14 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
   const verifiedWorker = async (deadlineAt: number) => {
     const live = await factory()({ entryUrl: origin, egress: broker(), deadlineAt });
     try {
-      const ids = execFileSync("/usr/bin/docker", ["ps", "-q", "--filter", "name=scanvoro-render-"]).toString().trim().split("\n");
-      expect(ids).toHaveLength(1); expect(ids[0]).toMatch(/^[a-f0-9]{12,64}$/);
-      expect(execFileSync("/usr/bin/docker", ["inspect", "--format", "{{.State.Running}}", ids[0]]).toString().trim()).toBe("true");
-      const processes = execFileSync("/usr/bin/docker", ["top", ids[0], "-eo", "comm"]).toString();
-      expect(/chrome|chromium/i.test(processes)).toBe(true);
-      return { live, id: ids[0] };
-    } catch (error) { await live.close(); throw error; }
+      return { live, id: inspectReadyWorker() };
+    } catch (error) {
+      // Preserve the first inspection failure even if cleanup also rejects.
+      try { await live.close(); } catch { /* suite-level cleanup still runs */ }
+      throw error;
+    }
   };
   const worker = async () => (await verifiedWorker(Date.now() + 110000)).live;
-  const safeStartupFailure = (error: unknown) => error instanceof WorkerStartupError ? error : new WorkerStartupError("ready_handshake", "unknown");
   beforeAll(async () => {
     directory = mkdtempSync("/tmp/scanvoro-fixture-");
     execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=fixture.scanvoro.test",
@@ -114,11 +112,11 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
     const prospect = { id: prospectId, agencyId: agency, businessName: "Controlled fixture", websiteUrl: origin, contactName: null, contactEmail: null, notes: null, createdAt: "", updatedAt: "" };
     const job = await submitRenderedAuditJob({ agencyId: agency, userId: user, prospect, requestKey: "55555555-5555-4555-8555-555555555555", store });
     const fallback = vi.fn(async () => { throw new Error("Static fallback must not mask rendering failure"); });
-    let startupFailure: WorkerStartupError | undefined;
+    let startupFailure: Error | undefined;
     const outcome = await executeRenderedAuditJob({ agencyId: agency, jobId: job.job_id, store,
       createWorker: async input => {
         try { return (await verifiedWorker(input.deadlineAt)).live; }
-        catch (error) { startupFailure = safeStartupFailure(error); throw startupFailure; }
+        catch (error) { startupFailure = classifyAcceptanceFailure(error, "worker_factory"); throw startupFailure; }
       }, staticFallback: fallback });
     if (startupFailure) throw startupFailure;
     expect(outcome).toBe("completed");
@@ -184,7 +182,7 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
 
   it("handles an actual worker crash without committing a completed audit", async () => {
     const job = await store.enqueue({ agencyId: agency, userId: user, prospectId, requestKey: "77777777-7777-4777-8777-777777777777" });
-    let startupFailure: WorkerStartupError | undefined, crashInduced = false, ready = false, leaseToken = "";
+    let startupFailure: Error | undefined, crashInduced = false, ready = false, leaseToken = "";
     const observedStore: AuditJobStore = { ...store, async claim(input) {
       const lease = await store.claim(input); leaseToken = lease?.lease_token ?? ""; return lease;
     } };
@@ -192,7 +190,7 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
       createWorker: async input => {
         let started;
         try { started = await verifiedWorker(input.deadlineAt); }
-        catch (error) { startupFailure = safeStartupFailure(error); throw startupFailure; }
+        catch (error) { startupFailure = classifyAcceptanceFailure(error, "worker_factory"); throw startupFailure; }
         ready = true;
         try {
           const killed = execFileSync("/usr/bin/docker", ["kill", started.id]).toString().trim();
@@ -224,7 +222,7 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
     const otherProspect = "88888888-8888-4888-8888-888888888888";
     sql(`insert into public.prospects(id,agency_id,business_name,website_url) values(${esc(otherProspect)},${esc(agency)},'Lease fixture',${esc(origin)});`);
     const job = await store.enqueue({ agencyId: agency, userId: user, prospectId: otherProspect, requestKey: "99999999-9999-4999-8999-999999999999" });
-    let startupFailure: WorkerStartupError | undefined, captures = 0, fencedResult = false;
+    let startupFailure: Error | undefined, captures = 0, fencedResult = false;
     const fenced: AuditJobStore = { ...store, async finish(input) {
       // An error path must never count as a successful lease-fencing rehearsal.
       if (input.result === null) return store.finish(input);
@@ -239,7 +237,7 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
       createWorker: async input => {
         let live;
         try { live = (await verifiedWorker(input.deadlineAt)).live; }
-        catch (error) { startupFailure = safeStartupFailure(error); throw startupFailure; }
+        catch (error) { startupFailure = classifyAcceptanceFailure(error, "worker_factory"); throw startupFailure; }
         return { close: () => live.close(), async capture(request) {
           const raw = await live.capture(request), actual = parseRenderedCapture(raw);
           expect(actual.status).toBe("observed"); expect(actual.document.text.length).toBeGreaterThan(0);
