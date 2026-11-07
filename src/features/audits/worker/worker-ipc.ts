@@ -27,7 +27,7 @@ export function createWorkerFrameReader(callbacks: {
         buffer = buffer.slice(end + 1);
         if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
         if (Object.hasOwn(value, "failure")) {
-          fail(runtimeStartupError((value as { failure: unknown }).failure)); return;
+          fail(runtimeStartupError((value as { failure: unknown }).failure, (value as { check?: unknown }).check)); return;
         }
         callbacks.frame(value);
       } catch { fail(new WorkerStartupError(callbacks.stage(), "invalid_output")); }

@@ -1,3 +1,4 @@
+import { sandboxFailureReasons, verifyBrowserSandbox } from "./sandbox-verification";
 import { workerContainerArgs, type LinuxWorkerConfig } from "./linux-worker";
 
 // Trusted, fixed offline probes only. Each stage runs in a fresh container with
@@ -24,9 +25,9 @@ export function chromiumFailureHint(message: string): string {
   if (/TargetClosedError|target.*(?:closed|crashed)/i.test(text)) return "target_closed";
   return "unclassified";
 }
-const chromiumHintPattern = "chroot|sandbox_host_linux|namespace|seccomp|crashpad|shm|zygote|executable_missing|permission|operation_not_permitted|readonly_filesystem|storage_exhausted|target_closed|timeout|unclassified";
+const chromiumHintPattern = sandboxFailureReasons.join("|") + "|chroot|sandbox_host_linux|namespace|seccomp|crashpad|shm|zygote|executable_missing|permission|operation_not_permitted|readonly_filesystem|storage_exhausted|target_closed|timeout|unclassified";
 const chromiumStagePattern = "module_import|executable_check|writable_tmp|browser_launch|context_page|sandbox_verify|cleanup";
-const allowedErrorCategories = new Set(["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "FILE_NOT_FOUND", "PERMISSION_DENIED", "OPERATION_NOT_PERMITTED", "SYNTAX_ERROR", "REFERENCE_ERROR", "TYPE_ERROR", "WORKDIR_MISMATCH", "INVALID_FS_API", "ERR_INVALID_ARG_TYPE", "ERR_PACKAGE_PATH_NOT_EXPORTED", "ERR_REQUIRE_ESM", "ERR_INVALID_PACKAGE_CONFIG", "MISSING_EXPORT", "PROTOCOL", "OTHER"]);
+const allowedErrorCategories = new Set(["ERR_MODULE_NOT_FOUND", "MODULE_NOT_FOUND", "FILE_NOT_FOUND", "PERMISSION_DENIED", "OPERATION_NOT_PERMITTED", "SYNTAX_ERROR", "REFERENCE_ERROR", "TYPE_ERROR", "WORKDIR_MISMATCH", "INVALID_FS_API", "ERR_INVALID_ARG_TYPE", "ERR_PACKAGE_PATH_NOT_EXPORTED", "ERR_REQUIRE_ESM", "ERR_INVALID_PACKAGE_CONFIG", "MISSING_EXPORT", "PROTOCOL", "SANDBOX_VERIFICATION_FAILED", "OTHER"]);
 export function bootstrapFailureCategory(output: string, overflow: boolean, code: number | null): string {
   const match = new RegExp(`^ERR:([A-Z_]+)\\n(?:CWD:(?:/opt/worker|unverified)\\n)?(?:MSG:(?:module_resolution|permission|package_configuration|syntax|unclassified)\\n)?(?:SUBSTAGE:(?:${chromiumStagePattern})\\nHINT:(?:${chromiumHintPattern})\\n)?$`).exec(output);
   return overflow ? "output_limit" : code === null ? "start_or_timeout" : match && allowedErrorCategories.has(match[1]) ? match[1] : "exit_or_protocol";
@@ -51,7 +52,7 @@ export function bootstrapFailureDetail(output: string, stderr: string, stderrOve
   return `cwd=${/^CWD:\/opt\/worker$/m.test(output + "\n" + stderr) ? "/opt/worker" : "unverified"} stderr=${stderrState} stderr_code=${stderrCode} stderr_hint=${stderrHint} exception=${exception} message=${message} category=${category}${chromiumDetail}`;
 }
 // Only finite error codes leave the container; never output messages or paths.
-const safeError = `let failed=false;let chromiumStage;const atStage=s=>{chromiumStage=s;process.stderr.write('CHROMIUM_STAGE:'+s+'\\n')};const chromiumHint=${chromiumFailureHint.toString()};const fail=e=>{if(failed)return;failed=true;const c=e?.code;const x=c==='ERR_MODULE_NOT_FOUND'?'ERR_MODULE_NOT_FOUND':c==='MODULE_NOT_FOUND'?'MODULE_NOT_FOUND':c==='ENOENT'?'FILE_NOT_FOUND':c==='EACCES'?'PERMISSION_DENIED':c==='EPERM'?'OPERATION_NOT_PERMITTED':c==='ERR_INVALID_ARG_TYPE'?'ERR_INVALID_ARG_TYPE':c==='ERR_PACKAGE_PATH_NOT_EXPORTED'?'ERR_PACKAGE_PATH_NOT_EXPORTED':c==='ERR_REQUIRE_ESM'?'ERR_REQUIRE_ESM':c==='ERR_INVALID_PACKAGE_CONFIG'?'ERR_INVALID_PACKAGE_CONFIG':c==='MISSING_EXPORT'?'MISSING_EXPORT':c==='PROTOCOL'?'PROTOCOL':e?.name==='SyntaxError'?'SYNTAX_ERROR':e?.name==='ReferenceError'?'REFERENCE_ERROR':e?.name==='TypeError'?'TYPE_ERROR':'OTHER';const m=typeof e?.message==='string'?e.message.slice(0,512):'';const hint=/cannot find (?:module|package)/i.test(m)?'module_resolution':/EACCES|permission denied/i.test(m)?'permission':/invalid package config/i.test(m)?'package_configuration':e?.name==='SyntaxError'?'syntax':'unclassified';process.stdout.write('ERR:'+x+'\\nCWD:'+(process.cwd()==='/opt/worker'?'/opt/worker':'unverified')+'\\nMSG:'+hint+'\\n'+(chromiumStage?'SUBSTAGE:'+chromiumStage+'\\nHINT:'+chromiumHint((e?.name??'')+' '+(typeof e?.message==='string'?e.message:''))+'\\n':''));process.exitCode=1};`;
+const safeError = `const sandboxReasons=${JSON.stringify(sandboxFailureReasons)};const verifyBrowserSandbox=${verifyBrowserSandbox.toString()};let failed=false;let chromiumStage;const atStage=s=>{chromiumStage=s;process.stderr.write('CHROMIUM_STAGE:'+s+'\\n')};const chromiumHint=${chromiumFailureHint.toString()};const fail=e=>{if(failed)return;failed=true;const c=e?.code;const x=c==='SANDBOX_VERIFICATION_FAILED'?'SANDBOX_VERIFICATION_FAILED':c==='ERR_MODULE_NOT_FOUND'?'ERR_MODULE_NOT_FOUND':c==='MODULE_NOT_FOUND'?'MODULE_NOT_FOUND':c==='ENOENT'?'FILE_NOT_FOUND':c==='EACCES'?'PERMISSION_DENIED':c==='EPERM'?'OPERATION_NOT_PERMITTED':c==='ERR_INVALID_ARG_TYPE'?'ERR_INVALID_ARG_TYPE':c==='ERR_PACKAGE_PATH_NOT_EXPORTED'?'ERR_PACKAGE_PATH_NOT_EXPORTED':c==='ERR_REQUIRE_ESM'?'ERR_REQUIRE_ESM':c==='ERR_INVALID_PACKAGE_CONFIG'?'ERR_INVALID_PACKAGE_CONFIG':c==='MISSING_EXPORT'?'MISSING_EXPORT':c==='PROTOCOL'?'PROTOCOL':e?.name==='SyntaxError'?'SYNTAX_ERROR':e?.name==='ReferenceError'?'REFERENCE_ERROR':e?.name==='TypeError'?'TYPE_ERROR':'OTHER';const m=typeof e?.message==='string'?e.message.slice(0,512):'';const hint=/cannot find (?:module|package)/i.test(m)?'module_resolution':/EACCES|permission denied/i.test(m)?'permission':/invalid package config/i.test(m)?'package_configuration':e?.name==='SyntaxError'?'syntax':'unclassified';process.stdout.write('ERR:'+x+'\\nCWD:'+(process.cwd()==='/opt/worker'?'/opt/worker':'unverified')+'\\nMSG:'+hint+'\\n'+(chromiumStage?'SUBSTAGE:'+chromiumStage+'\\nHINT:'+(sandboxReasons.includes(e?.reason)?e.reason:chromiumHint((e?.name??'')+' '+(typeof e?.message==='string'?e.message:'')))+'\\n':''));process.exitCode=1};`;
 const scripts: Record<Exclude<BootstrapStage, "container_process">, string> = {
   node_execution: `process.stdout.write('OK\\n')`,
   attach_stdio: `process.stdin.setEncoding('utf8');process.stdin.once('data',s=>{if(s==='PING\\n')process.stdout.write('OK\\n');else fail({code:'PROTOCOL'})})`,
@@ -85,13 +86,13 @@ const scripts: Record<Exclude<BootstrapStage, "container_process">, string> = {
         finally{rmdirSync(directory)}
       }
       atStage('browser_launch');
-      b=await chromium.launch({chromiumSandbox:true,headless:true,timeout:10000,env:{HOME:'/tmp',TMPDIR:'/tmp',PATH:'/usr/local/bin:/usr/bin:/bin'},args:['--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run']});
+      b=await chromium.launch({chromiumSandbox:true,headless:true,timeout:10000,env:{HOME:'/tmp',TMPDIR:'/tmp',PATH:'/usr/local/bin:/usr/bin:/bin'},args:['--enable-automation','--disable-background-networking','--disable-component-update','--disable-sync','--no-first-run']});
       atStage('context_page');
       c=await b.newContext({serviceWorkers:'block'});
-      const p=await c.newPage();
+      await c.newPage();
       atStage('sandbox_verify');
-      const d=await c.newCDPSession(p);const r=await d.send('Browser.getBrowserCommandLine');
-      if(r.arguments.includes('--no-sandbox')||r.arguments.includes('--disable-setuid-sandbox')||!r.arguments.includes('--remote-debugging-pipe'))throw Error('sandbox flags invalid');
+      const reason=await verifyBrowserSandbox(b);
+      if(reason)throw Object.assign(new Error('Sandbox verification failed'),{code:'SANDBOX_VERIFICATION_FAILED',reason});
     } catch(e){fail(e)}
     finally{
       // Preserve the original meaningful error if cleanup fails too. The

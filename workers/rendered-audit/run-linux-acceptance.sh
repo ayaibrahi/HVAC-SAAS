@@ -20,7 +20,7 @@ trap cleanup EXIT
 # Explicit context excludes the project, .env files, credentials and backups.
 cp experiments/rendered-audit/package.json experiments/rendered-audit/package-lock.json "$stage/"
 cp workers/rendered-audit/Dockerfile workers/rendered-audit/runtime.mjs "$stage/"
-cp src/features/audits/rendered/dom.ts "$stage/"
+cp src/features/audits/rendered/dom.ts src/features/audits/worker/sandbox-verification.ts "$stage/"
 timeout --signal=TERM --kill-after=5s 240s docker build --platform linux/amd64 --tag "$image" "$stage"
 export SCANVORO_WORKER_IMAGE
 SCANVORO_WORKER_IMAGE=$(docker image inspect --format '{{.Id}}' "$image")

@@ -42,6 +42,14 @@ describe("worker startup IPC", () => {
     expect(JSON.stringify(f.failure.mock.calls)).not.toContain(secret);
     expect(f.failure.mock.calls[0][0].diagnostic.category).toBe("invalid_output");
   });
+  it("retains only allowlisted sandbox verification reasons", () => {
+    for (const check of ["cmdline_read_failed", "forbidden_flag_detected", "missing_expected_process", "Bearer private https://customer.invalid", "network"]) {
+      const f = fixture();
+      f.events.emit("data", JSON.stringify({ failure: "browser_boundary", check }) + "\n");
+      expect(f.failure.mock.calls[0][0].diagnostic.check).toBe(check.startsWith("Bearer") || check === "network" ? "none" : check);
+      expect(JSON.stringify(f.failure.mock.calls)).not.toContain("customer.invalid");
+    }
+  });
   it("flushes a single sanitized module-initialization failure in a real subprocess", async () => {
     const dir = await mkdtemp(join(tmpdir(), "scanvoro-ipc-"));
     try {

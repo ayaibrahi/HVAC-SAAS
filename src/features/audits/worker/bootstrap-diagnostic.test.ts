@@ -64,7 +64,7 @@ describe("bootstrap isolation", () => {
   it("makes public staged image files readable and checks imports as the non-root image user", () => {
     const dockerfile = readFileSync("workers/rendered-audit/Dockerfile", "utf8");
     expect(dockerfile).toContain("COPY --chmod=0644 package.json package-lock.json ./");
-    expect(dockerfile).toContain("COPY --chmod=0644 dom.ts runtime.mjs ./");
+    expect(dockerfile).toContain("COPY --chmod=0644 dom.ts sandbox-verification.ts runtime.mjs ./");
     expect(dockerfile).toMatch(/USER pwuser\r?\nRUN node/);
   });
   it.each(bootstrapStages)("preserves every production Docker isolation argument: %s", stage => {
@@ -89,9 +89,9 @@ describe("Chromium bootstrap sub-stages (offline subprocess fixtures)", () => {
       const cleanup=s=>{closed.push(s);if(${cleanupFails}||failure==='cleanup')throw Error('cleanup fixture')};
       const fixtureChromium={launch:async options=>{
         hit('browser_launch');
-        if(!options.chromiumSandbox||options.env.HOME!=='/tmp'||options.args.some(a=>/no-sandbox|disable-setuid/.test(a)))throw Error('launch options changed');
-        return {newContext:async()=>{hit('context_page');return {
-          newPage:async()=>({}),newCDPSession:async()=>({send:async()=>{hit('sandbox_verify');return {arguments:failure==='sandbox_flags'?['--no-sandbox']:['--remote-debugging-pipe']}}}),
+        if(!options.chromiumSandbox||!options.args.includes('--enable-automation')||options.env.HOME!=='/tmp'||options.args.some(a=>/no-sandbox|disable-setuid/.test(a)))throw Error('launch options changed');
+        return {isConnected:()=>true,newBrowserCDPSession:async()=>({send:async method=>{hit('sandbox_verify');return method==='Browser.getVersion'?{product:'HeadlessChrome/156.0.8078.4'}:{arguments:failure==='sandbox_flags'?['--no-sandbox']:['--enable-automation','--remote-debugging-pipe']}},detach:async()=>{}}),newContext:async()=>{hit('context_page');return {
+          newPage:async()=>({}),newCDPSession:async()=>{throw Error('page CDP forbidden for browser verification')},
           close:async()=>cleanup('context')
         }},close:async()=>cleanup('browser')};
       }};
@@ -135,6 +135,8 @@ describe("Chromium bootstrap sub-stages (offline subprocess fixtures)", () => {
     const result = fixture("sandbox_flags");
     expect(result.status).toBe(1);
     expect(result.stdout).toContain("SUBSTAGE:sandbox_verify");
+    expect(result.stdout).toContain("ERR:SANDBOX_VERIFICATION_FAILED");
+    expect(result.stdout).toContain("HINT:forbidden_flag_detected");
   });
   it.each([
     ["sys_chroot failed", "chroot"], ["sandbox_host_linux.cc", "sandbox_host_linux"],

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 // This process has AF_UNIX only. No proxy, remote debugging listener, database,
 // application env or direct fetch API is used. Every response is broker supplied.
 const socketPath = '/run/scanvoro/broker.sock';
-let browser, chromium, collectRenderedDocument, token, entry, busy = false, captures = 0, input = '';
+let browser, chromium, collectRenderedDocument, verifyBrowserSandbox, sandboxReason, token, entry, busy = false, captures = 0, input = '';
 let terminating = false;
 let phase = 'module_initialization';
 const pages = new Set(), viewports = new Set();
@@ -21,14 +21,14 @@ const fatal = () => {
   process.stdin.destroy();
   // Flush the fixed-size allowlisted frame before exiting; never wait forever.
   const deadline = setTimeout(() => process.exit(1), 1000);
-  const frame = new Promise(resolve => process.stdout.write(JSON.stringify({ failure: phase }) + '\n', resolve));
+  const frame = new Promise(resolve => process.stdout.write(JSON.stringify({ failure: phase, ...(sandboxReason ? { check: sandboxReason } : {}) }) + '\n', resolve));
   const shutdown = browser ? browser.close().catch(() => {}) : Promise.resolve();
   void Promise.all([frame, shutdown]).finally(() => { clearTimeout(deadline); process.exit(1); });
 };
 process.on('uncaughtException', fatal);
 process.on('unhandledRejection', fatal);
 process.on('SIGTERM', fatal);
-try { ({ chromium } = await import('playwright-core')); ({ collectRenderedDocument } = await import('./dom.mjs')); }
+try { ({ chromium } = await import('playwright-core')); ({ collectRenderedDocument } = await import('./dom.mjs')); ({ verifyBrowserSandbox } = await import('./sandbox-verification.mjs')); }
 catch { fatal(); }
 phase = 'configuration';
 
@@ -69,7 +69,7 @@ async function initialize(config) {
   phase = 'browser_launch';
   browser = await chromium.launch({ chromiumSandbox: true, headless: true, timeout: 10000,
     env: { HOME: '/tmp', TMPDIR: '/tmp', PATH: '/usr/local/bin:/usr/bin:/bin' },
-    args: ['--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run'] });
+    args: ['--enable-automation', '--disable-background-networking', '--disable-component-update', '--disable-sync', '--no-first-run'] });
   // Real Chromium, deliberately without interception: direct TCP must fail.
   phase = 'browser_boundary';
   const context = await browser.newContext({ serviceWorkers: 'block' });
@@ -80,9 +80,8 @@ async function initialize(config) {
       try { await page.goto(url, { timeout: 700 }); } catch { denied = true; }
       if (!denied) throw new Error('Browser egress escaped');
     }
-    const session = await context.newCDPSession(page);
-    const { arguments: args } = await session.send('Browser.getBrowserCommandLine');
-    if (args.includes('--no-sandbox') || !args.includes('--remote-debugging-pipe')) throw new Error('Sandbox disabled');
+    sandboxReason = await verifyBrowserSandbox(browser);
+    if (sandboxReason) throw new Error('Sandbox verification failed');
   } finally { await context.close(); }
   output({ ready: true, networkDenied: true, sandboxEnabled: true });
 }
