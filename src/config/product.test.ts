@@ -13,10 +13,13 @@ describe("replaceable Scanvoro branding", () => {
     expect(getProductConfig(" Agency workspace ").name).toBe(
       "Agency workspace",
     ));
-  it("does not hide an explicit legacy name configured by the deployment", () => {
-    expect(getProductConfig("HVAC Sales Copilot").name).toBe(
-      "HVAC Sales Copilot",
-    );
+  it.each([
+    "HVAC Sales Copilot",
+    "  hvac sales copilot  ",
+    "HVAC  Sales\tCopilot",
+    "Agency Sales Copilot",
+  ])("rebrands the retired deployment name %j", (name) => {
+    expect(getProductConfig(name).name).toBe("Scanvoro");
     expect(getProductConfig("Scanvoro").name).toBe("Scanvoro");
   });
   it("keeps public positioning independent of the current HVAC playbook", () =>
