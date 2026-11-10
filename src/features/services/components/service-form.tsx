@@ -1,4 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import type { AgencyService } from "@/domain/services/types";
+import { serviceStarterTemplates, starterScope } from "../starter-templates";
 import { supportedCurrencies } from "@/config/currencies";
 import { PendingSubmitButton } from "@/components/pending-submit-button";
 import { getCompleteProposalCopy } from "@/lib/i18n/complete-proposal";
@@ -22,14 +26,50 @@ export function ServiceForm({
   scopeAvailable = true,
 }: ServiceFormProps) {
   const copy = getCompleteProposalCopy(locale);
+  const [name, setName] = useState(service?.name ?? "");
+  const [scope, setScope] = useState(
+    service?.approvedScope ?? {
+      deliverables: "",
+      exclusions: "",
+      clientInputs: "",
+      completionChecks: "",
+    },
+  );
+  const [approved, setApproved] = useState(false);
   return (
     <form action={action} className="space-y-5">
+      {scopeAvailable && (
+        <fieldset className="space-y-3 rounded-md border border-border p-4">
+          <legend className="font-semibold">{copy.starterTemplates}</legend>
+          <p className="text-sm text-muted">{copy.starterHelp}</p>
+          {serviceStarterTemplates.map((template) => (
+            <div key={template.id} className="space-y-2">
+              <p className="font-medium">{template.name}</p>
+              <p className="text-sm" dir="auto">
+                {template.deliverables}
+              </p>
+              <button
+                type="button"
+                className="button-secondary"
+                onClick={() => {
+                  if (!service) setName(template.name);
+                  setScope(starterScope(template));
+                  setApproved(true);
+                }}
+              >
+                {copy.useStarter} — {template.name}
+              </button>
+            </div>
+          ))}
+        </fieldset>
+      )}
       <div className="grid gap-5 md:grid-cols-2">
         <label className="space-y-2">
           <span className="text-sm font-medium text-ink">Service name</span>
           <input
             name="name"
-            defaultValue={service?.name ?? ""}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
             placeholder="Local SEO Setup"
             required
             className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent/15"
@@ -116,11 +156,19 @@ export function ServiceForm({
           ).map((field) => (
             <label key={field} className="block space-y-2">
               <span className="text-sm font-medium">
-                {copy[field]}{field !== "deliverables" && ` (${copy.optional})`}
+                {copy[field]}
+                {field !== "deliverables" && ` (${copy.optional})`}
               </span>
               <textarea
                 name={field}
-                defaultValue={service?.approvedScope?.[field] ?? ""}
+                value={scope[field]}
+                onChange={(event) => {
+                  setScope((current) => ({
+                    ...current,
+                    [field]: event.target.value,
+                  }));
+                  setApproved(false);
+                }}
                 rows={3}
                 maxLength={800}
                 dir="auto"
@@ -129,7 +177,13 @@ export function ServiceForm({
             </label>
           ))}
           <label className="flex items-start gap-3 text-sm">
-            <input type="checkbox" name="approveScope" className="mt-1" />
+            <input
+              type="checkbox"
+              name="approveScope"
+              className="mt-1"
+              checked={approved}
+              onChange={(event) => setApproved(event.target.checked)}
+            />
             {copy.approveScope}
           </label>
         </fieldset>

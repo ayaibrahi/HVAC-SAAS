@@ -67,13 +67,21 @@ export function ProposalEditForm({
   copy,
   fallbackAction,
   successHref,
+  revision,
 }: {
   children: ReactNode;
-  action: (form: FormData) => Promise<{ error?: string; saved?: true }>;
+  action: (
+    form: FormData,
+  ) => Promise<{
+    error?: string;
+    saved?: true;
+    outcome?: "generate" | "prepare";
+  }>;
   className: string;
   copy: ProposalCopy;
   fallbackAction?: (form: FormData) => Promise<void>;
   successHref?: string;
+  revision?: string;
 }) {
   const { markDirty, setSaving, generating } = useContext(EditingContext);
   const router = useRouter();
@@ -86,13 +94,15 @@ export function ProposalEditForm({
   }, [notice]);
   return (
     <form
+      id="proposal-editor"
       action={fallbackAction}
       method={fallbackAction ? undefined : "post"}
       onChangeCapture={markDirty}
       onSubmit={async (event) => {
         event.preventDefault();
         if (busy.current || generating) return;
-        const form = new FormData(event.currentTarget);
+        const submitter = (event.nativeEvent as SubmitEvent).submitter;
+        const form = new FormData(event.currentTarget, submitter);
         markDirty();
         busy.current = true;
         setPending(true);
@@ -102,7 +112,13 @@ export function ProposalEditForm({
           const result = await action(form);
           setNotice(result);
           if (result.saved) {
-            if (successHref) router.replace(successHref);
+            const target =
+              result.outcome === "prepare"
+                ? "#proposal-delivery"
+                : result.outcome === "generate"
+                  ? "#proposal-copy"
+                  : "";
+            if (successHref) router.replace(successHref + target);
             router.refresh();
           }
         } catch {
@@ -114,12 +130,15 @@ export function ProposalEditForm({
         }
       }}
     >
+      {revision && (
+        <input type="hidden" name="generationRevision" value={revision} />
+      )}
       {notice.error && (
         <p
           ref={errorRef}
           tabIndex={-1}
           role="alert"
-          className="mb-4 text-sm text-muted"
+          className="mb-4 rounded-md border-2 border-red-600 bg-red-50 p-4 text-base font-semibold text-red-900"
         >
           {copy.editsPreserved} {notice.error}
         </p>
@@ -141,6 +160,36 @@ export function ProposalEditForm({
         {children}
       </fieldset>
     </form>
+  );
+}
+
+// Native form association includes the current editor values even when these
+// controls appear above the form. A single editor handler locks all actions.
+export function ProposalWorkflowButton({
+  intent,
+  label,
+  pendingLabel,
+  disabled = false,
+}: {
+  intent: "generate" | "prepare";
+  label: string;
+  pendingLabel: string;
+  disabled?: boolean;
+}) {
+  const { saving, generating } = useContext(EditingContext);
+  const pending = saving || generating;
+  return (
+    <button
+      type="submit"
+      form="proposal-editor"
+      name="intent"
+      value={intent}
+      disabled={disabled || pending}
+      aria-disabled={disabled || pending}
+      className="button-primary"
+    >
+      {pending ? pendingLabel : label}
+    </button>
   );
 }
 

@@ -95,6 +95,69 @@ beforeEach(() => {
   mocks.admin.mockReturnValue(client);
 });
 describe("complete generation cross-process CAS reservation and cleanup", () => {
+  it.each(["summary", "scope", "next_step"])(
+    "fills only empty fields and preserves manual %s under a fenced lease",
+    async (field) => {
+      row[field] = "Exact human wording";
+      const lease = await claimCompleteProposalGeneration(
+        String(row.id),
+        String(row.updated_at),
+        true,
+      );
+      await applyProposalAiDraft({
+        proposalId: String(row.id),
+        expectedUpdatedAt: lease.updatedAt,
+        generationToken: lease.token,
+        fillEmptyOnly: true,
+        summary: "Generated summary",
+        scope: "Generated scope",
+        nextStep: "Generated next step",
+        metadata: {},
+      });
+      expect(row[field]).toBe("Exact human wording");
+      for (const other of ["summary", "scope", "next_step"])
+        if (other !== field) expect(row[other]).toMatch(/^Generated /);
+      expect(row.status).toBe("draft");
+      expect(row.total_amount).toBe(500);
+    },
+  );
+  it("cannot use fill-only mode to bypass a missing reservation token", async () => {
+    row.scope = "Manual scope";
+    await expect(
+      applyProposalAiDraft({
+        proposalId: String(row.id),
+        expectedUpdatedAt: String(row.updated_at),
+        fillEmptyOnly: true,
+        summary: "Generated",
+        scope: "Replace manual scope",
+        nextStep: "Next",
+        metadata: {},
+      }),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(writes).toHaveLength(0);
+  });
+  it("does not reserve a Ready or already complete proposal in fill-only mode", async () => {
+    row.status = "ready";
+    await expect(
+      claimCompleteProposalGeneration(
+        String(row.id),
+        String(row.updated_at),
+        true,
+      ),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    row.status = "draft";
+    row.summary = "Summary";
+    row.scope = "Scope";
+    row.next_step = "Next";
+    await expect(
+      claimCompleteProposalGeneration(
+        String(row.id),
+        String(row.updated_at),
+        true,
+      ),
+    ).rejects.toMatchObject({ statusCode: 409 });
+    expect(writes).toHaveLength(0);
+  });
   it("checks the reservation token in the atomic write, even if the timestamp were unchanged", async () => {
     const lease = await claimCompleteProposalGeneration(
       String(row.id),

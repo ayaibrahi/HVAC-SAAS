@@ -10,8 +10,6 @@ import type {
 import type { AgencyService } from "@/domain/services/types";
 import { getProposalBuilderData } from "@/features/proposals/data";
 import { getProposalContentSuggestion } from "@/features/proposals/content-suggestion";
-import { createCompleteProposalInput } from "@/features/proposals/ai/complete-input";
-import { buildProposalCopyOptions } from "@/features/proposals/sales-content";
 import { getCompleteProposalCopy } from "@/lib/i18n/complete-proposal";
 import { getCompleteProposalRevision } from "@/features/proposals/ai/complete-revision";
 import { OpportunitySelection } from "@/features/proposals/components/opportunity-selection";
@@ -21,16 +19,13 @@ import {
   ProposalContentFields,
   ProposalEditingGuard,
   ProposalEditForm,
-  CompleteProposalForm,
-  ProposalGuardedSubmitButton,
+  ProposalWorkflowButton,
   ProposalActionFeedback,
 } from "@/features/proposals/components/content-fields";
 import {
-  generateCompleteProposalAction,
   saveProposalFormAction,
   updateProposalAction,
 } from "@/features/proposals/actions";
-import { createDeliverySnapshotAction } from "@/features/proposals/delivery/actions";
 import { listDeliverySnapshotsForProposal } from "@/features/proposals/delivery/data";
 import { ShareLinkControls } from "@/features/proposals/share-links/components/share-link-controls";
 import { listShareLinksForSnapshots } from "@/features/proposals/share-links/data";
@@ -70,17 +65,11 @@ export default async function ProposalBuilderPage({
   const activeServices = data.services.filter((service) => service.isActive);
   const suggestion = getProposalContentSuggestion(data);
   const completeCopy = getCompleteProposalCopy(locale);
-  let completeProblem: string | null = null;
-  try {
-    buildProposalCopyOptions(createCompleteProposalInput(data));
-  } catch (error) {
-    completeProblem = getPublicErrorMessage(error, completeCopy.missing);
-  }
   const preserveCopy =
     data.proposal.status !== "draft" ||
     Boolean(
-      data.proposal.summary.trim() ||
-      data.proposal.scope.trim() ||
+      data.proposal.summary.trim() &&
+      data.proposal.scope.trim() &&
       data.proposal.nextStep.trim(),
     );
   const updateAction = saveProposalFormAction.bind(null, data.proposal.id);
@@ -99,14 +88,6 @@ export default async function ProposalBuilderPage({
   } catch (error) {
     deliveryProblem = getPublicErrorMessage(error, copy.deliveryReview);
   }
-  const generateAction = generateCompleteProposalAction.bind(
-    null,
-    data.proposal.id,
-  );
-  const createSnapshotAction = createDeliverySnapshotAction.bind(
-    null,
-    data.proposal.id,
-  );
 
   return (
     <ProposalEditingGuard key={data.proposal.updatedAt}>
@@ -129,30 +110,25 @@ export default async function ProposalBuilderPage({
             </p>
           </div>
           <div>
-            <CompleteProposalForm
-              action={generateAction}
-              revision={getCompleteProposalRevision(data)}
-              locale={locale}
-              saveFirstLabel={copy.saveBeforeAi}
-              eligible={!preserveCopy && !completeProblem}
+            <ProposalWorkflowButton
+              intent="generate"
+              label={completeCopy.generate}
+              pendingLabel={completeCopy.generating}
+              disabled={
+                preserveCopy ||
+                activeServices.length === 0 ||
+                data.opportunities.length === 0
+              }
             />
             <p className="mt-2 max-w-sm text-xs text-muted">
-              {preserveCopy
-                ? copy.aiPreserve
-                : data.lineItemsByOpportunityId.size === 0
-                  ? copy.aiSaveFirst
-                  : completeProblem
-                    ? `${completeCopy.missing} ${completeProblem}`
-                    : copy.aiOptional}
+              {preserveCopy ? copy.aiPreserve : copy.generateCurrent}
             </p>
-            {completeProblem && (
-              <Link
-                href="/dashboard/services"
-                className="mt-2 inline-block text-sm text-accent underline"
-              >
-                {copy.manageServices}
-              </Link>
-            )}
+            <Link
+              href="/dashboard/services"
+              className="mt-2 inline-block text-sm text-accent underline"
+            >
+              {copy.manageServices}
+            </Link>
           </div>
         </div>
 
@@ -212,7 +188,6 @@ export default async function ProposalBuilderPage({
           shareLinks={shareLinks}
           proposalStatus={data.proposal.status}
           deliveryProblem={deliveryProblem}
-          createSnapshotAction={createSnapshotAction}
           copy={copy}
           locale={locale}
         />
@@ -231,6 +206,7 @@ export default async function ProposalBuilderPage({
 
         <ProposalEditForm
           action={updateAction}
+          revision={getCompleteProposalRevision(data)}
           fallbackAction={updateProposalAction.bind(null, data.proposal.id)}
           successHref={buildFeedbackUrl(
             `/dashboard/proposals/${data.proposal.id}`,
@@ -402,7 +378,6 @@ function DeliverySnapshotPanel({
   shareLinks,
   proposalStatus,
   deliveryProblem,
-  createSnapshotAction,
   copy,
   locale,
 }: {
@@ -410,7 +385,6 @@ function DeliverySnapshotPanel({
   shareLinks: ProposalShareLinkMetadata[];
   proposalStatus: string;
   deliveryProblem: string | null;
-  createSnapshotAction: () => Promise<void>;
   copy: ProposalCopy;
   locale: Locale;
 }) {
@@ -430,15 +404,11 @@ function DeliverySnapshotPanel({
             {copy.deliveryDescription}
           </p>
         </div>
-        <form action={createSnapshotAction}>
-          <ProposalGuardedSubmitButton
-            saveFirstLabel={copy.deliverySaveFirst}
-            label={copy.prepare}
-            pendingLabel={copy.preparing}
-            className="rounded-md border border-border bg-white px-4 py-2 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={Boolean(deliveryProblem)}
-          />
-        </form>
+        <ProposalWorkflowButton
+          intent="prepare"
+          label={copy.saveReadyPrepare}
+          pendingLabel={copy.preparing}
+        />
       </div>
 
       {proposalStatus !== "ready" ? (

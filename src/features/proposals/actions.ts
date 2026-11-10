@@ -15,6 +15,8 @@ import {
   getValidationErrorMessage,
 } from "@/lib/action-feedback";
 import { AppError, getPublicErrorMessage } from "@/lib/errors";
+import { proposalReadyProblem } from "./readiness";
+import { runProposalEditorWorkflow } from "./editor-workflow";
 import {
   createProposalInputSchema,
   updateProposalInputSchema,
@@ -78,8 +80,15 @@ export async function updateProposalAction(
 export async function saveProposalFormAction(
   proposalId: string,
   formData: FormData,
-): Promise<{ error?: string; saved?: true }> {
+): Promise<{ error?: string; saved?: true; outcome?: "generate" | "prepare" }> {
   const path = `${proposalsPath}/${proposalId}`;
+  const intent = formData.get("intent") ?? "save";
+  if (!["save", "generate", "prepare"].includes(String(intent))) {
+    return {
+      error:
+        "Choose Save, Generate Complete Proposal, or Save as Ready & Prepare Client Version.",
+    };
+  }
   let lineItems: ReturnType<typeof parseLineItems>;
 
   try {
@@ -97,7 +106,12 @@ export async function saveProposalFormAction(
     scope: formData.get("scope") ?? "",
     nextStep: formData.get("nextStep") ?? "",
     currency: formData.get("currency"),
-    status: formData.get("status"),
+    status:
+      intent === "generate"
+        ? "draft"
+        : intent === "prepare"
+          ? "ready"
+          : formData.get("status"),
     discountType: formData.get("discountType"),
     discountValue: formData.get("discountValue") ?? "0",
     lineItems,
@@ -107,8 +121,21 @@ export async function saveProposalFormAction(
     return { error: getValidationErrorMessage(result.error) };
   }
 
+  if (result.data.status === "ready") {
+    const error = proposalReadyProblem(result.data);
+    if (error) return { error };
+  }
+
   try {
-    await updateProposalDraft(result.data);
+    if (intent === "generate" || intent === "prepare") {
+      await runProposalEditorWorkflow(
+        result.data,
+        formData.get("generationRevision"),
+        intent,
+      );
+    } else {
+      await updateProposalDraft(result.data);
+    }
 
     revalidatePath(path);
     revalidatePath(proposalsPath);
@@ -117,7 +144,12 @@ export async function saveProposalFormAction(
       error: getPublicErrorMessage(error, "We could not save that proposal."),
     };
   }
-  return { saved: true };
+  return {
+    saved: true,
+    ...(intent === "generate" || intent === "prepare"
+      ? { outcome: intent }
+      : {}),
+  };
 }
 
 export async function generateProposalAiDraftAction(proposalId: string) {

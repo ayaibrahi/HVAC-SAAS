@@ -11,9 +11,9 @@ export function getCompleteProposalRevision(data: ProposalBuilderData) {
       JSON.stringify({
         proposal: data.proposal,
         lines,
-        services: lines.map((line) =>
-          data.services.find((service) => service.id === line.agencyServiceId),
-        ),
+        // Include newly selectable services too: the editor may submit unsaved
+        // selections, but cannot approve scope changed in another tab.
+        services: [...data.services].sort((a, b) => a.id.localeCompare(b.id)),
         audit: data.audit,
         opportunities: data.opportunities,
         agency: { id: data.agency.id, name: data.agency.name },

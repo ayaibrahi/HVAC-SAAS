@@ -1,3 +1,5 @@
+vi.mock("./editor-workflow", () => ({ runProposalEditorWorkflow: vi.fn() }));
+import { runProposalEditorWorkflow } from "./editor-workflow";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -404,3 +406,59 @@ function updateForm() {
   form.set(`description:${opportunityId}`, "Online booking integration");
   return form;
 }
+
+describe("current editor workflow submission", () => {
+  it.each(["generate", "prepare"])(
+    "passes current form values to %s without a checkbox",
+    async (intent) => {
+      const form = updateForm();
+      form.set("intent", intent);
+      form.set("generationRevision", "b".repeat(64));
+      expect(await saveProposalFormAction(proposalId, form)).toEqual({
+        saved: true,
+        outcome: intent,
+      });
+      expect(runProposalEditorWorkflow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: intent === "generate" ? "draft" : "ready",
+          scope: "Selected service scope",
+          lineItems: [
+            expect.objectContaining({
+              agencyServiceId: serviceId,
+              unitPrice: "350.00",
+              quantity: 2,
+            }),
+          ],
+        }),
+        "b".repeat(64),
+        intent,
+      );
+      expect(operations.saveDraft).not.toHaveBeenCalled();
+    },
+  );
+  it.each(["save", "prepare"])(
+    "lists all missing Ready requirements before %s writes",
+    async (intent) => {
+      const form = updateForm();
+      form.set("intent", intent);
+      form.set("summary", " ");
+      form.set("scope", "");
+      form.delete("opportunityId");
+      const result = await saveProposalFormAction(proposalId, form);
+      expect(result.error).toContain(
+        "Summary, Scope, at least one selected service",
+      );
+      expect(result.saved).toBeUndefined();
+      expect(operations.saveDraft).not.toHaveBeenCalled();
+      expect(runProposalEditorWorkflow).not.toHaveBeenCalled();
+    },
+  );
+  it("rejects unknown submit intents", async () => {
+    const form = updateForm();
+    form.set("intent", "publish");
+    expect((await saveProposalFormAction(proposalId, form)).error).toContain(
+      "Choose Save",
+    );
+    expect(runProposalEditorWorkflow).not.toHaveBeenCalled();
+  });
+});

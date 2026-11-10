@@ -119,6 +119,7 @@ export async function generateCompleteProposalForProposal(
   proposalId: string,
   provider?: ProposalAiProvider,
   expectedRevision?: string,
+  fillEmptyOnly = false,
 ) {
   const { agency, user } = await requireCurrentAgency();
   const data = await getProposalBuilderData(proposalId);
@@ -134,9 +135,14 @@ export async function generateCompleteProposalForProposal(
   if (
     data.agency.id !== agency.id ||
     data.proposal.status !== "draft" ||
-    data.proposal.summary.trim() ||
-    data.proposal.scope.trim() ||
-    data.proposal.nextStep.trim()
+    (!fillEmptyOnly &&
+      (data.proposal.summary.trim() ||
+        data.proposal.scope.trim() ||
+        data.proposal.nextStep.trim())) ||
+    (fillEmptyOnly &&
+      data.proposal.summary.trim() &&
+      data.proposal.scope.trim() &&
+      data.proposal.nextStep.trim())
   ) {
     throw new AppError(
       "Existing text is preserved. Complete generation requires an empty saved Draft.",
@@ -155,6 +161,11 @@ export async function generateCompleteProposalForProposal(
   const fingerprint = (current: typeof data) =>
     JSON.stringify({
       input: createCompleteProposalInput(current),
+      narrative: [
+        current.proposal.summary,
+        current.proposal.scope,
+        current.proposal.nextStep,
+      ],
       prices: [...current.lineItemsByOpportunityId.values()].map(
         ({ opportunityId, quantity, unitPrice, lineTotal, position }) => ({
           opportunityId,
@@ -177,6 +188,7 @@ export async function generateCompleteProposalForProposal(
   const lease = await claimCompleteProposalGeneration(
     proposalId,
     data.proposal.updatedAt,
+    ...(fillEmptyOnly ? ([true] as const) : []),
   );
   try {
     await enforceAgencyUsageLimit({
@@ -202,11 +214,17 @@ export async function generateCompleteProposalForProposal(
       proposalId,
       expectedUpdatedAt: lease.updatedAt,
       generationToken: lease.token,
+      ...(fillEmptyOnly ? { fillEmptyOnly: true } : {}),
       ...draft,
       metadata: {
         ...effectiveProvider.metadata,
         generatedAt: new Date().toISOString(),
         mode: "complete",
+        preservedFields: fillEmptyOnly
+          ? ["summary", "scope", "nextStep"].filter((field) =>
+              data.proposal[field as "summary" | "scope" | "nextStep"].trim(),
+            )
+          : [],
         approvedScopes: input.selectedItems.map((item) => ({
           serviceId: item.service.id,
           ...item.service.contractScope,

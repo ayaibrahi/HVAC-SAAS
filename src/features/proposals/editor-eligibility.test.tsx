@@ -67,67 +67,77 @@ function button(markup: string, label: string) {
 }
 describe("saved proposal action eligibility", () => {
   it("recognizes approved deliverables with all optional scope fields empty", async () => {
-    data.opportunities = data.opportunities.filter(item => data.lineItemsByOpportunityId.has(item.id));
-    Object.assign(data.services[0].approvedScope!, { exclusions: "", clientInputs: "", completionChecks: "" });
+    data.opportunities = data.opportunities.filter((item) =>
+      data.lineItemsByOpportunityId.has(item.id),
+    );
+    Object.assign(data.services[0].approvedScope!, {
+      exclusions: "",
+      clientInputs: "",
+      completionChecks: "",
+    });
     const markup = await html();
-    expect(button(markup, "Generate Complete Proposal")).toContain('aria-disabled="false"');
+    expect(button(markup, "Generate Complete Proposal")).toContain(
+      'aria-disabled="false"',
+    );
     expect(markup).toContain("Saved approved scope");
     expect(markup).not.toContain("No approved reusable scope");
     expect(markup).not.toContain("Exclusions and qualifications");
   });
-  it("enables complete generation only for saved relevant lines with approved scope, verified evidence and empty Draft text", async () => {
+  it("offers generation from the editor while server validation enforces scope and evidence", async () => {
     expect(button(await html(), "Generate Complete Proposal")).toContain(
       'aria-disabled="false"',
     );
   });
-  it("asks for a saved selection before generation", async () => {
+  it("submits current unsaved selections without a separate confirmation checkbox", async () => {
     data.lineItemsByOpportunityId.clear();
     const markup = await html();
     expect(button(markup, "Generate Complete Proposal")).toContain(
-      'disabled=""',
+      'aria-disabled="false"',
     );
-    expect(markup).toContain("Select services and save the draft");
+    expect(markup).toContain('form="proposal-editor"');
+    expect(markup).not.toContain('name="confirmCompleteProposal"');
   });
-  it("explains blocked automatic copy for manual unrelated services instead of suggesting generation is available", async () => {
+  it("allows correcting a saved unrelated service in the current form before server validation", async () => {
     data.services[0].name = "Logo Design";
     data.services[0].description = "Illustrative unrelated catalog scope";
-    data.services[0].approvedScope!.deliverables = "Design an approved agency logo.";
+    data.services[0].approvedScope!.deliverables =
+      "Design an approved agency logo.";
     const markup = await html();
     expect(button(markup, "Generate Complete Proposal")).toContain(
-      'disabled=""',
+      'aria-disabled="false"',
     );
-    expect(markup).toContain(
-      "Complete generation needs approved catalog scope",
-    );
+    expect(markup).toContain("Generate saves your current selections");
   });
   it.each(["summary", "scope", "nextStep"] as const)(
-    "preserves existing %s by disabling AI replacement",
+    "allows filling empty fields while preserving existing %s",
     async (field) => {
       data.proposal[field] = "Human-approved text";
       const markup = await html();
-      expect(markup).toContain("Saved text is preserved.");
+      expect(markup).toContain("only empty text fields receive generated copy");
       expect(button(markup, "Generate Complete Proposal")).toContain(
-        'disabled=""',
+        'aria-disabled="false"',
       );
     },
   );
-  it("requires saving Ready before delivery", async () => {
+  it("offers one explicit Ready approval and preparation action", async () => {
     const markup = await html();
-    expect(button(markup, "Prepare client-ready version")).toContain(
-      'disabled=""',
-    );
-    expect(markup).toContain("save with status Ready");
+    expect(
+      button(markup, "Save as Ready &amp; Prepare Client Version"),
+    ).toContain('aria-disabled="false"');
+    expect(
+      button(markup, "Save as Ready &amp; Prepare Client Version"),
+    ).toContain('value="prepare"');
   });
   it("enables delivery for a consistent saved Ready proposal without creating any snapshot", async () => {
     data.proposal.status = "ready";
     data.proposal.summary = "Manually reviewed summary";
     data.proposal.scope = "Manually agreed scope";
-    expect(button(await html(), "Prepare client-ready version")).toContain(
-      'aria-disabled="false"',
-    );
+    expect(
+      button(await html(), "Save as Ready &amp; Prepare Client Version"),
+    ).toContain('aria-disabled="false"');
   });
   it.each(["summary", "scope", "lines", "price"])(
-    "blocks delivery with actionable saved %s issue",
+    "shows saved %s issue while allowing corrected form submission",
     async (kind) => {
       data.proposal.status = "ready";
       data.proposal.summary = "Manually reviewed summary";
@@ -136,9 +146,9 @@ describe("saved proposal action eligibility", () => {
       if (kind === "lines") data.lineItemsByOpportunityId.clear();
       if (kind === "price") data.proposal.total = 999;
       const markup = await html();
-      expect(button(markup, "Prepare client-ready version")).toContain(
-        'disabled=""',
-      );
+      expect(
+        button(markup, "Save as Ready &amp; Prepare Client Version"),
+      ).toContain('aria-disabled="false"');
       expect(markup).toContain("Resolve the issue below");
     },
   );

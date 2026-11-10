@@ -65,6 +65,7 @@ export default async function ServicesPage({
       <section className="rounded-md border border-border bg-white p-6 shadow-sm">
         <h2 className="mb-5 text-lg font-semibold text-ink">Add service</h2>
         <ServiceForm
+          key={services.length}
           scopeAvailable={scopeAvailable}
           locale={locale}
           action={createServiceAction}

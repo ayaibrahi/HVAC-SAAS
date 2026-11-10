@@ -1,4 +1,5 @@
 import "server-only";
+import { proposalReadyProblem } from "./readiness";
 import { randomUUID } from "node:crypto";
 
 import type { Audit } from "@/domain/audits/types";
@@ -209,21 +210,9 @@ export async function updateProposalDraft(input: UpdateProposalInput) {
 
   assertProposalAccess(access);
 
-  if (input.status === "ready" && input.lineItems.length === 0) {
-    throw new AppError(
-      "Select at least one opportunity before marking ready.",
-      422,
-    );
-  }
-
-  if (
-    input.status === "ready" &&
-    (input.summary.trim().length === 0 || input.scope.trim().length === 0)
-  ) {
-    throw new AppError(
-      "Summary and scope are required before marking ready.",
-      422,
-    );
+  if (input.status === "ready") {
+    const problem = proposalReadyProblem(input);
+    if (problem) throw new AppError(problem, 422);
   }
 
   const preparedLines = await prepareProposalLines({
@@ -305,6 +294,7 @@ export async function applyProposalAiDraft(input: {
   nextStep: string;
   metadata: Record<string, Json>;
   generationToken?: string;
+  fillEmptyOnly?: boolean;
 }) {
   const { supabase, agency } = await requireCurrentAgency();
   const proposal = await getProposalForAgency(
@@ -334,11 +324,14 @@ export async function applyProposalAiDraft(input: {
     );
   }
 
+  const fillEmptyOnly =
+    input.fillEmptyOnly === true && Boolean(input.generationToken);
   if (
     proposal.status !== "draft" ||
-    proposal.summary.trim() ||
-    proposal.scope.trim() ||
-    proposal.nextStep.trim()
+    (!fillEmptyOnly &&
+      (proposal.summary.trim() ||
+        proposal.scope.trim() ||
+        proposal.nextStep.trim()))
   ) {
     throw new AppError(
       "Existing proposal text is preserved. Edit it manually, or save an empty draft before requesting new AI copy.",
@@ -355,9 +348,16 @@ export async function applyProposalAiDraft(input: {
   let write = admin
     .from("proposals")
     .update({
-      summary: input.summary,
-      scope: input.scope,
-      next_step: input.nextStep,
+      summary:
+        fillEmptyOnly && proposal.summary.trim()
+          ? proposal.summary
+          : input.summary,
+      scope:
+        fillEmptyOnly && proposal.scope.trim() ? proposal.scope : input.scope,
+      next_step:
+        fillEmptyOnly && proposal.nextStep.trim()
+          ? proposal.nextStep
+          : input.nextStep,
       content: content as Json,
     })
     .eq("id", proposal.id)
@@ -385,6 +385,7 @@ export async function applyProposalAiDraft(input: {
 export async function claimCompleteProposalGeneration(
   proposalId: string,
   expectedUpdatedAt: string,
+  fillEmptyOnly = false,
 ) {
   const { supabase, agency } = await requireCurrentAgency();
   const proposal = await getProposalForAgency(proposalId, agency.id, supabase);
@@ -392,9 +393,14 @@ export async function claimCompleteProposalGeneration(
     !proposal ||
     proposal.updatedAt !== expectedUpdatedAt ||
     proposal.status !== "draft" ||
-    proposal.summary.trim() ||
-    proposal.scope.trim() ||
-    proposal.nextStep.trim()
+    (!fillEmptyOnly &&
+      (proposal.summary.trim() ||
+        proposal.scope.trim() ||
+        proposal.nextStep.trim())) ||
+    (fillEmptyOnly &&
+      proposal.summary.trim() &&
+      proposal.scope.trim() &&
+      proposal.nextStep.trim())
   ) {
     throw new AppError(
       "The saved draft changed. Reload before generation; existing text is preserved.",

@@ -1,6 +1,9 @@
 import type { Locale } from "@/lib/ui/preferences";
 
 const english = {
+  generateCurrent:
+    "Generate saves your current selections, approved service scope and prices as a Draft, then requests AI copy. Clicking confirms these selections. Written proposal text is preserved; only empty text fields receive generated copy.",
+  saveReadyPrepare: "Save as Ready & Prepare Client Version",
   savedProposals: "Saved proposals",
   saved: "Proposal saved. Refreshing the saved preview.",
   editsPreserved: "Your edits are still in this form.",
@@ -27,9 +30,9 @@ const english = {
   sourceNote:
     "This proposal keeps its original scan. Business results may show a newer scan.",
   workflow: "Prepare your proposal",
-  chooseWorkStep: "1. Choose work and prices; save Draft.",
-  editCopyStep: "2. Generate or edit copy; review and save Ready.",
-  approveStep: "3. Prepare a client-ready version.",
+  chooseWorkStep: "1. Choose work and prices.",
+  editCopyStep: "2. Generate or write copy, then review.",
+  approveStep: "3. Save as Ready & Prepare Client Version.",
   draftGuidance:
     "Draft: your work stays private until you prepare a client-ready version and choose to share it.",
   readyGuidance:
@@ -44,10 +47,10 @@ const english = {
   saveStep:
     "Save and review the proposal. Choose Ready and save again when the content and prices are final.",
   emptyDraft:
-    "Nothing is selected yet. Choose work below and save; the total reflects saved selections only.",
+    "Nothing is saved yet. Choose work below, then Generate Complete Proposal or save manually. The preview total reflects saved selections only.",
   savedPreview: "Saved proposal preview",
   savedPreviewNote:
-    "Save changes to update this preview and its totals. AI copy uses saved selections, not unsaved edits.",
+    "This preview shows saved values. Generate Complete Proposal saves your current selections first; Save as Ready & Prepare Client Version saves your reviewed content before preparation.",
   generate: "Generate summary and scope (optional)",
   generating: "Generating...",
   aiSaveFirst:
@@ -62,7 +65,7 @@ const english = {
   suggestionApplied:
     "Suggested copy added to empty fields only. Review, edit and save when ready.",
   aiPreserve:
-    "Saved text is preserved. Edit it manually; AI generation requires an empty Draft.",
+    "Saved text is preserved. AI fills only empty fields in a Draft. Review completed text and use Save as Ready & Prepare Client Version.",
   saveBeforeAi:
     "Save your current edits before requesting AI copy. Unsaved text and selections are not replaced.",
   noServices:
@@ -112,7 +115,7 @@ const english = {
   prepare: "Prepare client-ready version",
   preparing: "Preparing version...",
   readyRequired:
-    "Select at least one service, add a summary and scope, then save with status Ready to prepare a client-ready version.",
+    "Select at least one service and add Summary and Scope. Then use Save as Ready & Prepare Client Version to approve and prepare the current form in one step.",
   currentVersion: "Current client-ready version",
   noVersion: "No client-ready version has been prepared yet.",
   versionHistory: "Previous versions",
@@ -148,6 +151,9 @@ const english = {
 export type ProposalCopy = Record<keyof typeof english, string>;
 
 const arabic: ProposalCopy = {
+  generateCurrent:
+    "يحفظ زر الإنشاء اختياراتك الحالية ونطاق الخدمات المعتمد والأسعار كمسودة ثم يطلب نصًا بالذكاء الاصطناعي. الضغط يؤكد هذه الاختيارات. يُحافظ على نص العرض الذي كتبته، ويُضاف النص المُنشأ إلى الحقول الفارغة فقط.",
+  saveReadyPrepare: "احفظ كجاهز وأعدّ نسخة العميل",
   savedProposals: "العروض المحفوظة",
   saved: "تم حفظ العرض. جارٍ تحديث المعاينة المحفوظة.",
   editsPreserved: "تعديلاتك ما زالت موجودة في هذا النموذج.",
@@ -172,9 +178,9 @@ const arabic: ProposalCopy = {
   businessResults: "افتح نتائج النشاط",
   sourceNote: "يحتفظ هذا العرض بفحصه الأصلي. قد تعرض نتائج النشاط فحصًا أحدث.",
   workflow: "جهّز عرض الخدمات",
-  chooseWorkStep: "١. اختر العمل والأسعار واحفظ المسودة.",
-  editCopyStep: "٢. أنشئ النص أو حرّره وراجعه ثم احفظ بالحالة جاهز.",
-  approveStep: "٣. أعدّ نسخة جاهزة للعميل.",
+  chooseWorkStep: "١. اختر العمل والأسعار.",
+  editCopyStep: "٢. أنشئ النص أو اكتبه ثم راجعه.",
+  approveStep: "٣. احفظ كجاهز وأعدّ نسخة العميل.",
   draftGuidance:
     "مسودة: يبقى عملك خاصًا حتى تُعدّ نسخة جاهزة للعميل وتختار مشاركتها.",
   readyGuidance:
@@ -187,10 +193,10 @@ const arabic: ProposalCopy = {
   saveStep:
     "احفظ العرض وراجعه. اختر الحالة جاهز واحفظ مجددًا بعد اعتماد المحتوى والأسعار.",
   emptyDraft:
-    "لم تُختر أي خدمة بعد. اختر العمل أدناه واحفظه؛ يعكس الإجمالي الاختيارات المحفوظة فقط.",
+    "لم تُحفظ اختيارات بعد. اختر العمل أدناه ثم أنشئ العرض أو احفظ يدويًا. يعكس إجمالي المعاينة الاختيارات المحفوظة فقط.",
   savedPreview: "معاينة العرض المحفوظ",
   savedPreviewNote:
-    "احفظ التعديلات لتحديث المعاينة والإجماليات. يستخدم الذكاء الاصطناعي الاختيارات المحفوظة، لا التعديلات غير المحفوظة.",
+    "تعرض المعاينة القيم المحفوظة. يحفظ زر إنشاء العرض اختياراتك الحالية أولًا؛ ويحفظ زر الإعداد كجاهز النص الذي راجعته قبل إعداد نسخة العميل.",
   generate: "إعداد الملخص ونطاق العمل (اختياري)",
   generating: "جارٍ الإعداد...",
   aiSaveFirst:
@@ -205,7 +211,7 @@ const arabic: ProposalCopy = {
   suggestionApplied:
     "أُضيف النص المقترح إلى الحقول الفارغة فقط. راجعه وعدّله واحفظه عندما تكون جاهزًا.",
   aiPreserve:
-    "يُحفظ النص السابق دون استبدال. عدّله يدويًا؛ يتطلب إنشاء نص بالذكاء الاصطناعي مسودة فارغة.",
+    "يُحفظ النص المكتوب دون استبدال. يملأ الذكاء الاصطناعي الحقول الفارغة فقط في المسودة. إذا اكتملت الحقول، راجع النص واحفظ العرض كجاهز لإعداد نسخة العميل.",
   saveBeforeAi:
     "احفظ تعديلاتك الحالية قبل طلب نص بالذكاء الاصطناعي. لا تُستبدل النصوص والاختيارات غير المحفوظة.",
   noServices: "أضف خدمة نشطة واحدة على الأقل قبل اختيار فرص العرض.",
@@ -254,7 +260,7 @@ const arabic: ProposalCopy = {
   prepare: "إعداد نسخة جاهزة للعميل",
   preparing: "جارٍ إعداد النسخة...",
   readyRequired:
-    "اختر خدمة واحدة على الأقل وأضف الملخص ونطاق العمل، ثم احفظ بالحالة جاهز لإعداد نسخة العميل.",
+    "اختر خدمة واحدة على الأقل وأضف الملخص ونطاق العمل. ثم استخدم زر الحفظ كجاهز وإعداد نسخة العميل لاعتماد النموذج الحالي وإعداد النسخة بخطوة واحدة.",
   currentVersion: "نسخة العميل الحالية",
   noVersion: "لم تُعدّ نسخة جاهزة للعميل بعد.",
   versionHistory: "النسخ السابقة",

@@ -17,15 +17,26 @@ type DeliverySnapshotRow =
 type DeliverySnapshotRpcArgs =
   Database["public"]["Functions"]["create_proposal_delivery_snapshot"]["Args"];
 
-export async function createDeliverySnapshotForProposal(proposalId: string) {
+export async function createDeliverySnapshotForProposal(
+  proposalId: string,
+  expectedUpdatedAt?: string,
+) {
   const { agency, user } = await requireCurrentAgency();
   const data = await getProposalBuilderData(proposalId);
+  if (expectedUpdatedAt && data.proposal.updatedAt !== expectedUpdatedAt) {
+    throw new AppError(
+      "The proposal changed after your Ready approval. Reload and review before preparing a client version.",
+      409,
+    );
+  }
   const payload = buildDeliverySnapshotPayload({
     agency,
     userId: user.id,
     proposal: data.proposal,
     prospect: data.prospect,
-    proposalOpportunities: [...data.proposalOpportunitiesByOpportunityId.values()],
+    proposalOpportunities: [
+      ...data.proposalOpportunitiesByOpportunityId.values(),
+    ],
     lineItems: [...data.lineItemsByOpportunityId.values()],
   });
   const admin = createSupabaseAdminClient();
@@ -45,7 +56,10 @@ export async function createDeliverySnapshotForProposal(proposalId: string) {
   });
 
   if (!snapshot) {
-    throw new AppError("Delivery snapshot could not be loaded after creation.", 500);
+    throw new AppError(
+      "Delivery snapshot could not be loaded after creation.",
+      500,
+    );
   }
 
   return snapshot;

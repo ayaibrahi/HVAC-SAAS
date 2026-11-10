@@ -1,6 +1,10 @@
 import type { Locale } from "@/lib/ui/preferences";
 
 const english = {
+  starterTemplates: "Starter HVAC service scopes",
+  starterHelp:
+    "Review the text below. Use & approve fills this form with that exact scope and clears the three optional fields. Prices stay unchanged; existing service names stay unchanged. Nothing is saved until you save the service. Editing the scope requires approval again.",
+  useStarter: "Use & approve scope",
   generate: "Generate Complete Proposal",
   generating: "Preparing complete draft...",
   confirm:
@@ -26,6 +30,10 @@ const english = {
 };
 
 const arabic: Record<keyof typeof english, string> = {
+  starterTemplates: "قوالب نطاق خدمات التدفئة والتكييف",
+  starterHelp:
+    "راجع النص أدناه. يملأ زر الاستخدام والاعتماد النموذج بهذا النطاق ويُفرغ الحقول الثلاثة الاختيارية. لا تتغير الأسعار أو أسماء الخدمات الموجودة. لا يُحفظ شيء حتى تحفظ الخدمة. تعديل النطاق يتطلب إعادة اعتماده.",
+  useStarter: "استخدم النطاق واعتمده",
   generate: "إنشاء عرض خدمات كامل",
   generating: "جارٍ إعداد المسودة الكاملة...",
   confirm:

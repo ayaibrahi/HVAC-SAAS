@@ -337,18 +337,18 @@ describe("website findings to real proposal action and editor (mocked storage)",
         `lang="${locale}" dir="${locale === "ar" ? "rtl" : "ltr"}"`,
       );
       expect(html).toContain(
-        locale === "en" ? "Nothing is selected yet." : "لم تُختر أي خدمة بعد.",
+        locale === "en" ? "Nothing is saved yet." : "لم تُحفظ اختيارات بعد.",
       );
       expect(html).toContain(
         locale === "en"
-          ? "Save changes to update this preview"
-          : "احفظ التعديلات لتحديث المعاينة",
+          ? "This preview shows saved values"
+          : "تعرض المعاينة القيم المحفوظة",
       );
       expect(html).toMatch(
         /disabled=""[^>]*>(?:Generate Complete Proposal|إنشاء عرض خدمات كامل)/,
       );
       expect(html).toMatch(
-        /disabled=""[^>]*>(?:Prepare client-ready version|إعداد نسخة جاهزة للعميل)/,
+        /aria-disabled="false"[^>]*>(?:Save as Ready &amp; Prepare Client Version|احفظ كجاهز وأعدّ نسخة العميل)/,
       );
       expect(html).toContain(
         `/dashboard/prospects?prospect=${prospectId}#website-results`,
@@ -527,7 +527,7 @@ describe("website findings to real proposal action and editor (mocked storage)",
     });
     const readyHtml = await editorHtml(proposalId);
     expect(readyHtml).toMatch(
-      /aria-disabled="false">Prepare client-ready version/,
+      /aria-disabled="false"[^>]*>Save as Ready &amp; Prepare Client Version/,
     );
     expect(rows.proposals[0].total_amount).toBe(500);
     expect(inserts).toHaveBeenCalledTimes(1);
