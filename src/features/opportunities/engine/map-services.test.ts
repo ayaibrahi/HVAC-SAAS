@@ -24,6 +24,8 @@ describe("mapOpportunityToAgencyService", () => {
     service.approvedScope!.exclusions = "Online booking is excluded.";
     expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBeNull();
     service.approvedScope!.exclusions = "";
+    expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBe(service.id);
+    service.approvedScope!.deliverables = "";
     expect(mapOpportunityToAgencyService(makeBookingOpportunity(), [service])).toBeNull();
   });
   it("does not match a negated approved appointment-link deliverable", () => {

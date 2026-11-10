@@ -140,23 +140,28 @@ describe("complete proposal grounding and commercial integrity", () => {
       expect(summary).toContain("analyzed page");
     }
   });
-  it.each([
-    "deliverables",
-    "exclusions",
-    "clientInputs",
-    "completionChecks",
-  ] as const)(
-    "requires nonempty approved %s, not a catalog description",
-    (field) => {
-      const data = makeCompleteProposalBuilder();
-      data.services[0].approvedScope![field] = "";
-      expect(() => createCompleteProposalInput(data)).toThrow(
-        "Approve deliverables",
-      );
-      data.services[0].approvedScope = null;
-      expect(() => createCompleteProposalInput(data)).toThrow();
-    },
-  );
+  it("requires approved deliverables, not a catalog description", () => {
+    const data = makeCompleteProposalBuilder();
+    data.services[0].approvedScope!.deliverables = "";
+    expect(() => createCompleteProposalInput(data)).toThrow("Approve included deliverables");
+  });
+  it("allows empty optional scope through complete generation and omits blank headings", async () => {
+    const data = makeCompleteProposalBuilder();
+    Object.assign(data.services[0].approvedScope!, { exclusions: "", clientInputs: "", completionChecks: "" });
+    const input = createCompleteProposalInput(data);
+    const draft = firstProposalCopy(buildProposalCopyOptions(input));
+    const generate = vi.fn(async () => draft);
+    expect(await generateValidatedProposalAiDraft(input, { metadata, generateProposalDraft: generate })).toEqual(draft);
+    expect(generate).toHaveBeenCalledOnce();
+    expect(draft.scope).toContain(data.services[0].approvedScope!.deliverables);
+    expect(draft.scope).not.toMatch(/Exclusions and qualifications|Client inputs and access|Completion checks/);
+    const snapshot = makeLocalContentSnapshot(data, draft);
+    expect(mapDeliverySnapshotToPublicView(snapshot).scope).toBe(draft.scope);
+    expect(renderProposalPdf(buildProposalPdfView(snapshot)).subarray(0, 5).toString()).toBe("%PDF-");
+    expect(snapshot.scope).toBe(draft.scope);
+    expect(data.proposal.status).toBe("draft");
+    expect(data.proposal.total).toBe(500);
+  });
   it.each([
     "unverified",
     "failed",

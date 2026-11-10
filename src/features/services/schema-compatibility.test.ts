@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { requireCurrentAgency } from "@/features/agencies/data";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   createAgencyService,
+  getAgencyService,
   isApprovedServiceScopeAvailable,
   updateAgencyService,
 } from "./data";
@@ -25,6 +27,7 @@ const query = {
   insert,
   update,
   single: saved,
+  maybeSingle: saved,
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,6 +36,7 @@ beforeEach(() => {
   insert.mockReturnValue(query);
   update.mockReturnValue(query);
   probe.mockResolvedValue({ error: null });
+  vi.mocked(createSupabaseServerClient).mockResolvedValue({ from: vi.fn(() => query) } as unknown as Awaited<ReturnType<typeof createSupabaseServerClient>>);
   const service = makeCompleteProposalBuilder().services[0];
   saved.mockResolvedValue({
     data: {
@@ -67,6 +71,20 @@ function input(scope: "approved" | "null" | "omitted") {
 }
 
 describe("service writes on deployed and pending schemas", () => {
+  it("round-trips approved deliverables and normalized optional fields without changing price", async () => {
+    const parsed = input("approved");
+    Object.assign(parsed.approvedScope!, { exclusions: "", clientInputs: "", completionChecks: "" });
+    const row = (await saved()).data;
+    saved.mockResolvedValue({ data: { ...row, approved_scope: parsed.approvedScope }, error: null });
+    const created = await createAgencyService(parsed);
+    await updateAgencyService(row.id, parsed);
+    const reopened = await getAgencyService(row.id, row.agency_id);
+    expect(created.approvedScope).toEqual(parsed.approvedScope);
+    expect(reopened?.approvedScope).toEqual(parsed.approvedScope);
+    expect(reopened?.price).toBe(500);
+    expect(update.mock.calls[0][0].approved_scope).toEqual(parsed.approvedScope);
+    expect(eq).toHaveBeenCalledWith("agency_id", row.agency_id);
+  });
   it.each(["42703", "PGRST204"])(
     "recognizes missing scope column %s using a tenant-scoped zero-row query",
     async (code) => {

@@ -2,7 +2,7 @@ name: One-shot isolated worker application acceptance
 on:
   push:
     branches: [codex/rendered-audit-integration]
-    paths: [workers/rendered-audit/run-20261107-process-inspection.trigger]
+    paths: [workers/rendered-audit/run-20261110-optional-scope-matching.trigger]
 permissions:
   contents: read
 jobs:
@@ -20,10 +20,10 @@ jobs:
         shell: bash
         run: |
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
-          [[ "$(git show -s --format=%P HEAD)" == '346797bf963f85621feabd398251daec7027735e' ]]
-          marker=workers/rendered-audit/run-20261107-process-inspection.trigger
+          [[ "$(git show -s --format=%P HEAD)" == 'a3ee0e170bf4b5294d44c00a40e63c1d608ebaa7' ]]
+          marker=workers/rendered-audit/run-20261110-optional-scope-matching.trigger
           [[ "$(git diff-tree --no-commit-id --name-status -r HEAD -- "$marker")" == $'A\t'"$marker" ]]
-          [[ "$(cat "$marker")" == 'scanvoro-broker-only-process-inspection-20261107' ]]
+          [[ "$(cat "$marker")" == 'scanvoro-broker-only-optional-scope-matching-20261110' ]]
       - name: Install locked test dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund --fetch-retries=0 --fetch-timeout=30000
       - name: Install locked experimental host-test dependencies without lifecycle scripts

@@ -32,6 +32,16 @@ function form(approve: boolean) {
   return fields;
 }
 describe("explicit reusable catalog scope approval", () => {
+  it.each(["", "   ", null])("saves approved deliverables with optional fields %s", async value => {
+    const input = form(true);
+    for (const field of ["exclusions", "clientInputs", "completionChecks"]) {
+      if (value === null) input.delete(field); else input.set(field, value);
+    }
+    await expect(updateServiceAction("owned-service", input)).rejects.toThrow("Service+updated");
+    expect(updateAgencyService).toHaveBeenCalledWith("owned-service", expect.objectContaining({
+      price: 500, approvedScope: { deliverables: input.get("deliverables"), exclusions: "", clientInputs: "", completionChecks: "" },
+    }));
+  });
   it.each(["en", "ar"] as const)(
     "does not offer unpersistable scope approval on the old schema in %s",
     (locale) => {
@@ -72,12 +82,12 @@ describe("explicit reusable catalog scope approval", () => {
       expect.objectContaining({ approvedScope: null }),
     );
   });
-  it.each(["deliverables", "exclusions", "clientInputs", "completionChecks"])(
+  it.each(["deliverables"])(
     "rejects missing approved %s instead of inserting partial scope",
     async (field) => {
       const input = form(true);
       input.delete(field);
-      await expect(createServiceAction(input)).rejects.toThrow("error=");
+      await expect(createServiceAction(input)).rejects.toThrow("Please+enter+the+included+deliverables+before+approving+this+scope.");
       expect(createAgencyService).not.toHaveBeenCalled();
     },
   );
@@ -90,6 +100,7 @@ describe("explicit reusable catalog scope approval", () => {
       );
       expect(html).toContain(copy.approveScope);
       expect(html).toContain(copy.deliverables);
+      expect(html.split(`(${copy.optional})`)).toHaveLength(4);
       expect(html).toContain('maxLength="800"');
     },
   );

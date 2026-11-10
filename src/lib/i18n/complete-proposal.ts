@@ -11,8 +11,9 @@ const english = {
     "Complete generation needs approved catalog scope and consistent saved prices. Review each selected service in the catalog; save selections first. Manual editing and suggested copy remain available.",
   catalogScope: "Reusable proposal scope",
   scopeHelp:
-    "Catalog descriptions are not commitments. Enter the exact work you approve for future proposal drafts. Saving without approval removes the reusable approval; saved proposals and delivery versions do not change.",
+    "Only included deliverables are required for approval; the other three scope fields are optional. Catalog descriptions are not commitments. Enter the exact work you approve for future proposal drafts. Saving without approval removes the reusable approval; saved proposals and delivery versions do not change.",
   deliverables: "Included deliverables",
+  optional: "Optional",
   exclusions: "Exclusions and qualifications",
   clientInputs: "Required client inputs and access",
   completionChecks: "Completion checks",
@@ -35,8 +36,9 @@ const arabic: Record<keyof typeof english, string> = {
     "يتطلب الإنشاء الكامل نطاقًا معتمدًا من الدليل وأسعارًا محفوظة ومتسقة. راجع كل خدمة مختارة في الدليل واحفظ الاختيارات أولًا. يبقى التحرير اليدوي والنص المقترح متاحين.",
   catalogScope: "نطاق عروض الخدمات القابل لإعادة الاستخدام",
   scopeHelp:
-    "أوصاف الدليل ليست التزامات. أدخل العمل الذي تعتمده لمسودات العروض المستقبلية. الحفظ دون اعتماد يلغي الاعتماد القابل لإعادة الاستخدام ولا يغيّر العروض أو نسخ التسليم المحفوظة.",
+    "المخرجات المشمولة وحدها مطلوبة للاعتماد؛ حقول النطاق الثلاثة الأخرى اختيارية. أوصاف الدليل ليست التزامات. أدخل العمل الذي تعتمده لمسودات العروض المستقبلية. الحفظ دون اعتماد يلغي الاعتماد القابل لإعادة الاستخدام ولا يغيّر العروض أو نسخ التسليم المحفوظة.",
   deliverables: "المخرجات المشمولة",
+  optional: "اختياري",
   exclusions: "الاستثناءات والشروط",
   clientInputs: "المدخلات والصلاحيات المطلوبة من العميل",
   completionChecks: "معايير التحقق من الإنجاز",

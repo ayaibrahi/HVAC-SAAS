@@ -5,7 +5,7 @@ import { parseRenderedCapture, type RenderedCapture, type RenderedAuditWorker } 
 import { discoverPages, sameSitePage } from "./discovery";
 import { projectRenderedDocument } from "./dom";
 import { evaluateOpportunitiesForAudit } from "@/features/opportunities/engine/evaluate";
-import { makeAudit, makeDetectedSignals } from "@/features/opportunities/test-fixtures";
+import { makeAudit, makeDetectedSignals, makeService } from "@/features/opportunities/test-fixtures";
 import { assertAuditReadyForOpportunityGeneration } from "@/features/opportunities/authorization";
 
 const url = "https://example.com/";
@@ -28,6 +28,26 @@ const fallback = () => vi.fn(async () => ({
 }));
 
 describe("rendered audit integration (no browser or external network)", () => {
+  it.each(["services", "heating"])("only matches missing CTA evidence on sampled pages: %s", async missingCtaPage => {
+    const renderer = worker((pageUrl, viewport) => {
+      const data = capture({ requestedUrl: pageUrl, finalUrl: pageUrl, viewport });
+      data.document.links = new URL(pageUrl).pathname === `/${missingCtaPage}` ? [] :
+        ["services", "contact", "quote", "booking", "heating"].map(page => ({ href: `/${page}`, text: page }));
+      return data;
+    });
+    const result = await inspectRenderedSite({ url, worker: renderer, staticFallback: fallback() });
+    expect(result.pages.map(page => page.url)).toContain(url + "heating");
+    expect(result.skipped).toContainEqual({ url: url + "services", reason: "page_limit" });
+    const service = makeService({ id: "cta-review", name: "Website Conversion Optimization", approvedScope: { deliverables: "Review contact CTA wording.", exclusions: "", clientInputs: "", completionChecks: "" } });
+    const findings = evaluateOpportunitiesForAudit({ audit: makeAudit(makeDetectedSignals(), { websiteUrl: url, normalizedSignals: { renderedAudit: result } }), agencyServices: [service] });
+    const lead = findings.find(finding => finding.ruleKey === "weak_lead_capture");
+    if (missingCtaPage === "services") expect(lead).toBeUndefined();
+    else {
+      expect(lead?.agencyServiceId).toBe(service.id);
+      expect(lead?.evidence.every(evidence => evidence.details.includes(url + "heating"))).toBe(true);
+      expect(findings.find(finding => finding.ruleKey === "missing_online_booking")?.agencyServiceId).not.toBe(service.id);
+    }
+  });
   it("closes the allocated worker if the initial URL is unsupported", async () => {
     const renderer = worker(); const staticFallback = fallback();
     await expect(inspectRenderedSite({ url: "file:///private", worker: renderer, staticFallback })).rejects.toThrow("Unsupported audit URL");

@@ -72,7 +72,7 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
       if (req.url === "/redirect") { res.writeHead(302, { location: "/contact" }).end(); return; }
       res.setHeader("content-type", "text/html");
       const text = "Our heating and cooling technicians provide careful repair and installation for homeowners. We explain available equipment options and help customers understand maintenance needs. Read our service details and contact the team to discuss an appropriate next step for your home. ";
-      const nav = req.url === '/services' ? '' : ['services','contact','quote','booking','heating'].map(p => `<a href="/${p}">${p === 'services' ? 'Services' : p === 'contact' ? 'Contact' : p === 'quote' ? 'Quote' : p === 'booking' ? 'Booking' : 'Heating'}</a>`).join('');
+      const nav = req.url === '/heating' ? '' : ['services','contact','quote','booking','heating'].map(p => `<a href="/${p}">${p === 'services' ? 'Services' : p === 'contact' ? 'Contact' : p === 'quote' ? 'Quote' : p === 'booking' ? 'Booking' : 'Heating'}</a>`).join('');
       const dynamic = req.url === '/' ? `<a href="tel:+15555550100">Call our team</a><button>Request an estimate</button>` : req.url === '/contact' ? '<form>Contact our team<input type="email"><textarea></textarea><button>Send message</button></form>' : req.url === '/booking' ? '<a href="/booking">Schedule appointment</a>' : '';
       const hostile = req.url === '/policy' ? `fetch('https://escape.invalid/'); fetch('/mutate',{method:'POST',body:'denied'}); new WebSocket('wss://fixture.scanvoro.test/'); window.open('/popup'); navigator.serviceWorker.register('/sw.js').catch(()=>{});` : '';
       res.end(`<html><head><title>Fixture HVAC services</title></head><body><main><h1>Heating and cooling services</h1><p>${text.repeat(3)}</p>${nav}<section id="dynamic"></section></main><script>document.getElementById('dynamic').innerHTML=${JSON.stringify(dynamic)};${hostile}</script></body></html>`);
@@ -91,6 +91,7 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
       connection.on("error", reject); connection.end();
     });
     sql(readFileSync("supabase/migrations/202610180001_approved_service_scope.sql", "utf8"));
+    sql(readFileSync("supabase/migrations/202611100001_optional_service_scope_fields.sql", "utf8"));
     // Vanilla PostgreSQL lacks Supabase's provisioned table grants. Grant only
     // the ID column needed by this assertion; the real ownership RLS stays on.
     sql("grant select(id) on public.prospects to authenticated;");
@@ -129,12 +130,25 @@ describe.skipIf(!enabled)("Linux real Chromium / broker / PostgreSQL application
     expect(ui).toContain("inspected: 5"); expect(ui).toContain("not a complete website scan");
     expect(rendered.pages[0].signals?.contactConversion).toMatchObject({ phoneDetected: { value: true } });
     const service = makeService({ agencyId: agency, id: "66666666-6666-4666-8666-666666666666", name: "Website Conversion Optimization", price: 500,
-      approvedScope: { deliverables: "Review contact CTA wording.", exclusions: "Booking integration.", clientInputs: "Approved page.", completionChecks: "Client review." } });
+      approvedScope: { deliverables: "Review contact CTA wording.", exclusions: "", clientInputs: "", completionChecks: "" } });
     sql(`insert into public.agency_services(id,agency_id,name,price,approved_scope) values(${esc(service.id)},${esc(agency)},${esc(service.name)},500,${esc(JSON.stringify(service.approvedScope))}::jsonb);`);
     const savedService = JSON.parse(sql(`select row_to_json(s) from public.agency_services s where id=${esc(service.id)};`));
+    // The disposable database must still reject approval without deliverables.
+    sql(`do $$ begin
+      begin
+        update public.agency_services set approved_scope=jsonb_set(approved_scope,'{deliverables}','""'::jsonb) where id=${esc(service.id)};
+        raise exception 'Empty deliverables unexpectedly accepted';
+      exception when check_violation then null;
+      end;
+    end $$;`);
+    expect(JSON.parse(sql(`select approved_scope from public.agency_services where id=${esc(service.id)};`))).toEqual(service.approvedScope);
     const findings = evaluateOpportunitiesForAudit({ audit: makeAudit(makeDetectedSignals(), { id: row.id, agencyId: agency, websiteUrl: origin, normalizedSignals: row.normalized_signals }),
       agencyServices: [{ ...service, approvedScope: savedService.approved_scope }] });
-    expect(findings.find(f => f.ruleKey === "weak_lead_capture")?.agencyServiceId).toBe(service.id);
+    const leadFinding = findings.find(f => f.ruleKey === "weak_lead_capture");
+    expect(leadFinding, "The sampled heating page lacks a contact CTA").toBeDefined();
+    expect(leadFinding!.evidence.every(e => e.details.includes(origin + "heating"))).toBe(true);
+    expect(leadFinding!.agencyServiceId, "Approved CTA deliverables match with optional fields empty").toBe(service.id);
+    expect(savedService.approved_scope).toEqual(service.approvedScope);
     expect(findings.every(f => f.evidence.every(e => e.details.includes("https://fixture.scanvoro.test/")))).toBe(true);
     expect(findings.find(f => f.ruleKey === "missing_online_booking")?.agencyServiceId).not.toBe(service.id);
     expect(await store.claim({ agencyId: agency, jobId: job.job_id })).toBeNull();

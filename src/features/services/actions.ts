@@ -24,7 +24,7 @@ function serviceFields(formData: FormData) {
     approvedScope:
       formData.get("approveScope") === "on"
         ? {
-            deliverables: formData.get("deliverables"),
+            deliverables: formData.get("deliverables") ?? "",
             exclusions: formData.get("exclusions"),
             clientInputs: formData.get("clientInputs"),
             completionChecks: formData.get("completionChecks"),

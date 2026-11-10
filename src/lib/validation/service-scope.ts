@@ -1,13 +1,15 @@
 import { z } from "zod";
 
 // Contractual text is rejected, never truncated. Re-approval is required on save.
-const scopeText = z.string().trim().min(1).max(800);
+const deliverablesMessage = "Please enter the included deliverables before approving this scope.";
+const scopeText = z.string({ error: deliverablesMessage }).trim().min(1, deliverablesMessage).max(800);
+const optionalScopeText = z.string().trim().max(800).nullish().transform(value => value ?? "");
 export const approvedServiceScopeSchema = z
   .object({
     deliverables: scopeText,
-    exclusions: scopeText,
-    clientInputs: scopeText,
-    completionChecks: scopeText,
+    exclusions: optionalScopeText,
+    clientInputs: optionalScopeText,
+    completionChecks: optionalScopeText,
   })
   .strict();
 

@@ -115,7 +115,9 @@ export function ServiceForm({
             ] as const
           ).map((field) => (
             <label key={field} className="block space-y-2">
-              <span className="text-sm font-medium">{copy[field]}</span>
+              <span className="text-sm font-medium">
+                {copy[field]}{field !== "deliverables" && ` (${copy.optional})`}
+              </span>
               <textarea
                 name={field}
                 defaultValue={service?.approvedScope?.[field] ?? ""}

@@ -213,7 +213,13 @@ export function buildProposalCopyOptions(
               "Approved service scope is required for complete generation.",
               422,
             );
-          return `${item.service.name}\nIncluded deliverables\n${approved.deliverables}\nExclusions and qualifications\n${approved.exclusions}\nClient inputs and access\n${approved.clientInputs}\nCompletion checks\n${approved.completionChecks}`;
+          return [
+            item.service.name,
+            `Included deliverables\n${approved.deliverables}`,
+            approved.exclusions && `Exclusions and qualifications\n${approved.exclusions}`,
+            approved.clientInputs && `Client inputs and access\n${approved.clientInputs}`,
+            approved.completionChecks && `Completion checks\n${approved.completionChecks}`,
+          ].filter(Boolean).join("\n");
         })
         .join("\n\n") +
       "\n\nOnly the deliverables listed here are included. A service title does not add unlisted work. The investment table states the quoted quantities, unit prices, discount and total. Scheduling and any work outside this scope require separate agreement. No performance outcome is promised.";

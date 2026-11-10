@@ -66,6 +66,15 @@ function button(markup: string, label: string) {
   return markup.match(new RegExp(`<button[^>]*>${label}</button>`))?.[0];
 }
 describe("saved proposal action eligibility", () => {
+  it("recognizes approved deliverables with all optional scope fields empty", async () => {
+    data.opportunities = data.opportunities.filter(item => data.lineItemsByOpportunityId.has(item.id));
+    Object.assign(data.services[0].approvedScope!, { exclusions: "", clientInputs: "", completionChecks: "" });
+    const markup = await html();
+    expect(button(markup, "Generate Complete Proposal")).toContain('aria-disabled="false"');
+    expect(markup).toContain("Saved approved scope");
+    expect(markup).not.toContain("No approved reusable scope");
+    expect(markup).not.toContain("Exclusions and qualifications");
+  });
   it("enables complete generation only for saved relevant lines with approved scope, verified evidence and empty Draft text", async () => {
     expect(button(await html(), "Generate Complete Proposal")).toContain(
       'aria-disabled="false"',

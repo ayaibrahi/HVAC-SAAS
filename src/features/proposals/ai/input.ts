@@ -80,7 +80,7 @@ export function createProposalAiInput(input: {
         );
       canonicalEvidence.set(opportunity.id, rule.evidence);
       if (service.approvedScope != null && !readApprovedServiceScope(service.approvedScope)) {
-        throw new AppError("Approve deliverables, exclusions, client inputs and completion checks for every selected service in the catalog first.", 422);
+        throw new AppError("Approve included deliverables for every selected service in the catalog first.", 422);
       }
       if (mapOpportunityToAgencyService(rule, [service]) !== service.id) {
         throw new AppError(

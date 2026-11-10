@@ -67,7 +67,7 @@ export function createCompleteProposalInput(data: ProposalBuilderData) {
     const scope = readApprovedServiceScope(service.approvedScope);
     if (!scope) {
       throw new AppError(
-        "Approve deliverables, exclusions, client inputs and completion checks for every selected service in the catalog first.",
+        "Approve included deliverables for every selected service in the catalog first.",
         422,
       );
     }

@@ -151,7 +151,7 @@ export function OpportunitySelection({
                     "clientInputs",
                     "completionChecks",
                   ] as const
-                ).map((field) => (
+                ).filter((field) => approvedScope[field].trim()).map((field) => (
                   <div key={field}>
                     <dt className="font-medium">{scopeCopy[field]}</dt>
                     <dd dir="auto" className="whitespace-pre-wrap text-muted">
