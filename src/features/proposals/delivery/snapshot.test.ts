@@ -118,6 +118,29 @@ describe("delivery snapshot payload", () => {
       ),
     ).toThrow("line item pricing");
   });
+  it("rejects a legacy Ready proposal with a free selected line", () => {
+    const source = makeSource();
+    source.lineItems[0].unitPrice = source.lineItems[0].lineTotal = 0;
+    source.proposal.subtotal = source.lineItems.reduce(
+      (sum, line) => sum + line.lineTotal,
+      0,
+    );
+    source.proposal.total =
+      source.proposal.subtotal - source.proposal.discountAmount;
+    expect(() => buildDeliverySnapshotPayload(source)).toThrow(
+      "unit price greater than zero",
+    );
+  });
+  it("rejects a fully discounted Ready proposal before snapshot creation", () => {
+    const source = makeSource();
+    source.proposal.discountType = "fixed";
+    source.proposal.discountAmount = source.proposal.discountValue =
+      source.proposal.subtotal;
+    source.proposal.total = 0;
+    expect(() => buildDeliverySnapshotPayload(source)).toThrow(
+      "total investment must be greater than zero",
+    );
+  });
 
   it("rejects line items saved after the proposal timestamp", () => {
     expect(() =>
@@ -139,7 +162,9 @@ describe("delivery snapshot payload", () => {
     source.lineItems[0].unitPrice = 600;
 
     expect(payload.title).toBe("Proposal for Example HVAC");
-    expect(payload.summary).toBe("Improve booking flow and service visibility.");
+    expect(payload.summary).toBe(
+      "Improve booking flow and service visibility.",
+    );
     expect(payload.lineItems[0].serviceName).toBe("Online Booking Integration");
     expect(payload.lineItems[0].unitPrice).toBe(500);
   });
@@ -175,13 +200,15 @@ describe("delivery snapshot payload", () => {
   });
 });
 
-function makeSource(overrides: {
-  proposal?: Partial<Proposal>;
-  prospect?: Partial<Prospect>;
-  agency?: Partial<Agency>;
-  proposalOpportunities?: Array<Partial<ProposalOpportunity>>;
-  lineItems?: Array<Partial<ProposalLineItem>>;
-} = {}): DeliverySnapshotSource {
+function makeSource(
+  overrides: {
+    proposal?: Partial<Proposal>;
+    prospect?: Partial<Prospect>;
+    agency?: Partial<Agency>;
+    proposalOpportunities?: Array<Partial<ProposalOpportunity>>;
+    lineItems?: Array<Partial<ProposalLineItem>>;
+  } = {},
+): DeliverySnapshotSource {
   const proposal = makeProposal(overrides.proposal);
   const prospect = makeProspect(overrides.prospect);
   const proposalOpportunities = [
@@ -305,7 +332,9 @@ function makeProposalOpportunity(
   };
 }
 
-function makeLineItem(overrides: Partial<ProposalLineItem> = {}): ProposalLineItem {
+function makeLineItem(
+  overrides: Partial<ProposalLineItem> = {},
+): ProposalLineItem {
   return {
     id: "99999999-9999-4999-8999-000000000001",
     proposalId,

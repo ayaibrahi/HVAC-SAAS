@@ -1,5 +1,6 @@
 import "server-only";
 import { proposalReadyProblem } from "./readiness";
+import { defaultProposalTitle } from "./presentation";
 import { randomUUID } from "node:crypto";
 
 import type { Audit } from "@/domain/audits/types";
@@ -100,7 +101,7 @@ export async function createProposalDraft(input: CreateProposalInput) {
   assertAuditCanStartProposal(access);
 
   const title =
-    input.title?.trim() || `Proposal for ${access.prospect.businessName}`;
+    input.title?.trim() || defaultProposalTitle(access.prospect.businessName);
   const admin = createSupabaseAdminClient();
   const { data, error } = await admin
     .from("proposals")
@@ -229,6 +230,13 @@ export async function updateProposalDraft(input: UpdateProposalInput) {
     discountType: input.discountType,
     discountValue: input.discountValue,
   });
+  if (input.status === "ready") {
+    const problem = proposalReadyProblem({
+      ...input,
+      total: centsToAmount(totals.totalCents),
+    });
+    if (problem) throw new AppError(problem, 422);
+  }
   const admin = createSupabaseAdminClient();
 
   const { error: saveError } = await admin.rpc("save_proposal_draft", {

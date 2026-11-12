@@ -60,7 +60,7 @@ describe("proposal PDF renderer", () => {
     });
     const text = extractPdfInspectableText(renderProposalPdf(view));
     expect(text).toContain("Online Booking Integration");
-    expect(text).toContain("A service title does not add unlisted work.");
+    expect(text).not.toContain("A service title does not add unlisted work.");
     expect(text).toContain("Service overview - see Scope for included work:");
     expect(text).toContain("Additional details");
     expect(text).not.toMatch(

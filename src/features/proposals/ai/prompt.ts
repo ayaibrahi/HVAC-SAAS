@@ -1,8 +1,8 @@
 import type { ProposalAiInput } from "@/features/proposals/ai/types";
 import { buildProposalCopyOptions } from "../sales-content";
 
-export const PROPOSAL_DRAFT_PROMPT_VERSION = "v4";
-export const PROPOSAL_COMPLETE_PROMPT_VERSION = "v7-complete";
+export const PROPOSAL_DRAFT_PROMPT_VERSION = "v5";
+export const PROPOSAL_COMPLETE_PROMPT_VERSION = "v8-complete";
 
 export const PROPOSAL_DRAFT_SYSTEM_PROMPT = [
   "You are drafting internal proposal content for an HVAC agency.",
@@ -13,7 +13,7 @@ export const PROPOSAL_DRAFT_SYSTEM_PROMPT = [
   "Do not mention a service unless it is one of the selected agency services in the input.",
   "The analyzed URL represents only the analyzed page. Preserve page-scoped language and never claim the business does not offer something across the whole website.",
   "Existing AI insights are not additional evidence: do not repeat website-wide absence claims such as 'the website currently lacks'. Only describe non-detection on the analyzed page, and phrase potential benefits conditionally.",
-  "Draft concise client-facing proposal content. Keep wording cautious and evidence-grounded.",
+  "Use confident, customer-centered HVAC language grounded in page observations. Frame easier navigation and contact as plausible benefits, never measured outcomes.",
   "The server supplies approvedCopyOptions for the observation, business relevance, selected service, scope to confirm and next step narrative.",
   "Approved wording is not approved implementation scope. Catalog descriptions are general capabilities, not client commitments. Preserve all missing-scope placeholders and agency-confirmation notices.",
   "Choose exactly one complete string from each corresponding approvedCopyOptions field. Copy it verbatim; do not add, paraphrase, combine or remove text.",
@@ -28,6 +28,7 @@ export const PROPOSAL_COMPLETE_SYSTEM_PROMPT = [
   "Only contractScope represents agency-approved deliverables, exclusions, client inputs and completion checks. Catalog descriptions and prior AI insights are not contractual authority.",
   "Use only selected real agency services and verified observations of the analyzed page. HTML non-detection does not establish a functional defect, whole-site absence or unavailable business service.",
   "Never invent services, implementation scope, revenue, percentages, guarantees, credentials, testimonials or deadlines. Pricing calculations and totals are supplied separately by the application, not by you.",
+  "The approved copy connects HVAC customer decisions to observed page evidence. Preserve the single Scope & Terms Note; do not add repetitive caveats, expand scope or claim measured outcomes.",
   "The result is a draft for human review, not a Ready proposal or client authorization. Return only JSON matching the strict output schema.",
 ].join("\n");
 

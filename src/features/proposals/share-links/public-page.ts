@@ -1,3 +1,4 @@
+import { serviceDisplayName } from "../presentation";
 import type { DeliverySnapshotPublicView } from "@/domain/proposals/types";
 import { formatSnapshotMoney } from "@/features/proposals/pdf/format";
 import { renderPublicAgencyLogo } from "./agency-logo";
@@ -25,8 +26,8 @@ export function renderPublicProposalHtml(view: DeliverySnapshotPublicView) {
         ${view.prospect.websiteUrl ? `<p class="website">${escapeHtml(view.prospect.websiteUrl)}</p>` : ""}
       </header>
 
-      ${renderSection("Summary", view.summary)}
-      ${renderSection("Scope", view.scope)}
+      ${renderSection("Executive summary", view.summary)}
+      ${renderSection("Scope and deliverables", view.scope)}
 
       <section>
         <h2>Services</h2>
@@ -47,7 +48,7 @@ export function renderPublicProposalHtml(view: DeliverySnapshotPublicView) {
       </section>
 
       <section class="pricing">
-        <h2>Pricing</h2>
+        <h2>Investment</h2>
         <dl>
           <div><dt>Subtotal</dt><dd>${escapeHtml(formatSnapshotMoney(view.pricing.subtotal, view.currency))}</dd></div>
           ${
@@ -282,7 +283,7 @@ function renderLineItem(
 
   return `
     <tr>
-      <td><strong>${escapeHtml(item.serviceName)}</strong></td>
+      <td><strong>${escapeHtml(serviceDisplayName(item.serviceName))}</strong></td>
       <td>${escapeHtml(detailParts.join("\n"))}</td>
       <td class="numeric">${item.quantity}</td>
       <td class="numeric">${escapeHtml(formatSnapshotMoney(item.unitPrice, currency))}</td>

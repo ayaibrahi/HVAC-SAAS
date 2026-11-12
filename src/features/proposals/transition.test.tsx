@@ -651,6 +651,42 @@ function addCatalogService() {
     },
   ];
 }
+it.each(["zero-line", "full-fixed-discount", "full-percentage-discount"])(
+  "blocks Ready %s with inline feedback before any save RPC",
+  async (kind) => {
+    await submit();
+    addCatalogService();
+    const before = structuredClone(rows.proposals[0]);
+    const form = manualForm();
+    form.set("status", "ready");
+    form.set("summary", "Reviewed page evidence");
+    form.set("scope", "Reviewed deliverables");
+    if (kind === "zero-line") form.set(`unitPrice:${opportunityId}`, "0.00");
+    else {
+      form.set(
+        "discountType",
+        kind === "full-fixed-discount" ? "fixed" : "percentage",
+      );
+      form.set("discountValue", kind === "full-fixed-discount" ? "500" : "100");
+    }
+    const result = await saveProposalFormAction(proposalId, form);
+    expect(result.error).toContain("greater than zero");
+    expect(saveRpc).not.toHaveBeenCalled();
+    expect(rows.proposals[0]).toEqual(before);
+    form.set("status", "draft");
+    expect(await saveProposalFormAction(proposalId, form)).toEqual({
+      saved: true,
+    });
+    expect(rows.proposals[0].status).toBe("draft");
+    expect(rows.proposals[0].total_amount).toBe(0);
+  },
+);
+it("normalizes only an automatically generated title, preserving the prospect name", async () => {
+  rows.prospects[0].business_name = "FOR Synthetic HVAC";
+  await submit();
+  expect(rows.proposals[0].title).toBe("Proposal for Synthetic HVAC");
+  expect(rows.prospects[0].business_name).toBe("FOR Synthetic HVAC");
+});
 it("reproduces unmatched blank-service save rejection before the RPC without deleting the already-created draft", async () => {
   await submit();
   addCatalogService();

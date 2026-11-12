@@ -1,3 +1,8 @@
+import {
+  pageReviewMethodology,
+  scopeTermsNote,
+  serviceDisplayName,
+} from "./presentation";
 import type { ProposalAiInput } from "./ai/types";
 import type { OpportunityEvidence } from "@/domain/opportunities/types";
 import { getSalesAiTextSafetyIssues } from "@/features/opportunities/ai/safety";
@@ -11,9 +16,9 @@ export type ProposalCopyOptions = Record<keyof ProposalAiDraftOutput, string[]>;
 
 const clientBenefits: Record<string, string> = {
   "contactConversion.ctaCount":
-    "A visitor looking for HVAC help may be ready to call or request service. Clear contact choices can make it easier to take that next step without searching for a way to reach you.",
+    "Homeowners seeking urgent heating, furnace or cooling help may be ready to call or request service. A clear next step can reduce unnecessary searching at that moment and help high-intent visitors reach your team.",
   "contactConversion.phoneDetected":
-    "A visitor looking for HVAC help may be ready to call or request service. Clear contact choices can make it easier to take that next step without searching for a way to reach you.",
+    "Homeowners seeking urgent heating, furnace or cooling help may be ready to call or request service. A clear next step can reduce unnecessary searching at that moment and help high-intent visitors reach your team.",
   "hvac.onlineBooking":
     "Clear appointment navigation may reduce the effort needed to request service.",
   "hvac.emergencyService":
@@ -25,7 +30,7 @@ const clientBenefits: Record<string, string> = {
   "hvac.serviceArea":
     "Clear coverage information may help visitors check whether their location is relevant before contacting you.",
   "hvac.hvacServicePages":
-    "Clear service navigation may help visitors find the information relevant to their heating or cooling needs.",
+    "A homeowner looking for furnace repair, heating, air conditioning or maintenance needs to find the relevant service information before deciding whom to contact. Clear links to services you actually offer can reduce navigation friction and help high-intent visitors reach the right information and next step.",
 };
 
 const clientGoals: Record<string, string> = {
@@ -143,7 +148,7 @@ export function buildProposalCopyOptions(
   const solutions = input.selectedItems
     .map(
       (item) =>
-        `${item.service.name} is relevant to ${serviceRelevance[item.evidence[0].signal] ?? "reviewing the page information described above"}. Specific changes are limited to the scope you agree with the agency.`,
+        `${serviceDisplayName(item.service.name)} is relevant to ${serviceRelevance[item.evidence[0].signal] ?? "reviewing the page information described above"}. Specific changes are limited to the scope you agree with the agency.`,
     )
     .join("\n");
   const goals = [
@@ -156,9 +161,11 @@ export function buildProposalCopyOptions(
     ),
   ].join("; ");
   const selectedServices = [
-    ...new Set(input.selectedItems.map((item) => item.service.name)),
+    ...new Set(
+      input.selectedItems.map((item) => serviceDisplayName(item.service.name)),
+    ),
   ].join(", ");
-  const narrative = `Page reviewed\n${input.audit.analyzedUrl}\nThe observations below concern this inspected page only, not what the business offers elsewhere.\n\nWhat we observed\n${observations}\n\nWhy this matters\n${relevance}\n\nRecommended approach\n${solutions}`;
+  const narrative = `Page reviewed\n${input.audit.analyzedUrl}\nThe observations below concern this inspected page only, not what the business offers elsewhere.\n\nWhat we observed\n${observations}\n\nWhy this matters to your customers\n${relevance}\n\nRecommended approach\n${solutions}\n\nReview methodology\n${pageReviewMethodology}`;
   let scope =
     "SCOPE DRAFT - AGENCY CONFIRMATION REQUIRED\n\n" +
     input.selectedItems
@@ -166,7 +173,7 @@ export function buildProposalCopyOptions(
         const catalog = item.service.description?.trim();
         const configured = item.service.approvedScope?.trim();
         return [
-          item.service.name,
+          serviceDisplayName(item.service.name),
           configured && configured !== catalog
             ? `Agency-entered work for review:\n${configured}`
             : "[Agency to specify included work, deliverables and completion checks.]\nSpecific deliverables need to be agreed before work begins.",
@@ -179,8 +186,8 @@ export function buildProposalCopyOptions(
 
   const options: ProposalCopyOptions = {
     summary: [
-      `For ${input.prospect.businessName}, we recommend ${selectedServices} to support ${goals}.\n\n${narrative}`,
-      `Prepared by ${input.agency.name} for ${input.prospect.businessName}, this recommendation focuses on ${goals}.\n\n${narrative}`,
+      `For ${input.prospect.businessName}, ${input.agency.name} recommends ${selectedServices} to support ${goals}. The goal is to help visitors move from finding relevant HVAC information to choosing a clear next step.\n\n${narrative}`,
+      `Prepared by ${input.agency.name} for ${input.prospect.businessName}, this recommendation focuses on ${goals}. It connects the page observations below to a practical project for customers deciding how to get HVAC help.\n\n${narrative}`,
     ],
     scope: [scope],
     nextStep: [
@@ -197,7 +204,7 @@ export function buildProposalCopyOptions(
     ]
       .map(
         (service) =>
-          `${service.name}: ${service.contractScope?.deliverables ?? ""}`,
+          `${serviceDisplayName(service.name)}: ${service.contractScope?.deliverables ?? ""}`,
       )
       .join("\n");
     scope =
@@ -214,19 +221,23 @@ export function buildProposalCopyOptions(
               422,
             );
           return [
-            item.service.name,
+            serviceDisplayName(item.service.name),
             `Included deliverables\n${approved.deliverables}`,
-            approved.exclusions && `Exclusions and qualifications\n${approved.exclusions}`,
-            approved.clientInputs && `Client inputs and access\n${approved.clientInputs}`,
-            approved.completionChecks && `Completion checks\n${approved.completionChecks}`,
-          ].filter(Boolean).join("\n");
+            approved.exclusions &&
+              `Exclusions and qualifications\n${approved.exclusions}`,
+            approved.clientInputs &&
+              `Client inputs and access\n${approved.clientInputs}`,
+            approved.completionChecks &&
+              `Completion checks\n${approved.completionChecks}`,
+          ]
+            .filter(Boolean)
+            .join("\n");
         })
-        .join("\n\n") +
-      "\n\nOnly the deliverables listed here are included. A service title does not add unlisted work. The investment table states the quoted quantities, unit prices, discount and total. Scheduling and any work outside this scope require separate agreement. No performance outcome is promised.";
+        .join("\n\n") + `\n\nScope & Terms Note\n${scopeTermsNote}`;
     const clientNarrative = `What we found on your page\n${observations}\n\nWhy this matters to your customers\n${relevance}\n\nPage reviewed\n${input.audit.analyzedUrl}\nThese observations concern this inspected page only, not what your business offers elsewhere.`;
     options.summary = [
-      `Dear ${input.prospect.businessName} team,\n\n${input.agency.name} recommends a focused project to support ${goals}. For visitors looking for HVAC help, the aim is a clearer next step, guided by the page observations below and limited to the work you agree.\n\nYour proposed project\n${approvedOffer}\n\nThe quotation for ${selectedServices} is limited to the deliverables in Scope and is subject to its exclusions. The service title does not imply additional features, software or a wider implementation.\n\n${clientNarrative}\n\nReview limits\nThis review inspected the returned HTML of the identified page. Other pages, interactive behavior and actual contact or booking functionality were not tested. Non-detection is not proof that a service or feature is unavailable.`,
-      `Prepared for ${input.prospect.businessName} by ${input.agency.name}\n\nWe propose a defined piece of work to support ${goals}, based on the observations below. The investment pays for the agreed work, not a promised number of leads or a financial return.\n\nYour proposed project\n${approvedOffer}\n\n${selectedServices} identifies the proposed service. Only the deliverables and exclusions in Scope define what is included; the name does not imply a larger package.\n\n${clientNarrative}\n\nReview limits\nOnly the returned HTML of the identified page was inspected. Other pages and interactive contact or booking functionality were not tested. Non-detection does not establish an unavailable business service.`,
+      `Dear ${input.prospect.businessName} team,\n\n${input.agency.name} recommends a focused project to support ${goals}. Help customers move from an HVAC question to the right information and a clear next step, with the specific work set out below.\n\nYour proposed project\n${approvedOffer}\n\n${clientNarrative}\n\nReview methodology\n${pageReviewMethodology}`,
+      `Prepared for ${input.prospect.businessName} by ${input.agency.name}\n\nMake the next step clearer for people deciding how to get HVAC help. This proposal connects the page observations below to ${goals}, through a defined project and a transparent investment in agreed work.\n\nYour proposed project\n${approvedOffer}\n\n${clientNarrative}\n\nReview methodology\n${pageReviewMethodology}`,
     ];
     options.scope = [scope];
     options.nextStep = [

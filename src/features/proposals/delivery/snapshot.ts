@@ -6,9 +6,13 @@ import type {
   ProposalOpportunity,
 } from "@/domain/proposals/types";
 import type { Prospect } from "@/domain/prospects/types";
-import { calculateLineTotalCents, centsToAmount } from "@/features/proposals/pricing";
+import {
+  calculateLineTotalCents,
+  centsToAmount,
+} from "@/features/proposals/pricing";
 import { AppError } from "@/lib/errors";
 import { deliverySnapshotLineItemsSchema } from "@/lib/validation/proposal-delivery-snapshots";
+import { proposalReadyProblem } from "../readiness";
 
 export type DeliverySnapshotSource = {
   agency: Pick<Agency, "id" | "name">;
@@ -46,14 +50,20 @@ export function buildDeliverySnapshotPayload(
   assertSnapshotSourceConsistency(source);
 
   if (source.proposal.status !== "ready") {
-    throw new AppError("Only ready proposals can create delivery snapshots.", 409);
+    throw new AppError(
+      "Only ready proposals can create delivery snapshots.",
+      409,
+    );
   }
 
   if (
     source.proposal.summary.trim().length === 0 ||
     source.proposal.scope.trim().length === 0
   ) {
-    throw new AppError("Summary and scope are required before snapshot creation.", 422);
+    throw new AppError(
+      "Summary and scope are required before snapshot creation.",
+      422,
+    );
   }
 
   const orderedLineItems = [...source.lineItems].sort(
@@ -76,6 +86,11 @@ export function buildDeliverySnapshotPayload(
   }
 
   assertPricingConsistency(source.proposal, source.lineItems);
+  const readinessProblem = proposalReadyProblem({
+    ...source.proposal,
+    lineItems: source.lineItems,
+  });
+  if (readinessProblem) throw new AppError(readinessProblem, 422);
 
   return {
     agencyId: source.agency.id,
@@ -109,7 +124,10 @@ function assertSnapshotSourceConsistency(source: DeliverySnapshotSource) {
   }
 
   if (source.lineItems.length === 0) {
-    throw new AppError("Select at least one line item before snapshot creation.", 422);
+    throw new AppError(
+      "Select at least one line item before snapshot creation.",
+      422,
+    );
   }
 
   if (source.proposalOpportunities.length !== source.lineItems.length) {
@@ -136,7 +154,10 @@ function assertSnapshotSourceConsistency(source: DeliverySnapshotSource) {
 
     lineItemOpportunityIds.add(lineItem.opportunityId);
 
-    if (new Date(lineItem.updatedAt).getTime() > new Date(source.proposal.updatedAt).getTime()) {
+    if (
+      new Date(lineItem.updatedAt).getTime() >
+      new Date(source.proposal.updatedAt).getTime()
+    ) {
       throw new AppError(
         "Proposal is still being saved. Try creating a snapshot again.",
         409,
@@ -150,12 +171,18 @@ function assertSnapshotSourceConsistency(source: DeliverySnapshotSource) {
       proposalOpportunity.proposalId !== source.proposal.id ||
       !lineItemOpportunityIds.has(proposalOpportunity.opportunityId)
     ) {
-      throw new AppError("Proposal selected opportunities are inconsistent.", 409);
+      throw new AppError(
+        "Proposal selected opportunities are inconsistent.",
+        409,
+      );
     }
   }
 }
 
-function assertPricingConsistency(proposal: Proposal, lineItems: ProposalLineItem[]) {
+function assertPricingConsistency(
+  proposal: Proposal,
+  lineItems: ProposalLineItem[],
+) {
   const lineSubtotalCents = lineItems
     .map((item) => {
       const unitPriceCents = amountToCents(item.unitPrice);

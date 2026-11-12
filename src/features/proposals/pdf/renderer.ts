@@ -1,3 +1,4 @@
+import { serviceDisplayName } from "../presentation";
 import type { CurrencyCode } from "@/config/currencies";
 import { formatSnapshotDate, formatSnapshotMoney } from "./format";
 import type { ProposalPdfView } from "./view-model";
@@ -140,7 +141,7 @@ class PdfLayout {
   section(title: string, body: string) {
     if (!body.trim()) return;
     const subheadings =
-      /^(Page reviewed|What we observed|What we found on your page|Why this matters|Why this matters to your customers|Your proposed project|Review limits|Included deliverables|Exclusions and qualifications|Client inputs and access|Completion checks|Recommended approach|Recommended solution|Scope to confirm together|Included work proposed for approval:)$/u;
+      /^(Page reviewed|What we observed|What we found on your page|Why this matters|Why this matters to your customers|Your proposed project|Review limits|Review methodology|Scope & Terms Note|Included deliverables|Exclusions and qualifications|Client inputs and access|Completion checks|Recommended approach|Recommended solution|Scope to confirm together|Included work proposed for approval:)$/u;
     const paragraphs = body
       .split(/\n+/u)
       .filter(
@@ -188,15 +189,14 @@ class PdfLayout {
 
   lineItems() {
     this.sectionTitle("Selected services");
-    this.text(
-      "Included work and exclusions are defined in Scope and deliverables. A service title does not add unlisted work.",
-      { size: 9, color: pdfMuted },
-    );
-    this.spacer(5);
     for (const item of this.view.lineItems) {
       const nameHeight =
-        wrapPdfText(item.serviceName, contentWidth - 150, 11, "bold").length *
-        15;
+        wrapPdfText(
+          serviceDisplayName(item.serviceName),
+          contentWidth - 150,
+          11,
+          "bold",
+        ).length * 15;
       this.ensureSpace(Math.min(200, nameHeight + 70));
       this.rule();
       const price = formatSnapshotMoney(item.lineTotal, this.view.currency);
@@ -208,7 +208,7 @@ class PdfLayout {
         { size: 10, font: "bold" },
       );
       this.text(
-        item.serviceName,
+        serviceDisplayName(item.serviceName),
         { size: 11, font: "bold" },
         contentWidth - 150,
       );

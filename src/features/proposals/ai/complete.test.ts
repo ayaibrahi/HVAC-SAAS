@@ -32,11 +32,9 @@ describe("complete proposal grounding and commercial integrity", () => {
     expect(options.scope[0]).toContain(
       data.services[0].approvedScope!.exclusions,
     );
-    expect(options.scope[0]).toContain(
-      "A service title does not add unlisted work",
-    );
+    expect(options.scope[0]).toContain("Scope & Terms Note");
     expect(options.scope[0]).not.toContain("agency-approved scope");
-    expect(options.summary[0]).toContain(
+    expect(options.summary[0]).not.toContain(
       "service title does not imply additional features",
     );
     expect(
@@ -115,7 +113,7 @@ describe("complete proposal grounding and commercial integrity", () => {
       data.services[0].approvedScope!.deliverables,
     );
     expect(draft.scope).toContain("Exclusions and qualifications");
-    expect(draft.scope).toContain("A service title does not add unlisted work");
+    expect(draft.scope).toContain("Scope & Terms Note");
     expect(draft.scope).not.toContain("agency-approved scope");
     expect(draft.nextStep).toContain("quoted investment");
     expect(draft.nextStep).not.toContain("saved investment");
@@ -143,21 +141,38 @@ describe("complete proposal grounding and commercial integrity", () => {
   it("requires approved deliverables, not a catalog description", () => {
     const data = makeCompleteProposalBuilder();
     data.services[0].approvedScope!.deliverables = "";
-    expect(() => createCompleteProposalInput(data)).toThrow("Approve included deliverables");
+    expect(() => createCompleteProposalInput(data)).toThrow(
+      "Approve included deliverables",
+    );
   });
   it("allows empty optional scope through complete generation and omits blank headings", async () => {
     const data = makeCompleteProposalBuilder();
-    Object.assign(data.services[0].approvedScope!, { exclusions: "", clientInputs: "", completionChecks: "" });
+    Object.assign(data.services[0].approvedScope!, {
+      exclusions: "",
+      clientInputs: "",
+      completionChecks: "",
+    });
     const input = createCompleteProposalInput(data);
     const draft = firstProposalCopy(buildProposalCopyOptions(input));
     const generate = vi.fn(async () => draft);
-    expect(await generateValidatedProposalAiDraft(input, { metadata, generateProposalDraft: generate })).toEqual(draft);
+    expect(
+      await generateValidatedProposalAiDraft(input, {
+        metadata,
+        generateProposalDraft: generate,
+      }),
+    ).toEqual(draft);
     expect(generate).toHaveBeenCalledOnce();
     expect(draft.scope).toContain(data.services[0].approvedScope!.deliverables);
-    expect(draft.scope).not.toMatch(/Exclusions and qualifications|Client inputs and access|Completion checks/);
+    expect(draft.scope).not.toMatch(
+      /Exclusions and qualifications|Client inputs and access|Completion checks/,
+    );
     const snapshot = makeLocalContentSnapshot(data, draft);
     expect(mapDeliverySnapshotToPublicView(snapshot).scope).toBe(draft.scope);
-    expect(renderProposalPdf(buildProposalPdfView(snapshot)).subarray(0, 5).toString()).toBe("%PDF-");
+    expect(
+      renderProposalPdf(buildProposalPdfView(snapshot))
+        .subarray(0, 5)
+        .toString(),
+    ).toBe("%PDF-");
     expect(snapshot.scope).toBe(draft.scope);
     expect(data.proposal.status).toBe("draft");
     expect(data.proposal.total).toBe(500);

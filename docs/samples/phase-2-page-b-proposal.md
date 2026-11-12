@@ -120,7 +120,7 @@ TEST ONLY - Page B contact-path proposal
 
 <!-- unspecified-summary -->
 ```text
-For TEST ONLY - Meadow Test Climate Care, we recommend Website Conversion Optimization to support a clearer path for customers to contact you.
+For TEST ONLY - Meadow Test Climate Care, Aya recommends Website Conversion Optimization to support a clearer path for customers to contact you. The goal is to help visitors move from finding relevant HVAC information to choosing a clear next step.
 
 Page reviewed
 https://ayaibrahi.github.io/scanvoro-audit-fixtures/absence.html
@@ -129,11 +129,14 @@ The observations below concern this inspected page only, not what the business o
 What we observed
 The page analysis did not detect a contact or request-service action, phone number, contact link or inquiry form on the analyzed page.
 
-Why this matters
-A visitor looking for HVAC help may be ready to call or request service. Clear contact choices can make it easier to take that next step without searching for a way to reach you.
+Why this matters to your customers
+Homeowners seeking urgent heating, furnace or cooling help may be ready to call or request service. A clear next step can reduce unnecessary searching at that moment and help high-intent visitors reach your team.
 
 Recommended approach
 Website Conversion Optimization is relevant to reviewing and clarifying the page's contact path. Specific changes are limited to the scope you agree with the agency.
+
+Review methodology
+This page-level review uses the returned HTML at the URL above to identify opportunities for clearer service information and customer contact paths. Other pages and interactive contact or booking functionality were not tested. Items not detected are points for review, not proof that a business service is unavailable.
 ```
 
 ### scope
@@ -193,7 +196,7 @@ TEST ONLY - Customer Contact Improvement Sprint
 
 <!-- illustrative-summary -->
 ```text
-For TEST ONLY - Meadow Test Climate Care, we recommend Website Conversion Optimization to support a clearer path for customers to contact you.
+For TEST ONLY - Meadow Test Climate Care, Aya recommends Website Conversion Optimization to support a clearer path for customers to contact you. The goal is to help visitors move from finding relevant HVAC information to choosing a clear next step.
 
 Page reviewed
 https://ayaibrahi.github.io/scanvoro-audit-fixtures/absence.html
@@ -202,11 +205,14 @@ The observations below concern this inspected page only, not what the business o
 What we observed
 The page analysis did not detect a contact or request-service action, phone number, contact link or inquiry form on the analyzed page.
 
-Why this matters
-A visitor looking for HVAC help may be ready to call or request service. Clear contact choices can make it easier to take that next step without searching for a way to reach you.
+Why this matters to your customers
+Homeowners seeking urgent heating, furnace or cooling help may be ready to call or request service. A clear next step can reduce unnecessary searching at that moment and help high-intent visitors reach your team.
 
 Recommended approach
 Website Conversion Optimization is relevant to reviewing and clarifying the page's contact path. Specific changes are limited to the scope you agree with the agency.
+
+Review methodology
+This page-level review uses the returned HTML at the URL above to identify opportunities for clearer service information and customer contact paths. Other pages and interactive contact or booking functionality were not tested. Items not detected are points for review, not proof that a business service is unavailable.
 ```
 
 ### scope

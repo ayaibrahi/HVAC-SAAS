@@ -191,7 +191,7 @@ describe("commercial refinement without invented scope", () => {
     });
     const draft = getProposalContentSuggestion(data)!;
     const prompt = JSON.parse(buildProposalDraftUserPrompt(input));
-    expect(PROPOSAL_DRAFT_PROMPT_VERSION).toBe("v4");
+    expect(PROPOSAL_DRAFT_PROMPT_VERSION).toBe("v5");
     expect(prompt.approvedCopyOptions.scope).toEqual([draft.scope]);
     expect(prompt.approvedCopyOptions.scope[0]).not.toContain("Sprint");
     const generate = vi.fn(async () => draft);
@@ -200,7 +200,7 @@ describe("commercial refinement without invented scope", () => {
         metadata: {
           provider: "test",
           model: "mock",
-          promptVersion: "v4",
+          promptVersion: "v5",
           schemaVersion: "1.0.0",
         },
         generateProposalDraft: generate,
@@ -227,7 +227,7 @@ describe("commercial refinement without invented scope", () => {
           metadata: {
             provider: "test",
             model: "mock",
-            promptVersion: "v4",
+            promptVersion: "v5",
             schemaVersion: "1.0.0",
           },
           generateProposalDraft: generate,

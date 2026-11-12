@@ -1,3 +1,4 @@
+import { serviceDisplayName } from "@/features/proposals/presentation";
 import Link from "next/link";
 import { buildFeedbackUrl } from "@/lib/action-feedback";
 import { PendingDownloadLink } from "@/components/pending-download-link";
@@ -595,7 +596,7 @@ function ProposalPreview({
                 className="rounded-md border border-border p-3"
               >
                 <p className="text-sm font-semibold text-ink">
-                  {item.serviceName}
+                  {serviceDisplayName(item.serviceName)}
                 </p>
                 <p className="mt-1 text-xs text-muted">{item.description}</p>
                 <p className="mt-2 text-sm font-semibold text-ink">
