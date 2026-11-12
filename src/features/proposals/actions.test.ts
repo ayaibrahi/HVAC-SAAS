@@ -1,5 +1,6 @@
 vi.mock("./editor-workflow", () => ({ runProposalEditorWorkflow: vi.fn() }));
 import { runProposalEditorWorkflow } from "./editor-workflow";
+import { ProposalWorkflowSavedError } from "./editor-workflow-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -50,6 +51,7 @@ const proposalPath = `${proposalsPath}/${proposalId}`;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(runProposalEditorWorkflow).mockReset();
   operations.createDraft.mockResolvedValue({ id: proposalId });
   operations.saveDraft.mockResolvedValue(undefined);
   operations.generateDraft.mockResolvedValue(undefined);
@@ -408,6 +410,66 @@ function updateForm() {
 }
 
 describe("current editor workflow submission", () => {
+  it.each(["generate", "prepare"])(
+    "revalidates a partial %s save and returns an error-preserving reload URL",
+    async (intent) => {
+      vi.mocked(runProposalEditorWorkflow).mockRejectedValueOnce(
+        new ProposalWorkflowSavedError(
+          "Your proposal was saved, but the next operation failed.",
+          409,
+        ),
+      );
+      const form = updateForm();
+      form.set("intent", intent);
+      const result = await saveProposalFormAction(proposalId, form);
+      expect(result.reloadHref).toBe(
+        buildFeedbackUrl(proposalPath, { error: result.error }),
+      );
+      expect(result.saved).toBeUndefined();
+      expect(revalidatePath).toHaveBeenCalledWith(proposalPath);
+      expect(revalidatePath).toHaveBeenCalledWith(proposalsPath);
+    },
+  );
+  it("does not silently replace the revision after a genuine pre-save conflict", async () => {
+    vi.mocked(runProposalEditorWorkflow).mockRejectedValueOnce(
+      new AppError("Catalog changed. No changes were saved.", 409),
+    );
+    const form = updateForm();
+    form.set("intent", "generate");
+    const result = await saveProposalFormAction(proposalId, form);
+    expect(result.reloadHref).toBeUndefined();
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+  it.each(["0", ""])(
+    "reports missing narrative and price together for %s",
+    async (price) => {
+      const form = updateForm();
+      form.set("intent", "prepare");
+      form.set("summary", "");
+      form.set("scope", "");
+      form.set(`unitPrice:${opportunityId}`, price);
+      const result = await saveProposalFormAction(proposalId, form);
+      expect(result.error).toContain("Summary, Scope");
+      expect(result.error).toContain("unit price greater than zero");
+      expect(runProposalEditorWorkflow).not.toHaveBeenCalled();
+      form.set("intent", "generate");
+      expect((await saveProposalFormAction(proposalId, form)).error).toContain(
+        "before generating",
+      );
+      expect(runProposalEditorWorkflow).not.toHaveBeenCalled();
+      form.set("intent", "save");
+      form.set("status", "draft");
+      expect(await saveProposalFormAction(proposalId, form)).toMatchObject({
+        saved: true,
+        warning: expect.stringContaining("unfinished pricing"),
+      });
+      expect(operations.saveDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          lineItems: [expect.objectContaining({ unitPrice: "0" })],
+        }),
+      );
+    },
+  );
   it.each(["generate", "prepare"])(
     "passes current form values to %s without a checkbox",
     async (intent) => {

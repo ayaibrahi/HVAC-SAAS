@@ -674,7 +674,7 @@ it.each(["zero-line", "full-fixed-discount", "full-percentage-discount"])(
     expect(saveRpc).not.toHaveBeenCalled();
     expect(rows.proposals[0]).toEqual(before);
     form.set("status", "draft");
-    expect(await saveProposalFormAction(proposalId, form)).toEqual({
+    expect(await saveProposalFormAction(proposalId, form)).toMatchObject({
       saved: true,
     });
     expect(rows.proposals[0].status).toBe("draft");

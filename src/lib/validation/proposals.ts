@@ -34,7 +34,11 @@ export const proposalLineItemInputSchema = z.object({
     .int("Quantity must be a whole number.")
     .min(1, "Quantity must be at least 1.")
     .max(100, "Quantity is too high."),
-  unitPrice: z.string().trim().min(1, "Enter a service price."),
+  // Blank prices are unfinished Draft work. Ready/generation check positivity.
+  unitPrice: z
+    .string()
+    .trim()
+    .transform((value) => value || "0"),
   description: optionalTrimmedText(1000),
 });
 

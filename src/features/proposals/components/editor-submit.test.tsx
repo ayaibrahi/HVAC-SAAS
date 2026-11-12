@@ -68,12 +68,12 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 function render(
-  action: (
-    form: FormData,
-  ) => Promise<{
+  action: (form: FormData) => Promise<{
     saved?: true;
     error?: string;
     outcome?: "generate" | "prepare";
+    reloadHref?: string;
+    warning?: string;
   }>,
 ) {
   hooks.stateIndex = 0;
@@ -114,16 +114,42 @@ function nodes(
   return [element, ...nodes(element.props.children)];
 }
 describe("one editor form interaction", () => {
+  it("reloads persisted state after AI failure and blocks stale clicks until remount", async () => {
+    const action = vi.fn(async () => ({
+      error: "Draft saved; AI unavailable.",
+      reloadHref: "/proposal?error=AI+unavailable",
+    }));
+    const submit = render(action).props.onSubmit!;
+    await submit(event());
+    expect(hooks.replace).toHaveBeenCalledWith(
+      "/proposal?error=AI+unavailable",
+    );
+    expect(hooks.refresh).toHaveBeenCalledOnce();
+    expect(hooks.setSaving).toHaveBeenLastCalledWith(true);
+    await submit(event("prepare"));
+    expect(action).toHaveBeenCalledOnce();
+    // The updatedAt-keyed editor remounts with the server's current revision.
+    hooks.states = [];
+    hooks.refs = [];
+    const saved = vi.fn(async () => ({ saved: true as const }));
+    await render(saved).props.onSubmit!(event("save"));
+    expect(saved).toHaveBeenCalledOnce();
+  });
+  it("retains unfinished Draft pricing feedback across the refresh", async () => {
+    await render(async () => ({
+      saved: true,
+      warning: "Draft saved with unfinished pricing.",
+    })).props.onSubmit!(event("save"));
+    expect(hooks.replace.mock.calls[0][0]).toContain("unfinished+pricing");
+  });
   it("submits the current fields and clicked intent once, even on rapid clicks", async () => {
     let finish!: (value: { saved: true; outcome: "generate" }) => void;
-    const action = vi.fn(
-      (form: FormData) => {
-        expect(form.get("intent")).toBe("generate");
-        return new Promise<{ saved: true; outcome: "generate" }>((resolve) => {
-          finish = resolve;
-        });
-      },
-    );
+    const action = vi.fn((form: FormData) => {
+      expect(form.get("intent")).toBe("generate");
+      return new Promise<{ saved: true; outcome: "generate" }>((resolve) => {
+        finish = resolve;
+      });
+    });
     const form = render(action);
     const submit = form.props.onSubmit!;
     const first = submit(event());

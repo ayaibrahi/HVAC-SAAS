@@ -28,6 +28,17 @@ describe("client-facing proposal labels", () => {
 });
 
 describe("positive Ready investment", () => {
+  it("reports content, selected-line pricing and total blockers together", () => {
+    const message = proposalReadyProblem({
+      summary: "",
+      scope: "",
+      lineItems: [{ unitPrice: "" }],
+      total: 0,
+    });
+    expect(message).toContain("Summary, Scope");
+    expect(message).toContain("unit price greater than zero");
+    expect(message).toContain("total investment must be greater than zero");
+  });
   const base = {
     summary: "Reviewed",
     scope: "Agreed work",

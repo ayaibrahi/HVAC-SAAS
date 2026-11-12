@@ -18,6 +18,7 @@ import type { ProposalCopy } from "@/lib/i18n/proposals";
 import { fillEmptyProposalCopy } from "../sales-content";
 import { getCompleteProposalCopy } from "@/lib/i18n/complete-proposal";
 import type { Locale } from "@/lib/ui/preferences";
+import { buildFeedbackUrl } from "@/lib/action-feedback";
 
 const EditingContext = createContext<{
   dirty: boolean;
@@ -70,11 +71,11 @@ export function ProposalEditForm({
   revision,
 }: {
   children: ReactNode;
-  action: (
-    form: FormData,
-  ) => Promise<{
+  action: (form: FormData) => Promise<{
     error?: string;
     saved?: true;
+    warning?: string;
+    reloadHref?: string;
     outcome?: "generate" | "prepare";
   }>;
   className: string;
@@ -108,9 +109,18 @@ export function ProposalEditForm({
         setPending(true);
         setSaving(true);
         setNotice({});
+        let refreshingSavedState = false;
         try {
           const result = await action(form);
           setNotice(result);
+          if (result.reloadHref) {
+            // A partial save changes the revision. Remount from the server's
+            // updatedAt key and retain feedback; lock submissions until then.
+            router.replace(result.reloadHref);
+            router.refresh();
+            refreshingSavedState = true;
+            return;
+          }
           if (result.saved) {
             const target =
               result.outcome === "prepare"
@@ -118,15 +128,24 @@ export function ProposalEditForm({
                 : result.outcome === "generate"
                   ? "#proposal-copy"
                   : "";
-            if (successHref) router.replace(successHref + target);
+            if (successHref)
+              router.replace(
+                (result.warning
+                  ? buildFeedbackUrl(successHref.split("?")[0], {
+                      success: `${copy.saved} ${result.warning}`,
+                    })
+                  : successHref) + target,
+              );
             router.refresh();
           }
         } catch {
           setNotice({ error: copy.saveUncertain });
         } finally {
-          busy.current = false;
-          setPending(false);
-          setSaving(false);
+          if (!refreshingSavedState) {
+            busy.current = false;
+            setPending(false);
+            setSaving(false);
+          }
         }
       }}
     >

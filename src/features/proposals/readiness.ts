@@ -1,3 +1,14 @@
+export function proposalPriceProblem(
+  lineItems: readonly { unitPrice: string | number }[],
+) {
+  return lineItems.some(
+    (line) =>
+      !Number.isFinite(Number(line.unitPrice)) || Number(line.unitPrice) <= 0,
+  )
+    ? "Enter a unit price greater than zero for every selected service."
+    : null;
+}
+
 export function proposalReadyProblem(input: {
   summary: string;
   scope: string;
@@ -9,19 +20,19 @@ export function proposalReadyProblem(input: {
     !input.scope.trim() && "Scope",
     input.lineItems.length === 0 && "at least one selected service",
   ].filter(Boolean);
+  const problems: string[] = [];
   if (missing.length)
-    return `To mark this proposal Ready, add: ${missing.join(", ")}. Your edits have not been discarded.`;
-  if (
-    input.lineItems.some(
-      (line) =>
-        !Number.isFinite(Number(line.unitPrice)) || Number(line.unitPrice) <= 0,
-    )
-  )
-    return "Enter a unit price greater than zero for every selected service before marking this proposal Ready or preparing a client version. You can still save your work as Draft.";
+    problems.push(`To mark this proposal Ready, add: ${missing.join(", ")}.`);
+  const priceProblem = proposalPriceProblem(input.lineItems);
+  if (priceProblem) problems.push(priceProblem);
   if (
     input.total !== undefined &&
     (!Number.isFinite(input.total) || input.total <= 0)
   )
-    return "The total investment must be greater than zero before marking this proposal Ready or preparing a client version. Review the prices and discount, or save as Draft.";
-  return null;
+    problems.push(
+      "The total investment must be greater than zero. Review the prices and discount.",
+    );
+  return problems.length
+    ? `${problems.join(" ")} Your edits have not been discarded. You can still save your work as Draft.`
+    : null;
 }

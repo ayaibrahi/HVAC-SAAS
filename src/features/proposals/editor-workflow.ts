@@ -5,6 +5,7 @@ import { getProposalBuilderData, updateProposalDraft } from "./data";
 import { getCompleteProposalRevision } from "./ai/complete-revision";
 import { generateCompleteProposalForProposal } from "./ai/data";
 import { createDeliverySnapshotForProposal } from "./delivery/data";
+import { ProposalWorkflowSavedError } from "./editor-workflow-error";
 
 // Both actions submit the actual editor fields; catalog approval still comes
 // exclusively from the authenticated tenant's persisted services.
@@ -82,7 +83,7 @@ export async function runProposalEditorWorkflow(
       );
     }
   } catch (error) {
-    throw new AppError(
+    throw new ProposalWorkflowSavedError(
       `Your proposal was saved${intent === "prepare" ? " as Ready" : " as Draft"}, but ${intent === "generate" ? "generation" : "client-version preparation"} did not complete. ${getPublicErrorMessage(error, "The operation could not be confirmed.")} Reload this proposal to check its saved state before trying again.`,
       409,
     );

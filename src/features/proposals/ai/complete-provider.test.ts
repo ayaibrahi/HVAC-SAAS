@@ -11,6 +11,25 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe("complete proposal bounded Groq transport (no live calls)", () => {
+  it.each([undefined, "", "openai"])(
+    "explains missing Groq selection (%s) without fallback or requests",
+    (selection) => {
+      vi.stubEnv("AI_PROVIDER", selection);
+      vi.stubEnv("GROQ_API_KEY", "synthetic-secret-must-not-appear");
+      const fetch = vi.fn();
+      vi.stubGlobal("fetch", fetch);
+      let message = "";
+      try {
+        createProposalAiProvider(true);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain("AI_PROVIDER=groq");
+      expect(message).toContain("GROQ_API_KEY and GROQ_MODEL");
+      expect(message).not.toContain("synthetic-secret");
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
   it("uses strict structured output, real provider selection and bounded complete copy with no OpenAI request", async () => {
     vi.stubEnv("AI_PROVIDER", "groq");
     vi.stubEnv("GROQ_MODEL", "openai/gpt-oss-20b");

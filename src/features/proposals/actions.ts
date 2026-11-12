@@ -15,8 +15,9 @@ import {
   getValidationErrorMessage,
 } from "@/lib/action-feedback";
 import { AppError, getPublicErrorMessage } from "@/lib/errors";
-import { proposalReadyProblem } from "./readiness";
+import { proposalReadyProblem, proposalPriceProblem } from "./readiness";
 import { runProposalEditorWorkflow } from "./editor-workflow";
+import { ProposalWorkflowSavedError } from "./editor-workflow-error";
 import {
   createProposalInputSchema,
   updateProposalInputSchema,
@@ -72,7 +73,11 @@ export async function updateProposalAction(
   if (state.error) {
     redirect(buildFeedbackUrl(path, { error: state.error }));
   }
-  redirect(buildFeedbackUrl(path, { success: "Proposal saved." }));
+  redirect(
+    buildFeedbackUrl(path, {
+      success: ["Proposal saved.", state.warning].filter(Boolean).join(" "),
+    }),
+  );
 }
 
 // The interactive editor keeps its fields mounted when validation or persistence fails.
@@ -80,7 +85,13 @@ export async function updateProposalAction(
 export async function saveProposalFormAction(
   proposalId: string,
   formData: FormData,
-): Promise<{ error?: string; saved?: true; outcome?: "generate" | "prepare" }> {
+): Promise<{
+  error?: string;
+  saved?: true;
+  warning?: string;
+  reloadHref?: string;
+  outcome?: "generate" | "prepare";
+}> {
   const path = `${proposalsPath}/${proposalId}`;
   const intent = formData.get("intent") ?? "save";
   if (!["save", "generate", "prepare"].includes(String(intent))) {
@@ -125,6 +136,12 @@ export async function saveProposalFormAction(
     const error = proposalReadyProblem(result.data);
     if (error) return { error };
   }
+  const priceProblem = proposalPriceProblem(result.data.lineItems);
+  if (intent === "generate" && priceProblem) {
+    return {
+      error: `${priceProblem} Set the prices before generating a complete proposal, or save as Draft to finish pricing later.`,
+    };
+  }
 
   try {
     if (intent === "generate" || intent === "prepare") {
@@ -140,12 +157,26 @@ export async function saveProposalFormAction(
     revalidatePath(path);
     revalidatePath(proposalsPath);
   } catch (error) {
+    if (error instanceof ProposalWorkflowSavedError) {
+      revalidatePath(path);
+      revalidatePath(proposalsPath);
+      return {
+        error: error.message,
+        reloadHref: buildFeedbackUrl(path, { error: error.message }),
+      };
+    }
     return {
       error: getPublicErrorMessage(error, "We could not save that proposal."),
     };
   }
   return {
     saved: true,
+    ...(priceProblem
+      ? {
+          warning:
+            "Draft saved with unfinished pricing. Enter positive service prices before generating or preparing a client version.",
+        }
+      : {}),
     ...(intent === "generate" || intent === "prepare"
       ? { outcome: intent }
       : {}),

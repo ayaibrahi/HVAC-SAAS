@@ -21,7 +21,7 @@ import {
 export function createProposalAiProvider(complete = false): ProposalAiProvider {
   if (complete && process.env.AI_PROVIDER !== "groq") {
     throw new AppError(
-      "Complete proposal generation requires the server Groq provider. Manual editing remains available.",
+      "Complete proposal generation requires the server Groq provider. Configure AI_PROVIDER=groq, GROQ_API_KEY and GROQ_MODEL in the server environment, then restart locally or redeploy the affected Vercel environment. Manual editing remains available.",
       422,
     );
   }

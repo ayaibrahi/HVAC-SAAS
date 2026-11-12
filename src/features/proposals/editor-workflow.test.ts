@@ -17,6 +17,7 @@ import { requireCurrentAgency } from "@/features/agencies/data";
 import { enforceAgencyUsageLimit } from "@/features/usage/limits";
 import type { UpdateProposalInput } from "@/lib/validation/proposals";
 import { AppError } from "@/lib/errors";
+import { ProposalWorkflowSavedError } from "./editor-workflow-error";
 
 vi.mock("server-only", () => ({}));
 vi.mock("./data", () => ({
@@ -116,6 +117,29 @@ beforeEach(() => {
 });
 
 describe("one-click editor orchestration with real scope/AI validation and fixture persistence", () => {
+  it("can save Ready after a provider failure using the refreshed saved revision", async () => {
+    const oldRevision = getCompleteProposalRevision(data);
+    vi.mocked(createProposalAiProvider).mockImplementationOnce(() => {
+      throw new AppError(
+        "Complete proposal generation requires the server Groq provider.",
+        422,
+      );
+    });
+    await expect(
+      runProposalEditorWorkflow(input(), oldRevision, "generate"),
+    ).rejects.toBeInstanceOf(ProposalWorkflowSavedError);
+    const refreshedRevision = getCompleteProposalRevision(
+      await getProposalBuilderData(data.proposal.id),
+    );
+    expect(refreshedRevision).not.toBe(oldRevision);
+    await runProposalEditorWorkflow(
+      input("ready"),
+      refreshedRevision,
+      "prepare",
+    );
+    expect(calls).toEqual(["save", "save", "snapshot"]);
+    expect(generate).not.toHaveBeenCalled();
+  });
   it("saves current manual price and approved line scope before one validated AI request", async () => {
     await runProposalEditorWorkflow(
       input(),

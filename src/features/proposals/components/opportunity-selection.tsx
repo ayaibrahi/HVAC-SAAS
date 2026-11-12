@@ -151,14 +151,16 @@ export function OpportunitySelection({
                     "clientInputs",
                     "completionChecks",
                   ] as const
-                ).filter((field) => approvedScope[field].trim()).map((field) => (
-                  <div key={field}>
-                    <dt className="font-medium">{scopeCopy[field]}</dt>
-                    <dd dir="auto" className="whitespace-pre-wrap text-muted">
-                      {approvedScope[field]}
-                    </dd>
-                  </div>
-                ))}
+                )
+                  .filter((field) => approvedScope[field].trim())
+                  .map((field) => (
+                    <div key={field}>
+                      <dt className="font-medium">{scopeCopy[field]}</dt>
+                      <dd dir="auto" className="whitespace-pre-wrap text-muted">
+                        {approvedScope[field]}
+                      </dd>
+                    </div>
+                  ))}
               </dl>
             </details>
           ) : (
@@ -184,7 +186,6 @@ export function OpportunitySelection({
           <input
             name={`unitPrice:${opportunity.id}`}
             inputMode="decimal"
-            required={checked}
             defaultValue={unitPrice.toFixed(2)}
             className="mt-1 w-full rounded-md border border-border px-3 py-2 text-sm"
           />

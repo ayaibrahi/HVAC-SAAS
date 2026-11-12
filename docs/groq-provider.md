@@ -21,6 +21,18 @@ Never prefix provider keys with `NEXT_PUBLIC_`. Existing Supabase configuration
 remains required and unchanged. Existing deployments must explicitly configure
 `AI_PROVIDER` when deploying this change; unset selection disables generation.
 
+Complete Proposal generation specifically requires `AI_PROVIDER=groq` as well
+as a nonempty `GROQ_API_KEY` and a valid `GROQ_MODEL`. A key alone does not select
+the provider; an explicit OpenAI selection is never silently overridden. For
+local development place server variables in the untracked `.env.local` and
+restart Next.js. For Vercel configure the intended Preview or Production scope
+and redeploy that environment. Do not copy local secrets into source control.
+
+If generation fails after the editor saves a Draft, the editor reloads the
+saved fields and current revision while retaining the failure feedback. Drafts
+may have blank/zero prices (blank becomes zero with a pricing notice); complete
+generation and Ready/client-version preparation require positive line prices.
+
 ## Transport and validation
 
 Groq uses only `https://api.groq.com/openai/v1/chat/completions`, with
